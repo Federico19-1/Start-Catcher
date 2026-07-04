@@ -49,17 +49,22 @@
 
         // --- STATI DEL GIOCO ---
         const GAME_STATES = {
-            MENU: 'menu',       // Menu iniziale
-            PLAYING: 'playing'  // Gioco in corso
+            MENU: 'menu', // Menu iniziale
+            ACCOUNT: 'account', // Schermata account
+            PLAYING: 'playing', // Gioco in corso
+            PAUSED: 'paused' // Gioco in pausa
         };
 
-        let gameState = GAME_STATES.MENU;  // Iniziamo dal MENU!
+        let gameState = GAME_STATES.MENU;
+        let currentUser = null; // Nome dell'account attivo
+        let accountInput = ''; // Testo digitato per nuovo account
+        let isPaused = false;
 
         // --- GIOCATORE ---
         const player = {
             x: 400,
             y: 550,
-            radius: 100,
+            radius: 80,
             targetX: 400
         };
 
@@ -71,43 +76,203 @@
         let leftPressed = false;
         let rightPressed = false;
         let isNewRecord = false;
+        let newRecordPosition = -1; // Posizione nella classifica (0=primo)
         const MOVE_SPEED = 5;
 
         // --- PER IL MENU (click detection) ---
         let menuButtons = [];
 
         // ============================================================
-        //  3. GESTIONE RECORD (localStorage)
+        //  2b. SISTEMA AUDIO (Web Audio API)
         // ============================================================
 
-        function saveHighScore(score) {
-            const currentHigh = getHighScore();
-            if (score > currentHigh) {
-                localStorage.setItem('starCatcherHighScore', score.toString());
-                return true;
+        // Crea il contesto audio (si attiva al primo click)
+        let audioCtx = null;
+
+        // Funzione per inizializzare l'audio (chiamata al primo click)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            return false;
         }
 
-        function getHighScore() {
-            const saved = localStorage.getItem('starCatcherHighScore');
-            return saved ? parseInt(saved) : 0;
+        // --- Suono: RACCOLTA STELLA ---
+        function playCollectSound() {
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // La nota LA5
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch (e) { /* Silenzioso se fallisce */ }
         }
 
-        function saveScoreHistory(score) {
-            let history = localStorage.getItem('starCatcherHistory');
-            let scores = history ? JSON.parse(history) : [];
-            scores.push(score);
-            scores.sort((a, b) => b - a);
-            if (scores.length > 5) {
-                scores = scores.slice(0, 5);
+        // --- Suono: PERDITA VITA ---
+        function playLoseLifeSound() {
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.3);
+
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) { /* Silenzioso se fallisce */ }
+        }
+
+        // --- Suono: GAME OVER ---
+        function playGameOverSound() {
+            try {
+                initAudio();
+                // Suono discendente cupo
+                const notes = [440, 400, 350, 300, 250];
+                for (let i = 0; i < notes.length; i++) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.12);
+
+                    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.12);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.12 + 0.12);
+
+                    oscillator.start(audioCtx.currentTime + i * 0.12);
+                    oscillator.stop(audioCtx.currentTime + i * 0.12 + 0.12);
+                }
+            } catch (e) { /* Silenzioso se fallisce */ }
+        }
+
+        // --- Suono: NUOVO RECORD (fanfara) ---
+        function playRecordSound() {
+            try {
+                initAudio();
+                const notes = [523, 659, 784, 1047]; // Do, Mi, Sol, Do
+                for (let i = 0; i < notes.length; i++) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.15);
+
+                    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.15);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.15 + 0.2);
+
+                    oscillator.start(audioCtx.currentTime + i * 0.15);
+                    oscillator.stop(audioCtx.currentTime + i * 0.15 + 0.2);
+                }
+            } catch (e) { /* Silenzioso se fallisce */ }
+        }
+
+        // --- Suono: CLICK PULSANTE ---
+        function playClickSound() {
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
+
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.08);
+            } catch (e) { /* Silenzioso se fallisce */ }
+        }
+
+        // ============================================================
+        //  3. GESTIONE RECORD PER ACCOUNT (localStorage)
+        // ============================================================
+
+        // --- Ottiene tutti i record di tutti gli account ---
+        function getAllRecords() {
+            const data = localStorage.getItem('starCatcherAllRecords');
+            return data ? JSON.parse(data) : {};
+        }
+
+        // --- Salva tutti i record ---
+        function saveAllRecords(records) {
+            localStorage.setItem('starCatcherAllRecords', JSON.stringify(records));
+        }
+
+        // --- Ottiene i record di un account specifico (array di 10 punteggi) ---
+        function getUserRecords(username) {
+            const all = getAllRecords();
+            if (!all[username]) {
+                // Inizializza con 10 zeri
+                all[username] = Array(10).fill(0);
+                saveAllRecords(all);
             }
-            localStorage.setItem('starCatcherHistory', JSON.stringify(scores));
+            return all[username];
         }
 
-        function getScoreHistory() {
-            const history = localStorage.getItem('starCatcherHistory');
-            return history ? JSON.parse(history) : [];
+        // --- Salva i record di un account specifico ---
+        function setUserRecords(username, records) {
+            const all = getAllRecords();
+            all[username] = records;
+            saveAllRecords(all);
+        }
+
+        // --- Aggiunge un punteggio alla classifica dell'account ---
+        function addScoreToUser(username, newScore) {
+            let records = getUserRecords(username);
+            records.push(newScore);
+            records.sort((a, b) => b - a);
+            records = records.slice(0, 10);
+            setUserRecords(username, records);
+            // Trova la posizione del nuovo punteggio
+            const position = records.indexOf(newScore);
+            return position; // 0 = primo, 1 = secondo, ecc.
+        }
+
+        // --- Ottiene il record massimo di un account ---
+        function getMaxScore(username) {
+            if (!username) return 0;
+            const records = getUserRecords(username);
+            return records.length > 0 ? records[0] : 0;
+        }
+
+        // --- Salva l'ultimo account usato ---
+        function saveLastUser(username) {
+            if (username) {
+                localStorage.setItem('starCatcherLastUser', username);
+            } else {
+                localStorage.removeItem('starCatcherLastUser');
+            }
+        }
+
+        // --- Carica l'ultimo account usato ---
+        function loadLastUser() {
+            return localStorage.getItem('starCatcherLastUser') || null;
         }
 
         // ============================================================
@@ -132,6 +297,7 @@
             lives = 3;
             gameOver = false;
             isNewRecord = false;
+            newRecordPosition = -1;
             player.x = 400;
             player.y = 550;
             player.targetX = 400;
@@ -141,14 +307,37 @@
 
         // --- 4c. Avvia il gioco dal menu ---
         function startGame() {
+            if (!currentUser) {
+                // Se non c'è account, vai alla schermata account
+                gameState = GAME_STATES.ACCOUNT;
+                accountInput = '';
+                return;
+            }
             resetGame();
             gameState = GAME_STATES.PLAYING;
         }
 
+        // --- 4e. Gestione pausa ---
+        function togglePause() {
+            if (gameState === GAME_STATES.PLAYING && !gameOver) {
+                gameState = GAME_STATES.PAUSED;
+                isPaused = true;
+                playClickSound(); // Suono di pausa
+            } else if (gameState === GAME_STATES.PAUSED) {
+                gameState = GAME_STATES.PLAYING;
+                isPaused = false;
+                playClickSound(); // Suono di ripresa 
+            }
+        }
+
         // --- 4d. Aggiorna la logica del gioco ---
         function update() {
-            // Se siamo nel menu o in game over, non aggiorniamo
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
+
+            // Se siamo in pausa, NON aggiornare la logica
+            if (gameState === GAME_STATES.PAUSED) return;
+            if (gameState !== GAME_STATES.PLAYING || gameOver) return;
+
 
             // Movimento astronave (mouse)
             player.x += (player.targetX - player.x) * 0.3;
@@ -189,10 +378,13 @@
                     stars.splice(i, 1);
                     if (lives <= 0) {
                         gameOver = true;
-                        const newRecord = saveHighScore(score);
-                        saveScoreHistory(score);
-                        if (newRecord) {
-                            isNewRecord = true;
+                        // SALVA IL PUNTEGGIO NEI RECORD DELL'ACCOUNT
+                        if (currentUser) {
+                            const pos = addScoreToUser(currentUser, score);
+                            if (pos !== -1) {
+                                isNewRecord = true;
+                                newRecordPosition = pos;
+                            }
                         }
                     }
                     continue;
@@ -267,6 +459,7 @@
         }
 
         // --- 5b. Menu iniziale ---
+        // --- 5b. Menu iniziale ---
         function drawMenu() {
             drawBackground();
 
@@ -277,45 +470,177 @@
             // Titolo principale
             ctx.font = 'bold 72px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText('🚀 STAR', canvas.width / 2, 200);
+            ctx.fillText('🚀 STAR', canvas.width / 2, 170);
             ctx.fillStyle = '#ffd700';
-            ctx.fillText('CATCHER', canvas.width / 2, 290);
+            ctx.fillText('CATCHER', canvas.width / 2, 260);
 
             // Sottotitolo
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
-            ctx.font = '20px Orbitron, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
-            ctx.fillText('Raccogli le stelle, batti il record!', canvas.width / 2, 340);
+            ctx.fillText('Raccogli le stelle, batti il record!', canvas.width / 2, 310);
+
+            // Account attivo
+            ctx.font = '16px Orbitron, sans-serif';
+            ctx.fillStyle = '#66dd88';
+            ctx.shadowBlur = 10;
+            ctx.fillText(
+                currentUser ? `👤 ${currentUser}` : '👤 Nessun account',
+                canvas.width / 2,
+                350
+            );
+
+            // --- Pulsanti ---
+            const btnY = 390;
+            const btnW = 180;
+            const btnH = 50;
+            const gap = 25;
 
             // Pulsante PLAY
-            const btnX = canvas.width / 2 - 120;
-            const btnY = 400;
-            const btnW = 240;
-            const btnH = 60;
-
+            const playX = canvas.width / 2 - btnW - gap / 2;
+            const playCenterX = playX + btnW / 2;   // Centro del pulsante PLAY
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#4af';
             ctx.fillStyle = '#2a6aff';
             ctx.beginPath();
-            ctx.roundRect(btnX, btnY, btnW, btnH, 15);
+            ctx.roundRect(playX, btnY, btnW, btnH, 12);
             ctx.fill();
 
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 32px Orbitron, sans-serif';
-            ctx.fillText('▶ PLAY', canvas.width / 2, btnY + 42);
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.fillText('▶ PLAY', playCenterX, btnY + 34);  // Centrato sul pulsante
 
-            // Salva il rettangolo per il click detection
+            // Pulsante ACCOUNT
+            const accX = canvas.width / 2 + gap / 2;
+            const accCenterX = accX + btnW / 2;    // Centro del pulsante ACCOUNT
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#88aaff';
+            ctx.fillStyle = '#3a3a6a';
+            ctx.beginPath();
+            ctx.roundRect(accX, btnY, btnW, btnH, 12);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#88aaff';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34); // Centrato sul pulsante
+
+            // --- Pulsante RECORDS (sotto) ---
+            const recY = btnY + btnH + 20;
+            const recW = 200;
+            const recH = 40;
+            const recX = canvas.width / 2 - recW / 2;
+            const recCenterX = canvas.width / 2;    // Centro del pulsante RECORDS
+            const recRect = { x: recX, y: recY, w: recW, h: recH };
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillStyle = '#2a2a4a';
+            ctx.beginPath();
+            ctx.roundRect(recX, recY, recW, recH, 10);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '20px Orbitron, sans-serif';
+            ctx.fillText('🏆 RECORDS', recCenterX, recY + 28); // Già centrato
+
+            // Salva per il click detection
             menuButtons = [
-                { rect: { x: btnX, y: btnY, w: btnW, h: btnH }, action: 'play' }
+                { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
+                { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
+                { rect: recRect, action: 'records' }
+            ];
+
+            // Ripristina textAlign
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        // --- 5c. Schermata ACCOUNT ---
+        function drawAccountScreen() {
+            drawBackground();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#4af';
+
+            // Titolo
+            ctx.font = 'bold 44px Orbitron, sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.fillText('👤 ACCOUNT', canvas.width / 2, 150);
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillStyle = '#aaa';
+            ctx.fillText('Inserisci il tuo nome (max 12 caratteri)', canvas.width / 2, 210);
+
+            // Campo di input
+            const inputX = canvas.width / 2 - 150;
+            const inputY = 250;
+            const inputW = 300;
+            const inputH = 50;
+
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#1a1a3a';
+            ctx.beginPath();
+            ctx.roundRect(inputX, inputY, inputW, inputH, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#4a8cff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(inputX, inputY, inputW, inputH, 10);
+            ctx.stroke();
+
+            // Testo digitato
+            ctx.textAlign = 'left';
+            ctx.font = '24px Orbitron, sans-serif';
+            const displayName = accountInput || 'scrivi qui...';
+            ctx.fillStyle = accountInput ? 'white' : '#666';
+            ctx.fillText(displayName, inputX + 15, inputY + 34);
+            ctx.textAlign = 'center';
+
+            // Pulsante CONFERMA
+            const confirmY = inputY + inputH + 30;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a6aff';
+            ctx.beginPath();
+            ctx.roundRect(canvas.width / 2 - 80, confirmY, 160, 45, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillText('✅ CONFERMA', canvas.width / 2, confirmY + 32);
+
+            // Pulsante ANNULLA
+            const cancelY = confirmY + 55;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#888';
+            ctx.fillStyle = '#3a3a5a';
+            ctx.beginPath();
+            ctx.roundRect(canvas.width / 2 - 60, cancelY, 120, 35, 8);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#aaa';
+            ctx.font = '16px Orbitron, sans-serif';
+            ctx.fillText('✖ ANNULLA', canvas.width / 2, cancelY + 25);
+
+            // Salva per click
+            menuButtons = [
+                { rect: { x: canvas.width / 2 - 80, y: confirmY, w: 160, h: 45 }, action: 'confirm' },
+                { rect: { x: canvas.width / 2 - 60, y: cancelY, w: 120, h: 35 }, action: 'cancel' }
             ];
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
 
-        // --- 5c. Stelle cadenti ---
+        // --- 5d. Stelle cadenti ---
         function drawFallingStars() {
             for (const star of stars) {
                 ctx.save();
@@ -345,7 +670,7 @@
             }
         }
 
-        // --- 5d. Astronave ---
+        // --- 5e. Astronave ---
         function drawShip() {
             ctx.save();
             ctx.translate(player.x, player.y);
@@ -413,13 +738,21 @@
             ctx.restore();
         }
 
-        // --- 5e. UI di gioco ---
+        // --- 5f. UI di gioco ---
         function drawGameUI() {
-            const highScore = getHighScore();
+            const highScore = currentUser ? getMaxScore(currentUser) : 0;
 
-            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 10;
+
+            // Account name (in alto a destra)
+            if (currentUser) {
+                ctx.fillStyle = '#66dd88';
+                ctx.textAlign = 'right';
+                ctx.fillText(`👤 ${currentUser}`, canvas.width - 20, 30);
+                ctx.textAlign = 'left';
+            }
 
             ctx.fillStyle = 'white';
             ctx.fillText(`⭐ Punteggio: ${score}`, 20, 40);
@@ -427,122 +760,377 @@
             ctx.fillStyle = '#ffd700';
             ctx.fillText(`🏆 Record: ${highScore}`, 20, 80);
 
-            if (score === highScore && score > 0 && !gameOver) {
+            if (score === highScore && score > 0 && !gameOver && currentUser) {
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 30;
                 ctx.fillStyle = '#ffd700';
-                ctx.font = 'bold 28px Orbitron, sans-serif';
-                ctx.fillText('✦ NUOVO RECORD! ✦', canvas.width / 2 - 120, 130);
+                ctx.font = 'bold 26px Orbitron, sans-serif';
+                ctx.fillText('✦ NUOVO RECORD! ✦', canvas.width / 2 - 110, 130);
                 ctx.shadowBlur = 0;
             }
 
             ctx.fillStyle = 'white';
-            ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, 40);
+            ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, 80);
         }
 
-        // --- 5f. Schermata GAME OVER ---
+        // --- 5h. Schermata PAUSA ---
+        function drawPauseScreen() {
+            // Sfondo semi-trasparente
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#4af';
+            ctx.shadowBlur = 40;
+
+            // Testo PAUSA
+            ctx.font = 'bold 70px Orbitron, sans-serif';
+            ctx.fillStyle = '#4a8cff';
+            ctx.fillText('⏸ PAUSA', canvas.width / 2, canvas.height / 2 - 40);
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = '24px Orbitron, sans-serif';
+            ctx.fillStyle = '#88aaff';
+            ctx.fillText('Premi "P" per riprendere', canvas.width / 2, canvas.height / 2 + 40);
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+
+        // --- 5g. Schermata GAME OVER ---
         function drawGameOver() {
-            const highScore = getHighScore();
+            const highScore = currentUser ? getMaxScore(currentUser) : 0;
+
+            // --- Sfondo scuro per coprire il gioco ---
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 30;
             ctx.textAlign = 'center';
 
+            // GAME OVER
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#ff4444';
-            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 100);
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 120);
 
+            // Punteggio finale
             ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
             ctx.shadowBlur = 10;
-            ctx.fillText(`Punteggio: ${score}`, canvas.width / 2, canvas.height / 2 - 30);
+            ctx.fillText(`Punteggio: ${score}`, canvas.width / 2, canvas.height / 2 - 50);
 
-            if (isNewRecord && score > 0) {
+            // --- MESSAGGIO NUOVO RECORD ---
+            if (isNewRecord && currentUser && score > 0) {
+                let label = '';
+                const pos = newRecordPosition;
+                if (pos === 0) {
+                    label = '🏆 NEW BEST RECORD! 🏆';
+                } else if (pos === 1) {
+                    label = '🥈 NEW RECORD! (2° posto)';
+                } else if (pos === 2) {
+                    label = '🥉 NEW RECORD! (3° posto)';
+                } else {
+                    label = `🎯 NEW RECORD! (${pos + 1}° posto)`;
+                }
+
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 50;
-                ctx.font = 'bold 48px Orbitron, sans-serif';
+                ctx.font = 'bold 38px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd700';
-                ctx.fillText('🎉 NUOVO RECORD! 🎉', canvas.width / 2, canvas.height / 2 + 50);
+                ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 30);
 
-                for (let i = 0; i < 12; i++) {
-                    const angle = (i / 12) * Math.PI * 2 + Date.now() / 1000;
-                    const radius = 70 + Math.sin(Date.now() / 500 + i) * 20;
-                    const x = canvas.width / 2 + Math.cos(angle) * radius;
-                    const y = canvas.height / 2 + 50 + Math.sin(angle) * radius * 0.5;
-                    ctx.font = '24px Arial';
-                    ctx.fillStyle = ['⭐', '✨', '🌟', '💫', '🎊', '🎉'][i % 6];
-                    ctx.fillText('✨', x, y);
-                }
+                // Trofeo
+                ctx.font = '60px Arial';
+                ctx.shadowBlur = 80;
+                const medal = pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯';
+                ctx.fillText(medal, canvas.width / 2, canvas.height / 2 + 110);
+
             } else {
                 ctx.font = '22px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
                 ctx.shadowBlur = 10;
-                ctx.fillText(`Record attuale: ${highScore}`, canvas.width / 2, canvas.height / 2 + 50);
+                ctx.fillText(`Record attuale: ${highScore}`, canvas.width / 2, canvas.height / 2 + 30);
             }
 
-            const history = getScoreHistory();
-            if (history.length > 0) {
-                ctx.font = '18px Orbitron, sans-serif';
-                ctx.fillStyle = '#ffd700';
-                ctx.shadowBlur = 10;
-                ctx.fillText('🏆 TOP 5:', canvas.width / 2, canvas.height / 2 + 110);
+            // Classifica TOP 5 dell'account
+            if (currentUser) {
+                const records = getUserRecords(currentUser);
+                const validRecords = records.filter(r => r > 0);
+                if (validRecords.length > 0) {
+                    ctx.font = '18px Orbitron, sans-serif';
+                    ctx.fillStyle = '#ffd700';
+                    ctx.shadowBlur = 10;
+                    ctx.fillText('🏆 TOP 5:', canvas.width / 2, canvas.height / 2 + 170);
 
-                for (let i = 0; i < history.length; i++) {
-                    ctx.fillStyle = i === 0 ? '#ffd700' : '#ccc';
-                    ctx.font = i === 0 ? 'bold 20px Orbitron, sans-serif' : '16px Orbitron, sans-serif';
-                    ctx.fillText(
-                        `${i + 1}. ${history[i]} punti`,
-                        canvas.width / 2,
-                        canvas.height / 2 + 150 + i * 28
-                    );
+                    for (let i = 0; i < Math.min(5, validRecords.length); i++) {
+                        const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                        ctx.fillStyle = i === 0 ? '#ffd700' : '#ccc';
+                        ctx.font = i === 0 ? 'bold 20px Orbitron, sans-serif' : '16px Orbitron, sans-serif';
+                        ctx.fillText(
+                            `${medalEmoji} ${validRecords[i]} punti`,
+                            canvas.width / 2,
+                            canvas.height / 2 + 210 + i * 30
+                        );
+                    }
                 }
             }
 
-            ctx.font = 'bold 22px Orbitron, sans-serif';
+            // --- PULSANTI MENU E RIGIOCA ---
+            const btnY = canvas.height / 2 + 330;
+            const btnW = 150;
+            const btnH = 50;
+            const gap = 30;
+
+            // Pulsante RIGIOCA (sinistra)
+            const playAgainX = canvas.width / 2 - btnW - gap / 2;
+            const playAgainCenterX = playAgainX + btnW / 2;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a6aff';
+            ctx.beginPath();
+            ctx.roundRect(playAgainX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
-            ctx.shadowBlur = 10;
-            ctx.fillText('Premi "R" per ricominciare', canvas.width / 2, canvas.height / 2 + 280);
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillText('🔄 RIGIOCA', playAgainCenterX, btnY + 34);
+
+            // Pulsante MENU (destra)
+            const menuX = canvas.width / 2 + gap / 2;
+            const menuCenterX = menuX + btnW / 2;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillStyle = '#3a3a6a';
+            ctx.beginPath();
+            ctx.roundRect(menuX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
+
+            // Salva per il click detection
+            menuButtons = [
+                { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
+                { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'menu' }
+            ];
+
+            // Messaggio per il tasto R (opzionale, più piccolo)
+            ctx.font = '16px Orbitron, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.shadowBlur = 5;
+            ctx.fillText('Premi "R" per rigiocare', canvas.width / 2, btnY + btnH + 40);
+
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
 
-        // --- 5g. Funzione draw principale ---
-        function draw() {
-            if (gameState === GAME_STATES.MENU) {
-                drawMenu();
-                return;
+
+
+
+        // --- 5h. Schermata RECORDS (classifica completa a 10 posizioni) ---
+        function drawRecordsScreen() {
+            drawBackground();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd700';
+            ctx.font = 'bold 40px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('🏆 CLASSIFICA', canvas.width / 2, 80);
+
+            if (!currentUser) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '22px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('Crea un account per salvare i tuoi record!', canvas.width / 2, 150);
+            } else {
+                const records = getUserRecords(currentUser);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '18px Orbitron, sans-serif';
+                ctx.fillStyle = '#66dd88';
+                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 140);
+
+                // Mostra i 10 record
+                const startY = 190;
+                for (let i = 0; i < 10; i++) {
+                    const scoreVal = records[i] || 0;
+                    let medal = '';
+                    let color = '#aaa';
+                    if (i === 0) {
+                        medal = '🥇';
+                        color = '#ffd700';
+                    } else if (i === 1) {
+                        medal = '🥈';
+                        color = '#c0c0c0';
+                    } else if (i === 2) {
+                        medal = '🥉';
+                        color = '#cd7f32';
+                    } else { medal = `${i + 1}.`; }
+
+                    ctx.fillStyle = color;
+                    ctx.font = i < 3 ? 'bold 22px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
+                    ctx.fillText(
+                        `${medal}  ${scoreVal} punti`,
+                        canvas.width / 2,
+                        startY + i * 35
+                    );
+                }
             }
 
-            // Stato PLAYING
-            drawBackground();
-            drawFallingStars();
-            drawShip();
-            drawGameUI();
-            if (gameOver) {
-                drawGameOver();
+            // Pulsante TORNA AL MENU
+            const backY = 560;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a4a7a';
+            ctx.beginPath();
+            ctx.roundRect(canvas.width / 2 - 80, backY, 160, 35, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillText('← TORNA', canvas.width / 2, backY + 25);
+
+            // Salva per click
+            menuButtons = [
+                { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
+            ];
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        // --- 5i. Funzione draw principale ---
+        function draw() {
+            switch (gameState) {
+                case GAME_STATES.MENU:
+                    drawMenu();
+                    break;
+                case GAME_STATES.ACCOUNT:
+                    drawAccountScreen();
+                    break;
+                case GAME_STATES.PLAYING:
+                    drawBackground();
+                    drawFallingStars();
+                    drawShip();
+                    drawGameUI();
+                    if (gameOver) drawGameOver();
+                    break;
+                case GAME_STATES.PAUSED:  // <--- NUOVO CASO
+                    drawBackground();
+                    drawFallingStars();
+                    drawShip();
+                    drawGameUI();
+                    drawPauseScreen();    // <--- SOPRASTAMPA LA PAUSA
+                    break;
             }
         }
 
         // ============================================================
-        //  6. INPUT: MOUSE E TASTIERA
+        //  6. GESTIONE AZIONI MENU
         // ============================================================
 
-        // --- Click sul canvas (per menu) ---
+        function handleMenuAction(action) {
+            switch (action) {
+                case 'play':
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                    } else {
+                        startGame();
+                    }
+                    break;
+                case 'account':
+                    gameState = GAME_STATES.ACCOUNT;
+                    accountInput = currentUser || '';
+                    break;
+                case 'records':
+                    if (!currentUser) {
+                        alert('Crea un account per vedere i tuoi record!');
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                    } else {
+                        // Mostra la schermata records
+                        // Per ora usiamo un alert semplice, ma possiamo espandere
+                        const records = getUserRecords(currentUser);
+                        const valid = records.filter(r => r > 0);
+                        let msg = `📊 Record di ${currentUser}:\n\n`;
+                        if (valid.length === 0) {
+                            msg += 'Nessun record salvato. Gioca per crearne!';
+                        } else {
+                            for (let i = 0; i < Math.min(10, valid.length); i++) {
+                                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                                msg += `${medal} ${valid[i]} punti\n`;
+                            }
+                        }
+                        alert(msg);
+                    }
+                    break;
+                case 'confirm':
+                    if (accountInput.trim().length > 0) {
+                        const newUser = accountInput.trim();
+                        // Verifica che non sia vuoto e max 12 caratteri
+                        if (newUser.length > 12) {
+                            alert('Il nome deve essere massimo 12 caratteri!');
+                            return;
+                        }
+                        currentUser = newUser;
+                        // Assicura che l'utente abbia una entry nei record
+                        getUserRecords(currentUser);
+                        saveLastUser(currentUser);
+                        resetGame();
+                        gameState = GAME_STATES.MENU;
+                        accountInput = '';
+                    } else {
+                        alert('Inserisci un nome!');
+                    }
+                    break;
+                case 'cancel':
+                    gameState = GAME_STATES.MENU;
+                    accountInput = '';
+                    break;
+                case 'back':
+                    gameState = GAME_STATES.MENU;
+                    break;
+                // --- NUOVI CASI PER GAME OVER ---
+                case 'playAgain':
+                    // Ricomincia subito la partita (restando in PLAYING)
+                    resetGame();
+                    gameState = GAME_STATES.PLAYING;
+                    break;
+
+                case 'menu':
+                    // Torna al menu principale
+                    resetGame();
+                    gameState = GAME_STATES.MENU;
+                    break;
+
+                default:
+                    break;
+            }
+            menuButtons = [];
+        }
+
+        // ============================================================
+        //  7. INPUT: MOUSE E TASTIERA
+        // ============================================================
+
+        // --- Click sul canvas ---
         canvas.addEventListener('click', (event) => {
             const rect = canvas.getBoundingClientRect();
             const mx = event.clientX - rect.left;
             const my = event.clientY - rect.top;
 
-            // Se siamo nel menu, controlla se clicca su PLAY
-            if (gameState === GAME_STATES.MENU) {
-                for (const btn of menuButtons) {
-                    const r = btn.rect;
-                    if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-                        if (btn.action === 'play') {
-                            startGame();
-                        }
-                        break;
-                    }
+            for (const btn of menuButtons) {
+                const r = btn.rect;
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                    handleMenuAction(btn.action);
+                    break;
                 }
             }
         });
@@ -555,7 +1143,7 @@
             }
         });
 
-        // --- Tastiera ---
+        // --- Tastiera (frecce e R) ---
         window.addEventListener('keydown', (event) => {
             if (gameState === GAME_STATES.PLAYING) {
                 if (event.key === 'ArrowLeft') {
@@ -569,7 +1157,19 @@
                 if (event.key === 'r' || event.key === 'R') {
                     if (gameOver) {
                         resetGame();
-                        // Resta in PLAYING ma ricomincia
+                    }
+                }
+            }
+
+            // Input per il campo account (lettere, numeri, underscore, max 12)
+            if (gameState === GAME_STATES.ACCOUNT) {
+                if (event.key === 'Backspace') {
+                    accountInput = accountInput.slice(0, -1);
+                    event.preventDefault();
+                } else if (event.key.length === 1 && accountInput.length < 12) {
+                    if (/^[a-zA-Z0-9_]$/.test(event.key)) {
+                        accountInput += event.key;
+                        event.preventDefault();
                     }
                 }
             }
@@ -586,17 +1186,8 @@
             }
         });
 
-        // --- Tasto R sempre attivo (anche dal menu) ---
-        window.addEventListener('keydown', (event) => {
-            if (event.key === 'r' || event.key === 'R') {
-                if (gameState === GAME_STATES.PLAYING && gameOver) {
-                    resetGame();
-                }
-            }
-        });
-
         // ============================================================
-        //  7. POLYFILL per roundRect (se non supportato)
+        //  8. POLYFILL per roundRect
         // ============================================================
 
         if (!CanvasRenderingContext2D.prototype.roundRect) {
@@ -617,7 +1208,7 @@
         }
 
         // ============================================================
-        //  8. GAME LOOP
+        //  9. GAME LOOP
         // ============================================================
 
         function gameLoop() {
@@ -627,8 +1218,15 @@
         }
 
         // ============================================================
-        //  9. AVVIA IL GIOCO!
+        //  10. AVVIA IL GIOCO!
         // ============================================================
+
+        // Carica l'ultimo account usato
+        const savedUser = loadLastUser();
+        if (savedUser) {
+            currentUser = savedUser;
+            getUserRecords(currentUser); // Inizializza se non esiste
+        }
 
         resetGame();
         gameLoop();
