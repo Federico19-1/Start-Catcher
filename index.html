@@ -29,20 +29,22 @@
             box-shadow: 0 0 40px rgba(74, 74, 138, 0.5);
             cursor: pointer;
         }
+
+        /* Pulsanti touch - visibili solo su mobile */
+        @media (max-width: 768px) {
+            #touchControls {
+                display: flex !important;
+            }
+            canvas {
+                cursor: default !important;
+            }
+        }
     </style>
-    /* Pulsanti touch - visibili solo su mobile */
-    @media (max-width: 768px) {
-    #touchControls {
-    display: flex !important;
-    }
-    canvas {
-    cursor: default !important;
-    }
-    }
 </head>
 
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+
     <!-- Input per account mobile -->
     <div id="mobileAccountInput"
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
@@ -69,7 +71,6 @@
             style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">▶</button>
     </div>
 
-
     <script>
         /*============================================================
            1. SETUP CANVAS E CONTESTO
@@ -84,17 +85,16 @@
 
         // --- STATI DEL GIOCO ---
         const GAME_STATES = {
-            MENU: 'menu', // Menu iniziale
-            ACCOUNT: 'account', // Schermata account
-            PLAYING: 'playing', // Gioco in corso
-            PAUSED: 'paused' // Gioco in pausa
+            MENU: 'menu',
+            ACCOUNT: 'account',
+            PLAYING: 'playing',
+            PAUSED: 'paused'
         };
 
         let gameState = GAME_STATES.MENU;
-        let currentUser = null; // Nome dell'account attivo
-        let accountInput = ''; // Testo digitato per nuovo account
+        let currentUser = null;
+        let accountInput = '';
         let isPaused = false;
-        // --- PER I PULSANTI TOUCH ---
         let touchLeft = false;
         let touchRight = false;
         let mobileInputVisible = false;
@@ -103,7 +103,7 @@
         const player = {
             x: 400,
             y: 550,
-            radius: 80,
+            radius: 25,  // <--- CORRETTO
             targetX: 400
         };
 
@@ -115,7 +115,7 @@
         let leftPressed = false;
         let rightPressed = false;
         let isNewRecord = false;
-        let newRecordPosition = -1; // Posizione nella classifica (0=primo)
+        let newRecordPosition = -1;
         const MOVE_SPEED = 5;
 
         // --- PER IL MENU (click detection) ---
@@ -125,124 +125,96 @@
         //  2b. SISTEMA AUDIO (Web Audio API)
         // ============================================================
 
-        // Crea il contesto audio (si attiva al primo click)
         let audioCtx = null;
 
-        // Funzione per inizializzare l'audio (chiamata al primo click)
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
         }
 
-        // --- Suono: RACCOLTA STELLA ---
         function playCollectSound() {
             try {
                 initAudio();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // La nota LA5
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
                 oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
-
                 gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-
                 oscillator.start(audioCtx.currentTime);
                 oscillator.stop(audioCtx.currentTime + 0.15);
             } catch (e) { /* Silenzioso se fallisce */ }
         }
 
-        // --- Suono: PERDITA VITA ---
         function playLoseLifeSound() {
             try {
                 initAudio();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-
                 oscillator.type = 'sawtooth';
                 oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
                 oscillator.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.3);
-
                 gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-
                 oscillator.start(audioCtx.currentTime);
                 oscillator.stop(audioCtx.currentTime + 0.3);
             } catch (e) { /* Silenzioso se fallisce */ }
         }
 
-        // --- Suono: GAME OVER ---
         function playGameOverSound() {
             try {
                 initAudio();
-                // Suono discendente cupo
                 const notes = [440, 400, 350, 300, 250];
                 for (let i = 0; i < notes.length; i++) {
                     const oscillator = audioCtx.createOscillator();
                     const gainNode = audioCtx.createGain();
-
                     oscillator.connect(gainNode);
                     gainNode.connect(audioCtx.destination);
-
                     oscillator.type = 'sawtooth';
                     oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.12);
-
                     gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.12);
                     gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.12 + 0.12);
-
                     oscillator.start(audioCtx.currentTime + i * 0.12);
                     oscillator.stop(audioCtx.currentTime + i * 0.12 + 0.12);
                 }
             } catch (e) { /* Silenzioso se fallisce */ }
         }
 
-        // --- Suono: NUOVO RECORD (fanfara) ---
         function playRecordSound() {
             try {
                 initAudio();
-                const notes = [523, 659, 784, 1047]; // Do, Mi, Sol, Do
+                const notes = [523, 659, 784, 1047];
                 for (let i = 0; i < notes.length; i++) {
                     const oscillator = audioCtx.createOscillator();
                     const gainNode = audioCtx.createGain();
-
                     oscillator.connect(gainNode);
                     gainNode.connect(audioCtx.destination);
-
                     oscillator.type = 'square';
                     oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.15);
-
                     gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.15);
                     gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.15 + 0.2);
-
                     oscillator.start(audioCtx.currentTime + i * 0.15);
                     oscillator.stop(audioCtx.currentTime + i * 0.15 + 0.2);
                 }
             } catch (e) { /* Silenzioso se fallisce */ }
         }
 
-        // --- Suono: CLICK PULSANTE ---
         function playClickSound() {
             try {
                 initAudio();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-
                 oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
                 oscillator.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
-
                 gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
-
                 oscillator.start(audioCtx.currentTime);
                 oscillator.stop(audioCtx.currentTime + 0.08);
             } catch (e) { /* Silenzioso se fallisce */ }
@@ -252,55 +224,46 @@
         //  3. GESTIONE RECORD PER ACCOUNT (localStorage)
         // ============================================================
 
-        // --- Ottiene tutti i record di tutti gli account ---
         function getAllRecords() {
             const data = localStorage.getItem('starCatcherAllRecords');
             return data ? JSON.parse(data) : {};
         }
 
-        // --- Salva tutti i record ---
         function saveAllRecords(records) {
             localStorage.setItem('starCatcherAllRecords', JSON.stringify(records));
         }
 
-        // --- Ottiene i record di un account specifico (array di 10 punteggi) ---
         function getUserRecords(username) {
             const all = getAllRecords();
             if (!all[username]) {
-                // Inizializza con 10 zeri
                 all[username] = Array(10).fill(0);
                 saveAllRecords(all);
             }
             return all[username];
         }
 
-        // --- Salva i record di un account specifico ---
         function setUserRecords(username, records) {
             const all = getAllRecords();
             all[username] = records;
             saveAllRecords(all);
         }
 
-        // --- Aggiunge un punteggio alla classifica dell'account ---
         function addScoreToUser(username, newScore) {
             let records = getUserRecords(username);
             records.push(newScore);
             records.sort((a, b) => b - a);
             records = records.slice(0, 10);
             setUserRecords(username, records);
-            // Trova la posizione del nuovo punteggio
             const position = records.indexOf(newScore);
-            return position; // 0 = primo, 1 = secondo, ecc.
+            return position;
         }
 
-        // --- Ottiene il record massimo di un account ---
         function getMaxScore(username) {
             if (!username) return 0;
             const records = getUserRecords(username);
             return records.length > 0 ? records[0] : 0;
         }
 
-        // --- Salva l'ultimo account usato ---
         function saveLastUser(username) {
             if (username) {
                 localStorage.setItem('starCatcherLastUser', username);
@@ -309,16 +272,32 @@
             }
         }
 
-        // --- Carica l'ultimo account usato ---
         function loadLastUser() {
             return localStorage.getItem('starCatcherLastUser') || null;
+        }
+
+        // --- Mostra/nasconde il campo input per mobile ---
+        function showMobileInput(show) {
+            const wrapper = document.getElementById('mobileAccountInput');
+            if (!wrapper) return;
+            if (show) {
+                wrapper.style.display = 'block';
+                const input = document.getElementById('accountMobileInput');
+                if (input) {
+                    input.value = accountInput || '';
+                    setTimeout(() => input.focus(), 100);
+                }
+                mobileInputVisible = true;
+            } else {
+                wrapper.style.display = 'none';
+                mobileInputVisible = false;
+            }
         }
 
         // ============================================================
         //  4. FUNZIONI DI GIOCO
         // ============================================================
 
-        // --- 4a. Crea una stella ---
         function createStar() {
             return {
                 x: Math.random() * canvas.width,
@@ -329,7 +308,6 @@
             };
         }
 
-        // --- 4b. Resetta il gioco ---
         function resetGame() {
             stars = [];
             score = 0;
@@ -345,11 +323,9 @@
             updateTouchVisibility();
         }
 
-        // --- 4c. Avvia il gioco dal menu ---
         function startGame() {
             if (!currentUser) {
                 showMobileInput(false);
-                // Se non c'è account, vai alla schermata account
                 gameState = GAME_STATES.ACCOUNT;
                 accountInput = '';
                 return;
@@ -360,32 +336,25 @@
             updateTouchVisibility();
         }
 
-        // --- 4e. Gestione pausa ---
         function togglePause() {
             if (gameState === GAME_STATES.PLAYING && !gameOver) {
                 gameState = GAME_STATES.PAUSED;
                 isPaused = true;
-                playClickSound(); // Suono di pausa
+                playClickSound();
                 updateTouchVisibility();
             } else if (gameState === GAME_STATES.PAUSED) {
                 gameState = GAME_STATES.PLAYING;
                 isPaused = false;
-                playClickSound(); // Suono di ripresa 
+                playClickSound();
                 updateTouchVisibility();
             }
         }
 
-        // --- 4d. Aggiorna la logica del gioco ---
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
-            // --- MOVIMENTO ASTRONAVE (NUOVO SISTEMA) ---
 
-            // 1. Mouse: aggiorna targetX (sempre)
+            // Movimento astronave
             player.x += (player.targetX - player.x) * 0.3;
-
-            // 2. Tasti freccia / pulsanti touch: si sommano al movimento
-            //    ma NON sovrascrivono completamente il targetX
-            const MOVE_SPEED = 5;
 
             if (leftPressed || touchLeft) {
                 player.x -= MOVE_SPEED;
@@ -394,7 +363,6 @@
                 player.x += MOVE_SPEED;
             }
 
-            // 3. Limiti astronave
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
 
@@ -408,7 +376,6 @@
                 const star = stars[i];
                 star.y += star.speed;
 
-                // Collisione con astronave
                 const dx = player.x - star.x;
                 const dy = player.y - star.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
@@ -421,7 +388,6 @@
                     continue;
                 }
 
-                // Stella uscita in basso
                 if (star.y > canvas.height + star.radius) {
                     lives--;
                     playLoseLifeSound();
@@ -429,7 +395,6 @@
                     if (lives <= 0) {
                         gameOver = true;
                         playGameOverSound();
-                        // SALVA IL PUNTEGGIO NEI RECORD DELL'ACCOUNT
                         if (currentUser) {
                             const pos = addScoreToUser(currentUser, score);
                             if (pos !== -1) {
@@ -443,7 +408,6 @@
                 }
             }
 
-            // Limite stelle
             if (stars.length > 100) {
                 stars.splice(0, stars.length - 100);
             }
@@ -453,12 +417,10 @@
         //  5. FUNZIONI DI DISEGNO
         // ============================================================
 
-        // --- 5a. Sfondo spaziale ---
         function drawBackground() {
             ctx.fillStyle = '#0a0a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Stelle fisse
             ctx.shadowBlur = 0;
             for (let i = 0; i < 100; i++) {
                 const x = (i * 137 + 50) % canvas.width;
@@ -471,7 +433,6 @@
                 ctx.fill();
             }
 
-            // Pianeta 1
             const g1 = ctx.createRadialGradient(120, 100, 10, 120, 100, 60);
             g1.addColorStop(0, '#ff8c42');
             g1.addColorStop(0.7, '#b84a1c');
@@ -489,7 +450,6 @@
             ctx.ellipse(120, 100, 90, 25, -0.2, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Pianeta 2
             const g2 = ctx.createRadialGradient(700, 500, 15, 700, 500, 45);
             g2.addColorStop(0, '#4fc3ff');
             g2.addColorStop(0.5, '#1a7ab5');
@@ -510,7 +470,6 @@
             ctx.fill();
         }
 
-        // --- 5b. Menu iniziale ---
         function drawMenu() {
             drawBackground();
 
@@ -518,21 +477,18 @@
             ctx.shadowColor = '#4af';
             ctx.shadowBlur = 50;
 
-            // Titolo principale
             ctx.font = 'bold 72px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.fillText('🚀 STAR', canvas.width / 2, 170);
             ctx.fillStyle = '#ffd700';
             ctx.fillText('CATCHER', canvas.width / 2, 260);
 
-            // Sottotitolo
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
             ctx.fillText('Raccogli le stelle, batti il record!', canvas.width / 2, 310);
 
-            // Account attivo
             ctx.font = '16px Orbitron, sans-serif';
             ctx.fillStyle = '#66dd88';
             ctx.shadowBlur = 10;
@@ -542,48 +498,42 @@
                 350
             );
 
-            // --- Pulsanti ---
             const btnY = 390;
             const btnW = 180;
             const btnH = 50;
             const gap = 25;
 
-            // Pulsante PLAY
             const playX = canvas.width / 2 - btnW - gap / 2;
-            const playCenterX = playX + btnW / 2;   // Centro del pulsante PLAY
+            const playCenterX = playX + btnW / 2;
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#4af';
             ctx.fillStyle = '#2a6aff';
             ctx.beginPath();
             ctx.roundRect(playX, btnY, btnW, btnH, 12);
             ctx.fill();
-
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
             ctx.font = 'bold 24px Orbitron, sans-serif';
-            ctx.fillText('▶ PLAY', playCenterX, btnY + 34);  // Centrato sul pulsante
+            ctx.fillText('▶ PLAY', playCenterX, btnY + 34);
 
-            // Pulsante ACCOUNT
             const accX = canvas.width / 2 + gap / 2;
-            const accCenterX = accX + btnW / 2;    // Centro del pulsante ACCOUNT
+            const accCenterX = accX + btnW / 2;
             ctx.shadowBlur = 20;
             ctx.shadowColor = '#88aaff';
             ctx.fillStyle = '#3a3a6a';
             ctx.beginPath();
             ctx.roundRect(accX, btnY, btnW, btnH, 12);
             ctx.fill();
-
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#88aaff';
             ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34); // Centrato sul pulsante
+            ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34);
 
-            // --- Pulsante RECORDS (sotto) ---
             const recY = btnY + btnH + 20;
             const recW = 200;
             const recH = 40;
             const recX = canvas.width / 2 - recW / 2;
-            const recCenterX = canvas.width / 2;    // Centro del pulsante RECORDS
+            const recCenterX = canvas.width / 2;
             const recRect = { x: recX, y: recY, w: recW, h: recH };
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#ffd700';
@@ -591,25 +541,21 @@
             ctx.beginPath();
             ctx.roundRect(recX, recY, recW, recH, 10);
             ctx.fill();
-
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#ffd700';
             ctx.font = '20px Orbitron, sans-serif';
-            ctx.fillText('🏆 RECORDS', recCenterX, recY + 28); // Già centrato
+            ctx.fillText('🏆 RECORDS', recCenterX, recY + 28);
 
-            // Salva per il click detection
             menuButtons = [
                 { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
                 { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
                 { rect: recRect, action: 'records' }
             ];
 
-            // Ripristina textAlign
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
 
-        // --- 5c. Schermata ACCOUNT ---
         function drawAccountScreen() {
             drawBackground();
 
@@ -617,7 +563,6 @@
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#4af';
 
-            // Titolo
             ctx.font = 'bold 44px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
             ctx.fillText('👤 ACCOUNT', canvas.width / 2, 150);
@@ -628,14 +573,12 @@
             ctx.fillStyle = '#aaa';
             ctx.fillText('Inserisci il tuo nome (max 12 caratteri)', canvas.width / 2, 210);
 
-            // Mostra il wrapper HTML (invece del campo su canvas)
             showMobileInput(true);
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
 
-        // --- 5d. Stelle cadenti ---
         function drawFallingStars() {
             for (const star of stars) {
                 ctx.save();
@@ -665,7 +608,6 @@
             }
         }
 
-        // --- 5e. Astronave ---
         function drawShip() {
             ctx.save();
             ctx.translate(player.x, player.y);
@@ -733,7 +675,6 @@
             ctx.restore();
         }
 
-        // --- 5f. UI di gioco ---
         function drawGameUI() {
             const highScore = currentUser ? getMaxScore(currentUser) : 0;
 
@@ -741,7 +682,6 @@
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 10;
 
-            // Account name (in alto a destra)
             if (currentUser) {
                 ctx.fillStyle = '#66dd88';
                 ctx.textAlign = 'right';
@@ -768,9 +708,7 @@
             ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, 80);
         }
 
-        // --- 5h. Schermata PAUSA ---
         function drawPauseScreen() {
-            // Sfondo semi-trasparente
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -778,7 +716,6 @@
             ctx.shadowColor = '#4af';
             ctx.shadowBlur = 40;
 
-            // Testo PAUSA
             ctx.font = 'bold 70px Orbitron, sans-serif';
             ctx.fillStyle = '#4a8cff';
             ctx.fillText('⏸ PAUSA', canvas.width / 2, canvas.height / 2 - 40);
@@ -793,35 +730,26 @@
             ctx.shadowBlur = 0;
         }
 
-
-        // --- 5g. Schermata GAME OVER (NUOVO LAYOUT) ---
         function drawGameOver() {
             const highScore = currentUser ? getMaxScore(currentUser) : 0;
 
-            // --- Sfondo scuro per coprire il gioco ---
             ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // ============================================
-            // A. TITOLO E PUNTEGGIO (CENTRO ALTO)
-            // ============================================
             ctx.textAlign = 'center';
 
-            // GAME OVER (rosso)
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 40;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#ff4444';
             ctx.fillText('GAME OVER', canvas.width / 2, 100);
 
-            // Punteggio (bianco)
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
             ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
             ctx.fillText(`Score: ${score}`, canvas.width / 2, 150);
 
-            // Messaggio record (oro)
             if (isNewRecord && currentUser && score > 0) {
                 let label = '';
                 const pos = newRecordPosition;
@@ -841,7 +769,6 @@
                 ctx.fillStyle = '#ffd700';
                 ctx.fillText(label, canvas.width / 2, 200);
 
-                // Trofeo
                 ctx.font = '50px Arial';
                 ctx.shadowBlur = 60;
                 const medal = pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯';
@@ -854,13 +781,10 @@
                 ctx.fillText(`Best Record: ${highScore}`, canvas.width / 2, 200);
             }
 
-            // ============================================
-            // B. CLASSIFICA TOP 5 (A SINISTRA - riquadro rosso)
-            // ============================================
+            // CLASSIFICA TOP 5 (SINISTRA)
             const leftColX = 60;
             const top5Y = 290;
 
-            // Sfondo del riquadro (rosso trasparente)
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'rgba(200, 50, 50, 0.15)';
             ctx.beginPath();
@@ -872,7 +796,6 @@
             ctx.roundRect(leftColX - 20, top5Y - 30, 280, 220, 12);
             ctx.stroke();
 
-            // Titolo "TOP 5"
             ctx.textAlign = 'left';
             ctx.shadowColor = '#ffd700';
             ctx.shadowBlur = 20;
@@ -880,7 +803,6 @@
             ctx.fillStyle = '#ffd700';
             ctx.fillText('🏆 TOP 5', leftColX, top5Y);
 
-            // Lista dei record
             if (currentUser) {
                 const records = getUserRecords(currentUser);
                 const validRecords = records.filter(r => r > 0);
@@ -909,13 +831,10 @@
                 ctx.fillText('Create an account', leftColX, top5Y + 40);
             }
 
-            // ============================================
-            // C. ASTRONAVE (A DESTRA - cerchio verde)
-            // ============================================
+            // ASTRONAVE (DESTRA)
             const shipX = canvas.width - 150;
             const shipY = 320;
 
-            // Cerchio verde di sfondo
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#44ff88';
             ctx.beginPath();
@@ -926,16 +845,11 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Disegna l'astronave (usando la funzione esistente)
-            // Salviamo e ripristiniamo il contesto per non interferire
             ctx.save();
             ctx.translate(shipX, shipY);
-
-            // Versione più grande e in evidenza della navicella
             ctx.shadowColor = '#4af';
             ctx.shadowBlur = 30;
 
-            // Corpo
             ctx.beginPath();
             ctx.ellipse(0, -8, 30, 20, 0, 0, Math.PI * 2);
             ctx.fillStyle = '#4a8cff';
@@ -944,7 +858,6 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Cabina
             ctx.beginPath();
             ctx.ellipse(0, -20, 16, 12, 0, 0, Math.PI * 2);
             ctx.fillStyle = '#8cf';
@@ -953,7 +866,6 @@
             ctx.lineWidth = 1.5;
             ctx.stroke();
 
-            // Finestrini (occhi dell'astronauta)
             ctx.shadowBlur = 15;
             ctx.fillStyle = '#fff';
             ctx.beginPath();
@@ -963,7 +875,6 @@
             ctx.arc(6, -22, 3, 0, Math.PI * 2);
             ctx.fill();
 
-            // Pupille (per dare vita al personaggio)
             ctx.fillStyle = '#222';
             ctx.shadowBlur = 0;
             ctx.beginPath();
@@ -973,7 +884,6 @@
             ctx.arc(7, -21, 1.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Ali
             ctx.fillStyle = '#3a7add';
             ctx.shadowBlur = 20;
             ctx.beginPath();
@@ -989,7 +899,6 @@
             ctx.closePath();
             ctx.fill();
 
-            // Propulsore
             ctx.shadowBlur = 40;
             ctx.shadowColor = '#f90';
             ctx.fillStyle = '#f90';
@@ -1010,7 +919,6 @@
 
             ctx.restore();
 
-            // Etichetta "YOU" sotto la navicella
             ctx.textAlign = 'center';
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
@@ -1018,26 +926,21 @@
             ctx.fillStyle = '#66dd88';
             ctx.fillText('★ YOU', shipX, shipY + 125);
 
-            // ============================================
-            // D. PULSANTI IN BASSO
-            // ============================================
+            // PULSANTI IN BASSO
             const btnY = 500;
             const btnW = 170;
             const btnH = 50;
             const gap = 40;
             const btnRadius = 14;
 
-            // --- Pulsante PLAY AGAIN (blu scuro - sinistra) ---
             const playAgainX = canvas.width / 2 - btnW - gap / 2;
             const playAgainCenterX = playAgainX + btnW / 2;
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#1a3a6a';  // Blu scuro
+            ctx.fillStyle = '#1a3a6a';
             ctx.beginPath();
             ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
             ctx.fill();
-
-            // Bordo glow
             ctx.shadowBlur = 0;
             ctx.strokeStyle = 'rgba(74, 170, 255, 0.5)';
             ctx.lineWidth = 2;
@@ -1051,16 +954,14 @@
             ctx.textAlign = 'center';
             ctx.fillText('▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
 
-            // --- Pulsante MENU (marrone - destra) ---
             const menuX = canvas.width / 2 + gap / 2;
             const menuCenterX = menuX + btnW / 2;
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#ff8800';
-            ctx.fillStyle = '#6a3a1a';  // Marrone
+            ctx.fillStyle = '#6a3a1a';
             ctx.beginPath();
             ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
             ctx.fill();
-
             ctx.shadowBlur = 0;
             ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
             ctx.lineWidth = 2;
@@ -1074,13 +975,11 @@
             ctx.textAlign = 'center';
             ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
 
-            // --- Salva per il click detection ---
             menuButtons = [
                 { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
                 { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'menu' }
             ];
 
-            // --- Suggerimento per il tasto R (in basso, piccolo) ---
             ctx.shadowBlur = 5;
             ctx.shadowColor = 'black';
             ctx.font = '14px Orbitron, sans-serif';
@@ -1088,66 +987,10 @@
             ctx.textAlign = 'center';
             ctx.fillText('Press "R" to restart', canvas.width / 2, btnY + btnH + 35);
 
-            // Ripristina textAlign
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
 
-        // --- PULSANTI MENU E RIGIOCA ---
-        const btnY = canvas.height / 2 + 330;
-        const btnW = 150;
-        const btnH = 50;
-        const gap = 30;
-
-        // Pulsante RIGIOCA (sinistra)
-        const playAgainX = canvas.width / 2 - btnW - gap / 2;
-        const playAgainCenterX = playAgainX + btnW / 2;
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = '#4af';
-        ctx.fillStyle = '#2a6aff';
-        ctx.beginPath();
-        ctx.roundRect(playAgainX, btnY, btnW, btnH, 12);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 22px Orbitron, sans-serif';
-        ctx.fillText('🔄 RIGIOCA', playAgainCenterX, btnY + 34);
-
-        // Pulsante MENU (destra)
-        const menuX = canvas.width / 2 + gap / 2;
-        const menuCenterX = menuX + btnW / 2;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#ffd700';
-        ctx.fillStyle = '#3a3a6a';
-        ctx.beginPath();
-        ctx.roundRect(menuX, btnY, btnW, btnH, 12);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 22px Orbitron, sans-serif';
-        ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
-
-        // Salva per il click detection
-        menuButtons = [
-            { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
-            { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'menu' }
-        ];
-
-        // Messaggio per il tasto R (opzionale, più piccolo)
-        ctx.font = '16px Orbitron, sans-serif';
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.shadowBlur = 5;
-        ctx.fillText('Premi "R" per rigiocare', canvas.width / 2, btnY + btnH + 40);
-
-        ctx.textAlign = 'left';
-        ctx.shadowBlur = 0;
-
-
-
-
-
-
-        // --- 5h. Schermata RECORDS (classifica completa a 10 posizioni) ---
         function drawRecordsScreen() {
             drawBackground();
 
@@ -1172,22 +1015,15 @@
                 ctx.fillStyle = '#66dd88';
                 ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 140);
 
-                // Mostra i 10 record
                 const startY = 190;
                 for (let i = 0; i < 10; i++) {
                     const scoreVal = records[i] || 0;
                     let medal = '';
                     let color = '#aaa';
-                    if (i === 0) {
-                        medal = '🥇';
-                        color = '#ffd700';
-                    } else if (i === 1) {
-                        medal = '🥈';
-                        color = '#c0c0c0';
-                    } else if (i === 2) {
-                        medal = '🥉';
-                        color = '#cd7f32';
-                    } else { medal = `${i + 1}.`; }
+                    if (i === 0) { medal = '🥇';
+                        color = '#ffd700'; } else if (i === 1) { medal = '🥈';
+                        color = '#c0c0c0'; } else if (i === 2) { medal = '🥉';
+                        color = '#cd7f32'; } else { medal = `${i + 1}.`; }
 
                     ctx.fillStyle = color;
                     ctx.font = i < 3 ? 'bold 22px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
@@ -1199,7 +1035,6 @@
                 }
             }
 
-            // Pulsante TORNA AL MENU
             const backY = 560;
             ctx.shadowBlur = 10;
             ctx.shadowColor = '#4af';
@@ -1212,7 +1047,6 @@
             ctx.font = '18px Orbitron, sans-serif';
             ctx.fillText('← TORNA', canvas.width / 2, backY + 25);
 
-            // Salva per click
             menuButtons = [
                 { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
             ];
@@ -1221,7 +1055,6 @@
             ctx.shadowBlur = 0;
         }
 
-        // --- 5i. Funzione draw principale ---
         function draw() {
             switch (gameState) {
                 case GAME_STATES.MENU:
@@ -1237,12 +1070,12 @@
                     drawGameUI();
                     if (gameOver) drawGameOver();
                     break;
-                case GAME_STATES.PAUSED:  // <--- NUOVO CASO
+                case GAME_STATES.PAUSED:
                     drawBackground();
                     drawFallingStars();
                     drawShip();
                     drawGameUI();
-                    drawPauseScreen();    // <--- SOPRASTAMPA LA PAUSA
+                    drawPauseScreen();
                     break;
             }
         }
@@ -1274,8 +1107,6 @@
                         accountInput = '';
                         showMobileInput(true);
                     } else {
-                        // Mostra la schermata records
-                        // Per ora usiamo un alert semplice, ma possiamo espandere
                         const records = getUserRecords(currentUser);
                         const valid = records.filter(r => r > 0);
                         let msg = `📊 Record di ${currentUser}:\n\n`;
@@ -1293,13 +1124,11 @@
                 case 'confirm':
                     if (accountInput.trim().length > 0) {
                         const newUser = accountInput.trim();
-                        // Verifica che non sia vuoto e max 12 caratteri
                         if (newUser.length > 12) {
                             alert('Il nome deve essere massimo 12 caratteri!');
                             return;
                         }
                         currentUser = newUser;
-                        // Assicura che l'utente abbia una entry nei record
                         getUserRecords(currentUser);
                         saveLastUser(currentUser);
                         resetGame();
@@ -1319,21 +1148,16 @@
                     gameState = GAME_STATES.MENU;
                     showMobileInput(false);
                     break;
-                // --- NUOVI CASI PER GAME OVER ---
                 case 'playAgain':
-                    // Ricomincia subito la partita (restando in PLAYING)
                     resetGame();
                     gameState = GAME_STATES.PLAYING;
                     updateTouchVisibility();
                     break;
-
                 case 'menu':
-                    // Torna al menu principale
                     resetGame();
                     gameState = GAME_STATES.MENU;
                     updateTouchVisibility();
                     break;
-
                 default:
                     break;
             }
@@ -1344,7 +1168,6 @@
         //  7. INPUT: MOUSE E TASTIERA
         // ============================================================
 
-        // --- Click sul canvas ---
         canvas.addEventListener('click', (event) => {
             const rect = canvas.getBoundingClientRect();
             const mx = event.clientX - rect.left;
@@ -1359,7 +1182,6 @@
             }
         });
 
-        // --- Mouse per movimento astronave ---
         canvas.addEventListener('mousemove', (event) => {
             if (gameState === GAME_STATES.PLAYING) {
                 const rect = canvas.getBoundingClientRect();
@@ -1367,7 +1189,6 @@
             }
         });
 
-        // --- Tastiera (frecce e R) ---
         window.addEventListener('keydown', (event) => {
             if (gameState === GAME_STATES.PLAYING) {
                 if (event.key === 'ArrowLeft') {
@@ -1381,11 +1202,19 @@
                 if (event.key === 'r' || event.key === 'R') {
                     if (gameOver) {
                         resetGame();
+                        gameState = GAME_STATES.PLAYING;
                     }
                 }
             }
 
-            // Input per il campo account (lettere, numeri, underscore, max 12)
+            // Tasto PAUSA
+            if (event.key === 'p' || event.key === 'P') {
+                if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
+                    togglePause();
+                    event.preventDefault();
+                }
+            }
+
             if (gameState === GAME_STATES.ACCOUNT) {
                 if (event.key === 'Backspace') {
                     accountInput = accountInput.slice(0, -1);
@@ -1410,71 +1239,76 @@
             }
         });
 
-        window.addEventListener('keydown', (event) => {
-            // --- TASTO PAUSA (P) ---
-            if (event.key === 'p' || event.key === 'P') {
-                if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
-                    togglePause();
-                    event.preventDefault();
-                }
-            }
-        });
-
         // --- PULSANTI TOUCH PER MOBILE ---
         const btnLeft = document.getElementById('btnLeft');
         const btnRight = document.getElementById('btnRight');
 
-        // Pulsante SINISTRA (touch e mouse)
-        btnLeft.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            touchLeft = true;
-        });
-        btnLeft.addEventListener('mouseup', (e) => {
-            e.preventDefault();
-            touchLeft = false;
-        });
-        btnLeft.addEventListener('mouseleave', (e) => {
-            touchLeft = false;
-        });
-        btnLeft.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            touchLeft = true;
-        });
-        btnLeft.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            touchLeft = false;
-        });
-        btnLeft.addEventListener('touchcancel', (e) => {
-            touchLeft = false;
-        });
+        if (btnLeft) {
+            btnLeft.addEventListener('mousedown', (e) => { e.preventDefault();
+                touchLeft = true; });
+            btnLeft.addEventListener('mouseup', (e) => { e.preventDefault();
+                touchLeft = false; });
+            btnLeft.addEventListener('mouseleave', (e) => { touchLeft = false; });
+            btnLeft.addEventListener('touchstart', (e) => { e.preventDefault();
+                touchLeft = true; });
+            btnLeft.addEventListener('touchend', (e) => { e.preventDefault();
+                touchLeft = false; });
+            btnLeft.addEventListener('touchcancel', (e) => { touchLeft = false; });
+        }
 
-        // Pulsante DESTRA (touch e mouse)
-        btnRight.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            touchRight = true;
-        });
-        btnRight.addEventListener('mouseup', (e) => {
-            e.preventDefault();
-            touchRight = false;
-        });
-        btnRight.addEventListener('mouseleave', (e) => {
-            touchRight = false;
-        });
-        btnRight.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            touchRight = true;
-        });
-        btnRight.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            touchRight = false;
-        });
-        btnRight.addEventListener('touchcancel', (e) => {
-            touchRight = false;
-        });
+        if (btnRight) {
+            btnRight.addEventListener('mousedown', (e) => { e.preventDefault();
+                touchRight = true; });
+            btnRight.addEventListener('mouseup', (e) => { e.preventDefault();
+                touchRight = false; });
+            btnRight.addEventListener('mouseleave', (e) => { touchRight = false; });
+            btnRight.addEventListener('touchstart', (e) => { e.preventDefault();
+                touchRight = true; });
+            btnRight.addEventListener('touchend', (e) => { e.preventDefault();
+                touchRight = false; });
+            btnRight.addEventListener('touchcancel', (e) => { touchRight = false; });
+        }
 
-        // Nascondi i pulsanti touch quando il gioco è in pausa o nel menu
+        // --- PULSANTI DEL WRAPPER ACCOUNT (mobile) ---
+        const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
+        const mobileCancelBtn = document.getElementById('mobileCancelBtn');
+        const accountMobileInput = document.getElementById('accountMobileInput');
+
+        if (mobileConfirmBtn) {
+            mobileConfirmBtn.addEventListener('click', () => {
+                const input = document.getElementById('accountMobileInput');
+                const name = input.value.trim();
+                if (name.length > 0 && name.length <= 12) {
+                    accountInput = name;
+                    handleMenuAction('confirm');
+                } else {
+                    alert('Inserisci un nome tra 1 e 12 caratteri!');
+                    input.focus();
+                }
+            });
+        }
+
+        if (mobileCancelBtn) {
+            mobileCancelBtn.addEventListener('click', () => {
+                handleMenuAction('cancel');
+            });
+        }
+
+        if (accountMobileInput) {
+            accountMobileInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('mobileConfirmBtn').click();
+                }
+                if (e.key === 'Escape') {
+                    document.getElementById('mobileCancelBtn').click();
+                }
+            });
+        }
+
+        // --- VISIBILITÀ PULSANTI TOUCH ---
         function updateTouchVisibility() {
             const controls = document.getElementById('touchControls');
+            if (!controls) return;
             if (gameState === GAME_STATES.PLAYING && !gameOver) {
                 controls.style.display = 'flex';
             } else {
@@ -1482,43 +1316,12 @@
             }
         }
 
-        // --- PULSANTI DEL WRAPPER ACCOUNT (mobile) ---
-        document.getElementById('mobileConfirmBtn').addEventListener('click', () => {
-            const input = document.getElementById('accountMobileInput');
-            const name = input.value.trim();
-            if (name.length > 0 && name.length <= 12) {
-                accountInput = name;
-                handleMenuAction('confirm');
-            } else {
-                alert('Inserisci un nome tra 1 e 12 caratteri!');
-                input.focus();
-            }
-        });
-
-        document.getElementById('mobileCancelBtn').addEventListener('click', () => {
-            handleMenuAction('cancel');
-        });
-
-        // Invio con il tasto Enter sul campo input
-        document.getElementById('accountMobileInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('mobileConfirmBtn').click();
-            }
-            if (e.key === 'Escape') {
-                document.getElementById('mobileCancelBtn').click();
-            }
-        });
-
-        // Chiama updateTouchVisibility() ogni volta che lo stato cambia
-        // Aggiungi questa riga alla fine di startGame(), resetGame(), togglePause()
-        // e in handleMenuAction() per i casi 'playAgain' e 'menu'
-
         // ============================================================
         //  8. POLYFILL per roundRect
         // ============================================================
 
         if (!CanvasRenderingContext2D.prototype.roundRect) {
-            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
                 if (r > w / 2) r = w / 2;
                 if (r > h / 2) r = h / 2;
                 this.moveTo(x + r, y);
@@ -1548,11 +1351,10 @@
         //  10. AVVIA IL GIOCO!
         // ============================================================
 
-        // Carica l'ultimo account usato
         const savedUser = loadLastUser();
         if (savedUser) {
             currentUser = savedUser;
-            getUserRecords(currentUser); // Inizializza se non esiste
+            getUserRecords(currentUser);
         }
 
         resetGame();
