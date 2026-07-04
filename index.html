@@ -43,11 +43,30 @@
 
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <!-- Input per account mobile -->
+    <div id="mobileAccountInput"
+        style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
+        <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 CREA
+            ACCOUNT</div>
+        <input type="text" id="accountMobileInput" maxlength="12" placeholder="Nome (max 12 char)"
+            style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
+            <button id="mobileConfirmBtn"
+                style="background: #2a6aff; color: white; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✅
+                CONFERMA</button>
+            <button id="mobileCancelBtn"
+                style="background: #3a3a5a; color: #aaa; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✖
+                ANNULLA</button>
+        </div>
+    </div>
 
     <!-- PULSANTI TOUCH PER MOBILE -->
-    <div id="touchControls" style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10;">
-        <button id="btnLeft" style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">◀</button>
-        <button id="btnRight" style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">▶</button>
+    <div id="touchControls"
+        style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10;">
+        <button id="btnLeft"
+            style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">◀</button>
+        <button id="btnRight"
+            style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">▶</button>
     </div>
 
 
@@ -78,6 +97,7 @@
         // --- PER I PULSANTI TOUCH ---
         let touchLeft = false;
         let touchRight = false;
+        let mobileInputVisible = false;
 
         // --- GIOCATORE ---
         const player = {
@@ -328,12 +348,14 @@
         // --- 4c. Avvia il gioco dal menu ---
         function startGame() {
             if (!currentUser) {
+                showMobileInput(false);
                 // Se non c'è account, vai alla schermata account
                 gameState = GAME_STATES.ACCOUNT;
                 accountInput = '';
                 return;
             }
             resetGame();
+            showMobileInput(false);
             gameState = GAME_STATES.PLAYING;
             updateTouchVisibility();
         }
@@ -344,7 +366,7 @@
                 gameState = GAME_STATES.PAUSED;
                 isPaused = true;
                 playClickSound(); // Suono di pausa
-                updateTouchVisibility(); 
+                updateTouchVisibility();
             } else if (gameState === GAME_STATES.PAUSED) {
                 gameState = GAME_STATES.PLAYING;
                 isPaused = false;
@@ -606,64 +628,8 @@
             ctx.fillStyle = '#aaa';
             ctx.fillText('Inserisci il tuo nome (max 12 caratteri)', canvas.width / 2, 210);
 
-            // Campo di input
-            const inputX = canvas.width / 2 - 150;
-            const inputY = 250;
-            const inputW = 300;
-            const inputH = 50;
-
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#1a1a3a';
-            ctx.beginPath();
-            ctx.roundRect(inputX, inputY, inputW, inputH, 10);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = '#4a8cff';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(inputX, inputY, inputW, inputH, 10);
-            ctx.stroke();
-
-            // Testo digitato
-            ctx.textAlign = 'left';
-            ctx.font = '24px Orbitron, sans-serif';
-            const displayName = accountInput || 'scrivi qui...';
-            ctx.fillStyle = accountInput ? 'white' : '#666';
-            ctx.fillText(displayName, inputX + 15, inputY + 34);
-            ctx.textAlign = 'center';
-
-            // Pulsante CONFERMA
-            const confirmY = inputY + inputH + 30;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#2a6aff';
-            ctx.beginPath();
-            ctx.roundRect(canvas.width / 2 - 80, confirmY, 160, 45, 10);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillText('✅ CONFERMA', canvas.width / 2, confirmY + 32);
-
-            // Pulsante ANNULLA
-            const cancelY = confirmY + 55;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#888';
-            ctx.fillStyle = '#3a3a5a';
-            ctx.beginPath();
-            ctx.roundRect(canvas.width / 2 - 60, cancelY, 120, 35, 8);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#aaa';
-            ctx.font = '16px Orbitron, sans-serif';
-            ctx.fillText('✖ ANNULLA', canvas.width / 2, cancelY + 25);
-
-            // Salva per click
-            menuButtons = [
-                { rect: { x: canvas.width / 2 - 80, y: confirmY, w: 160, h: 45 }, action: 'confirm' },
-                { rect: { x: canvas.width / 2 - 60, y: cancelY, w: 120, h: 35 }, action: 'cancel' }
-            ];
+            // Mostra il wrapper HTML (invece del campo su canvas)
+            showMobileInput(true);
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
@@ -1291,6 +1257,7 @@
                     if (!currentUser) {
                         gameState = GAME_STATES.ACCOUNT;
                         accountInput = '';
+                        showMobileInput(true);
                     } else {
                         startGame();
                     }
@@ -1298,12 +1265,14 @@
                 case 'account':
                     gameState = GAME_STATES.ACCOUNT;
                     accountInput = currentUser || '';
+                    showMobileInput(true);
                     break;
                 case 'records':
                     if (!currentUser) {
                         alert('Crea un account per vedere i tuoi record!');
                         gameState = GAME_STATES.ACCOUNT;
                         accountInput = '';
+                        showMobileInput(true);
                     } else {
                         // Mostra la schermata records
                         // Per ora usiamo un alert semplice, ma possiamo espandere
@@ -1336,6 +1305,7 @@
                         resetGame();
                         gameState = GAME_STATES.MENU;
                         accountInput = '';
+                        showMobileInput(false);
                     } else {
                         alert('Inserisci un nome!');
                     }
@@ -1343,9 +1313,11 @@
                 case 'cancel':
                     gameState = GAME_STATES.MENU;
                     accountInput = '';
+                    showMobileInput(false);
                     break;
                 case 'back':
                     gameState = GAME_STATES.MENU;
+                    showMobileInput(false);
                     break;
                 // --- NUOVI CASI PER GAME OVER ---
                 case 'playAgain':
@@ -1509,6 +1481,33 @@
                 controls.style.display = 'none';
             }
         }
+
+        // --- PULSANTI DEL WRAPPER ACCOUNT (mobile) ---
+        document.getElementById('mobileConfirmBtn').addEventListener('click', () => {
+            const input = document.getElementById('accountMobileInput');
+            const name = input.value.trim();
+            if (name.length > 0 && name.length <= 12) {
+                accountInput = name;
+                handleMenuAction('confirm');
+            } else {
+                alert('Inserisci un nome tra 1 e 12 caratteri!');
+                input.focus();
+            }
+        });
+
+        document.getElementById('mobileCancelBtn').addEventListener('click', () => {
+            handleMenuAction('cancel');
+        });
+
+        // Invio con il tasto Enter sul campo input
+        document.getElementById('accountMobileInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('mobileConfirmBtn').click();
+            }
+            if (e.key === 'Escape') {
+                document.getElementById('mobileCancelBtn').click();
+            }
+        });
 
         // Chiama updateTouchVisibility() ogni volta che lo stato cambia
         // Aggiungi questa riga alla fine di startGame(), resetGame(), togglePause()
