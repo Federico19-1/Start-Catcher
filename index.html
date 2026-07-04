@@ -30,10 +30,26 @@
             cursor: pointer;
         }
     </style>
+    /* Pulsanti touch - visibili solo su mobile */
+    @media (max-width: 768px) {
+    #touchControls {
+    display: flex !important;
+    }
+    canvas {
+    cursor: default !important;
+    }
+    }
 </head>
 
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- PULSANTI TOUCH PER MOBILE -->
+    <div id="touchControls" style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10;">
+        <button id="btnLeft" style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">◀</button>
+        <button id="btnRight" style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">▶</button>
+    </div>
+
 
     <script>
         /*============================================================
@@ -59,6 +75,9 @@
         let currentUser = null; // Nome dell'account attivo
         let accountInput = ''; // Testo digitato per nuovo account
         let isPaused = false;
+        // --- PER I PULSANTI TOUCH ---
+        let touchLeft = false;
+        let touchRight = false;
 
         // --- GIOCATORE ---
         const player = {
@@ -303,6 +322,7 @@
             player.targetX = 400;
             leftPressed = false;
             rightPressed = false;
+            updateTouchVisibility();
         }
 
         // --- 4c. Avvia il gioco dal menu ---
@@ -315,6 +335,7 @@
             }
             resetGame();
             gameState = GAME_STATES.PLAYING;
+            updateTouchVisibility();
         }
 
         // --- 4e. Gestione pausa ---
@@ -323,25 +344,35 @@
                 gameState = GAME_STATES.PAUSED;
                 isPaused = true;
                 playClickSound(); // Suono di pausa
+                updateTouchVisibility(); 
             } else if (gameState === GAME_STATES.PAUSED) {
                 gameState = GAME_STATES.PLAYING;
                 isPaused = false;
                 playClickSound(); // Suono di ripresa 
+                updateTouchVisibility();
             }
         }
 
         // --- 4d. Aggiorna la logica del gioco ---
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
+            // --- MOVIMENTO ASTRONAVE (NUOVO SISTEMA) ---
 
-            // Movimento astronave (mouse)
+            // 1. Mouse: aggiorna targetX (sempre)
             player.x += (player.targetX - player.x) * 0.3;
 
-            // Movimento astronave (frecce)
-            if (leftPressed) player.x -= MOVE_SPEED;
-            if (rightPressed) player.x += MOVE_SPEED;
+            // 2. Tasti freccia / pulsanti touch: si sommano al movimento
+            //    ma NON sovrascrivono completamente il targetX
+            const MOVE_SPEED = 5;
 
-            // Limiti astronave
+            if (leftPressed || touchLeft) {
+                player.x -= MOVE_SPEED;
+            }
+            if (rightPressed || touchRight) {
+                player.x += MOVE_SPEED;
+            }
+
+            // 3. Limiti astronave
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
 
@@ -913,7 +944,7 @@
             }
 
             // ============================================
-            // 3. ASTRONAVE (A DESTRA - cerchio verde)
+            // C. ASTRONAVE (A DESTRA - cerchio verde)
             // ============================================
             const shipX = canvas.width - 150;
             const shipY = 320;
@@ -1022,7 +1053,7 @@
             ctx.fillText('★ YOU', shipX, shipY + 125);
 
             // ============================================
-            // 4. PULSANTI IN BASSO
+            // D. PULSANTI IN BASSO
             // ============================================
             const btnY = 500;
             const btnW = 170;
@@ -1144,8 +1175,8 @@
 
         ctx.textAlign = 'left';
         ctx.shadowBlur = 0;
-        
-    
+
+
 
 
 
@@ -1321,12 +1352,14 @@
                     // Ricomincia subito la partita (restando in PLAYING)
                     resetGame();
                     gameState = GAME_STATES.PLAYING;
+                    updateTouchVisibility();
                     break;
 
                 case 'menu':
                     // Torna al menu principale
                     resetGame();
                     gameState = GAME_STATES.MENU;
+                    updateTouchVisibility();
                     break;
 
                 default:
@@ -1414,6 +1447,72 @@
                 }
             }
         });
+
+        // --- PULSANTI TOUCH PER MOBILE ---
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+
+        // Pulsante SINISTRA (touch e mouse)
+        btnLeft.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            touchLeft = true;
+        });
+        btnLeft.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            touchLeft = false;
+        });
+        btnLeft.addEventListener('mouseleave', (e) => {
+            touchLeft = false;
+        });
+        btnLeft.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchLeft = true;
+        });
+        btnLeft.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touchLeft = false;
+        });
+        btnLeft.addEventListener('touchcancel', (e) => {
+            touchLeft = false;
+        });
+
+        // Pulsante DESTRA (touch e mouse)
+        btnRight.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            touchRight = true;
+        });
+        btnRight.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            touchRight = false;
+        });
+        btnRight.addEventListener('mouseleave', (e) => {
+            touchRight = false;
+        });
+        btnRight.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchRight = true;
+        });
+        btnRight.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touchRight = false;
+        });
+        btnRight.addEventListener('touchcancel', (e) => {
+            touchRight = false;
+        });
+
+        // Nascondi i pulsanti touch quando il gioco è in pausa o nel menu
+        function updateTouchVisibility() {
+            const controls = document.getElementById('touchControls');
+            if (gameState === GAME_STATES.PLAYING && !gameOver) {
+                controls.style.display = 'flex';
+            } else {
+                controls.style.display = 'none';
+            }
+        }
+
+        // Chiama updateTouchVisibility() ogni volta che lo stato cambia
+        // Aggiungi questa riga alla fine di startGame(), resetGame(), togglePause()
+        // e in handleMenuAction() per i casi 'playAgain' e 'menu'
 
         // ============================================================
         //  8. POLYFILL per roundRect
