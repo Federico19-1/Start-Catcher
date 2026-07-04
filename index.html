@@ -458,7 +458,6 @@
         }
 
         // --- 5b. Menu iniziale ---
-        // --- 5b. Menu iniziale ---
         function drawMenu() {
             drawBackground();
 
@@ -798,134 +797,355 @@
         }
 
 
-        // --- 5g. Schermata GAME OVER ---
+        // --- 5g. Schermata GAME OVER (NUOVO LAYOUT) ---
         function drawGameOver() {
             const highScore = currentUser ? getMaxScore(currentUser) : 0;
 
             // --- Sfondo scuro per coprire il gioco ---
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            ctx.shadowColor = '#ff0000';
-            ctx.shadowBlur = 30;
+            // ============================================
+            // A. TITOLO E PUNTEGGIO (CENTRO ALTO)
+            // ============================================
             ctx.textAlign = 'center';
 
-            // GAME OVER
+            // GAME OVER (rosso)
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 40;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#ff4444';
-            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 120);
+            ctx.fillText('GAME OVER', canvas.width / 2, 100);
 
-            // Punteggio finale
-            ctx.font = 'bold 30px Orbitron, sans-serif';
+            // Punteggio (bianco)
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 15;
+            ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
-            ctx.shadowBlur = 10;
-            ctx.fillText(`Punteggio: ${score}`, canvas.width / 2, canvas.height / 2 - 50);
+            ctx.fillText(`Score: ${score}`, canvas.width / 2, 150);
 
-            // --- MESSAGGIO NUOVO RECORD ---
+            // Messaggio record (oro)
             if (isNewRecord && currentUser && score > 0) {
                 let label = '';
                 const pos = newRecordPosition;
                 if (pos === 0) {
                     label = '🏆 NEW BEST RECORD! 🏆';
                 } else if (pos === 1) {
-                    label = '🥈 NEW RECORD! (2° posto)';
+                    label = '🥈 NEW RECORD! (2nd place)';
                 } else if (pos === 2) {
-                    label = '🥉 NEW RECORD! (3° posto)';
+                    label = '🥉 NEW RECORD! (3rd place)';
                 } else {
-                    label = `🎯 NEW RECORD! (${pos + 1}° posto)`;
+                    label = `🎯 NEW RECORD! (${pos + 1}th place)`;
                 }
 
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 50;
-                ctx.font = 'bold 38px Orbitron, sans-serif';
+                ctx.font = 'bold 32px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd700';
-                ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 30);
+                ctx.fillText(label, canvas.width / 2, 200);
 
                 // Trofeo
-                ctx.font = '60px Arial';
-                ctx.shadowBlur = 80;
+                ctx.font = '50px Arial';
+                ctx.shadowBlur = 60;
                 const medal = pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯';
-                ctx.fillText(medal, canvas.width / 2, canvas.height / 2 + 110);
-
+                ctx.fillText(medal, canvas.width / 2, 260);
             } else {
-                ctx.font = '22px Orbitron, sans-serif';
-                ctx.fillStyle = '#aaa';
+                ctx.shadowColor = 'black';
                 ctx.shadowBlur = 10;
-                ctx.fillText(`Record attuale: ${highScore}`, canvas.width / 2, canvas.height / 2 + 30);
+                ctx.font = '20px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText(`Best Record: ${highScore}`, canvas.width / 2, 200);
             }
 
-            // Classifica TOP 5 dell'account
+            // ============================================
+            // B. CLASSIFICA TOP 5 (A SINISTRA - riquadro rosso)
+            // ============================================
+            const leftColX = 60;
+            const top5Y = 290;
+
+            // Sfondo del riquadro (rosso trasparente)
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(200, 50, 50, 0.15)';
+            ctx.beginPath();
+            ctx.roundRect(leftColX - 20, top5Y - 30, 280, 220, 12);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 80, 80, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(leftColX - 20, top5Y - 30, 280, 220, 12);
+            ctx.stroke();
+
+            // Titolo "TOP 5"
+            ctx.textAlign = 'left';
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 20;
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('🏆 TOP 5', leftColX, top5Y);
+
+            // Lista dei record
             if (currentUser) {
                 const records = getUserRecords(currentUser);
                 const validRecords = records.filter(r => r > 0);
-                if (validRecords.length > 0) {
-                    ctx.font = '18px Orbitron, sans-serif';
-                    ctx.fillStyle = '#ffd700';
-                    ctx.shadowBlur = 10;
-                    ctx.fillText('🏆 TOP 5:', canvas.width / 2, canvas.height / 2 + 170);
 
+                if (validRecords.length > 0) {
+                    ctx.shadowBlur = 5;
                     for (let i = 0; i < Math.min(5, validRecords.length); i++) {
                         const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                        ctx.fillStyle = i === 0 ? '#ffd700' : '#ccc';
-                        ctx.font = i === 0 ? 'bold 20px Orbitron, sans-serif' : '16px Orbitron, sans-serif';
+                        const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ccc';
+                        ctx.fillStyle = color;
+                        ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
                         ctx.fillText(
-                            `${medalEmoji} ${validRecords[i]} punti`,
-                            canvas.width / 2,
-                            canvas.height / 2 + 210 + i * 30
+                            `${medalEmoji} ${validRecords[i]} pts`,
+                            leftColX,
+                            top5Y + 40 + i * 32
                         );
                     }
+                } else {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '16px Orbitron, sans-serif';
+                    ctx.fillText('No records yet', leftColX, top5Y + 40);
                 }
+            } else {
+                ctx.fillStyle = '#666';
+                ctx.font = '16px Orbitron, sans-serif';
+                ctx.fillText('Create an account', leftColX, top5Y + 40);
             }
 
-            // --- PULSANTI MENU E RIGIOCA ---
-            const btnY = canvas.height / 2 + 330;
-            const btnW = 150;
-            const btnH = 50;
-            const gap = 30;
+            // ============================================
+            // 3. ASTRONAVE (A DESTRA - cerchio verde)
+            // ============================================
+            const shipX = canvas.width - 150;
+            const shipY = 320;
 
-            // Pulsante RIGIOCA (sinistra)
+            // Cerchio verde di sfondo
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#44ff88';
+            ctx.beginPath();
+            ctx.arc(shipX, shipY, 95, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(68, 255, 136, 0.12)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(68, 255, 136, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Disegna l'astronave (usando la funzione esistente)
+            // Salviamo e ripristiniamo il contesto per non interferire
+            ctx.save();
+            ctx.translate(shipX, shipY);
+
+            // Versione più grande e in evidenza della navicella
+            ctx.shadowColor = '#4af';
+            ctx.shadowBlur = 30;
+
+            // Corpo
+            ctx.beginPath();
+            ctx.ellipse(0, -8, 30, 20, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#4a8cff';
+            ctx.fill();
+            ctx.strokeStyle = '#8cf';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Cabina
+            ctx.beginPath();
+            ctx.ellipse(0, -20, 16, 12, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#8cf';
+            ctx.fill();
+            ctx.strokeStyle = '#adf';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Finestrini (occhi dell'astronauta)
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-6, -22, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(6, -22, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Pupille (per dare vita al personaggio)
+            ctx.fillStyle = '#222';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(-5, -21, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(7, -21, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ali
+            ctx.fillStyle = '#3a7add';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.moveTo(-32, 8);
+            ctx.lineTo(-14, -2);
+            ctx.lineTo(-14, 14);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(32, 8);
+            ctx.lineTo(14, -2);
+            ctx.lineTo(14, 14);
+            ctx.closePath();
+            ctx.fill();
+
+            // Propulsore
+            ctx.shadowBlur = 40;
+            ctx.shadowColor = '#f90';
+            ctx.fillStyle = '#f90';
+            ctx.beginPath();
+            ctx.moveTo(-10, 20);
+            ctx.lineTo(0, 36);
+            ctx.lineTo(10, 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fd0';
+            ctx.shadowBlur = 30;
+            ctx.beginPath();
+            ctx.moveTo(-5, 20);
+            ctx.lineTo(0, 30);
+            ctx.lineTo(5, 20);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+
+            // Etichetta "YOU" sotto la navicella
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            ctx.fillStyle = '#66dd88';
+            ctx.fillText('★ YOU', shipX, shipY + 125);
+
+            // ============================================
+            // 4. PULSANTI IN BASSO
+            // ============================================
+            const btnY = 500;
+            const btnW = 170;
+            const btnH = 50;
+            const gap = 40;
+            const btnRadius = 14;
+
+            // --- Pulsante PLAY AGAIN (blu scuro - sinistra) ---
             const playAgainX = canvas.width / 2 - btnW - gap / 2;
             const playAgainCenterX = playAgainX + btnW / 2;
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#2a6aff';
+            ctx.fillStyle = '#1a3a6a';  // Blu scuro
             ctx.beginPath();
-            ctx.roundRect(playAgainX, btnY, btnW, btnH, 12);
+            ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillText('🔄 RIGIOCA', playAgainCenterX, btnY + 34);
 
-            // Pulsante MENU (destra)
+            // Bordo glow
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(74, 170, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
+            ctx.stroke();
+
+            ctx.fillStyle = 'white';
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
+
+            // --- Pulsante MENU (marrone - destra) ---
             const menuX = canvas.width / 2 + gap / 2;
             const menuCenterX = menuX + btnW / 2;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#ffd700';
-            ctx.fillStyle = '#3a3a6a';
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ff8800';
+            ctx.fillStyle = '#6a3a1a';  // Marrone
             ctx.beginPath();
-            ctx.roundRect(menuX, btnY, btnW, btnH, 12);
+            ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
             ctx.fill();
+
             ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
+            ctx.stroke();
+
             ctx.fillStyle = '#ffd700';
+            ctx.shadowBlur = 0;
             ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
             ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
 
-            // Salva per il click detection
+            // --- Salva per il click detection ---
             menuButtons = [
                 { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
                 { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'menu' }
             ];
 
-            // Messaggio per il tasto R (opzionale, più piccolo)
-            ctx.font = '16px Orbitron, sans-serif';
-            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            // --- Suggerimento per il tasto R (in basso, piccolo) ---
             ctx.shadowBlur = 5;
-            ctx.fillText('Premi "R" per rigiocare', canvas.width / 2, btnY + btnH + 40);
+            ctx.shadowColor = 'black';
+            ctx.font = '14px Orbitron, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.textAlign = 'center';
+            ctx.fillText('Press "R" to restart', canvas.width / 2, btnY + btnH + 35);
 
+            // Ripristina textAlign
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
+
+        // --- PULSANTI MENU E RIGIOCA ---
+        const btnY = canvas.height / 2 + 330;
+        const btnW = 150;
+        const btnH = 50;
+        const gap = 30;
+
+        // Pulsante RIGIOCA (sinistra)
+        const playAgainX = canvas.width / 2 - btnW - gap / 2;
+        const playAgainCenterX = playAgainX + btnW / 2;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#4af';
+        ctx.fillStyle = '#2a6aff';
+        ctx.beginPath();
+        ctx.roundRect(playAgainX, btnY, btnW, btnH, 12);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 22px Orbitron, sans-serif';
+        ctx.fillText('🔄 RIGIOCA', playAgainCenterX, btnY + 34);
+
+        // Pulsante MENU (destra)
+        const menuX = canvas.width / 2 + gap / 2;
+        const menuCenterX = menuX + btnW / 2;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ffd700';
+        ctx.fillStyle = '#3a3a6a';
+        ctx.beginPath();
+        ctx.roundRect(menuX, btnY, btnW, btnH, 12);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 22px Orbitron, sans-serif';
+        ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
+
+        // Salva per il click detection
+        menuButtons = [
+            { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
+            { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'menu' }
+        ];
+
+        // Messaggio per il tasto R (opzionale, più piccolo)
+        ctx.font = '16px Orbitron, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.shadowBlur = 5;
+        ctx.fillText('Premi "R" per rigiocare', canvas.width / 2, btnY + btnH + 40);
+
+        ctx.textAlign = 'left';
+        ctx.shadowBlur = 0;
+        
+    
 
 
 
@@ -1195,50 +1415,50 @@
             }
         });
 
-            // ============================================================
-            //  8. POLYFILL per roundRect
-            // ============================================================
+        // ============================================================
+        //  8. POLYFILL per roundRect
+        // ============================================================
 
-            if (!CanvasRenderingContext2D.prototype.roundRect) {
-                CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-                    if (r > w / 2) r = w / 2;
-                    if (r > h / 2) r = h / 2;
-                    this.moveTo(x + r, y);
-                    this.lineTo(x + w - r, y);
-                    this.quadraticCurveTo(x + w, y, x + w, y + r);
-                    this.lineTo(x + w, y + h - r);
-                    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                    this.lineTo(x + r, y + h);
-                    this.quadraticCurveTo(x, y + h, x, y + h - r);
-                    this.lineTo(x, y + r);
-                    this.quadraticCurveTo(x, y, x + r, y);
-                    return this;
-                };
-            }
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                if (r > w / 2) r = w / 2;
+                if (r > h / 2) r = h / 2;
+                this.moveTo(x + r, y);
+                this.lineTo(x + w - r, y);
+                this.quadraticCurveTo(x + w, y, x + w, y + r);
+                this.lineTo(x + w, y + h - r);
+                this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                this.lineTo(x + r, y + h);
+                this.quadraticCurveTo(x, y + h, x, y + h - r);
+                this.lineTo(x, y + r);
+                this.quadraticCurveTo(x, y, x + r, y);
+                return this;
+            };
+        }
 
-            // ============================================================
-            //  9. GAME LOOP
-            // ============================================================
+        // ============================================================
+        //  9. GAME LOOP
+        // ============================================================
 
-            function gameLoop() {
-                update();
-                draw();
-                requestAnimationFrame(gameLoop);
-            }
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
 
-            // ============================================================
-            //  10. AVVIA IL GIOCO!
-            // ============================================================
+        // ============================================================
+        //  10. AVVIA IL GIOCO!
+        // ============================================================
 
-            // Carica l'ultimo account usato
-            const savedUser = loadLastUser();
-            if (savedUser) {
-                currentUser = savedUser;
-                getUserRecords(currentUser); // Inizializza se non esiste
-            }
+        // Carica l'ultimo account usato
+        const savedUser = loadLastUser();
+        if (savedUser) {
+            currentUser = savedUser;
+            getUserRecords(currentUser); // Inizializza se non esiste
+        }
 
-            resetGame();
-            gameLoop();
+        resetGame();
+        gameLoop();
     </script>
 </body>
 
