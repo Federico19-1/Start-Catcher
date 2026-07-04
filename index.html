@@ -334,11 +334,6 @@
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
-            // Se siamo in pausa, NON aggiornare la logica
-            if (gameState === GAME_STATES.PAUSED) return;
-            if (gameState !== GAME_STATES.PLAYING || gameOver) return;
-
-
             // Movimento astronave (mouse)
             player.x += (player.targetX - player.x) * 0.3;
 
@@ -368,6 +363,7 @@
 
                 if (distance < collisionDistance) {
                     score++;
+                    playCollectSound();
                     stars.splice(i, 1);
                     continue;
                 }
@@ -375,15 +371,18 @@
                 // Stella uscita in basso
                 if (star.y > canvas.height + star.radius) {
                     lives--;
+                    playLoseLifeSound();
                     stars.splice(i, 1);
                     if (lives <= 0) {
                         gameOver = true;
+                        playGameOverSound();
                         // SALVA IL PUNTEGGIO NEI RECORD DELL'ACCOUNT
                         if (currentUser) {
                             const pos = addScoreToUser(currentUser, score);
                             if (pos !== -1) {
                                 isNewRecord = true;
                                 newRecordPosition = pos;
+                                playRecordSound();
                             }
                         }
                     }
@@ -1186,50 +1185,60 @@
             }
         });
 
-        // ============================================================
-        //  8. POLYFILL per roundRect
-        // ============================================================
+        window.addEventListener('keydown', (event) => {
+            // --- TASTO PAUSA (P) ---
+            if (event.key === 'p' || event.key === 'P') {
+                if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
+                    togglePause();
+                    event.preventDefault();
+                }
+            }
+        });
 
-        if (!CanvasRenderingContext2D.prototype.roundRect) {
-            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-                if (r > w / 2) r = w / 2;
-                if (r > h / 2) r = h / 2;
-                this.moveTo(x + r, y);
-                this.lineTo(x + w - r, y);
-                this.quadraticCurveTo(x + w, y, x + w, y + r);
-                this.lineTo(x + w, y + h - r);
-                this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-                this.lineTo(x + r, y + h);
-                this.quadraticCurveTo(x, y + h, x, y + h - r);
-                this.lineTo(x, y + r);
-                this.quadraticCurveTo(x, y, x + r, y);
-                return this;
-            };
-        }
+            // ============================================================
+            //  8. POLYFILL per roundRect
+            // ============================================================
 
-        // ============================================================
-        //  9. GAME LOOP
-        // ============================================================
+            if (!CanvasRenderingContext2D.prototype.roundRect) {
+                CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                    if (r > w / 2) r = w / 2;
+                    if (r > h / 2) r = h / 2;
+                    this.moveTo(x + r, y);
+                    this.lineTo(x + w - r, y);
+                    this.quadraticCurveTo(x + w, y, x + w, y + r);
+                    this.lineTo(x + w, y + h - r);
+                    this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                    this.lineTo(x + r, y + h);
+                    this.quadraticCurveTo(x, y + h, x, y + h - r);
+                    this.lineTo(x, y + r);
+                    this.quadraticCurveTo(x, y, x + r, y);
+                    return this;
+                };
+            }
 
-        function gameLoop() {
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
+            // ============================================================
+            //  9. GAME LOOP
+            // ============================================================
 
-        // ============================================================
-        //  10. AVVIA IL GIOCO!
-        // ============================================================
+            function gameLoop() {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
 
-        // Carica l'ultimo account usato
-        const savedUser = loadLastUser();
-        if (savedUser) {
-            currentUser = savedUser;
-            getUserRecords(currentUser); // Inizializza se non esiste
-        }
+            // ============================================================
+            //  10. AVVIA IL GIOCO!
+            // ============================================================
 
-        resetGame();
-        gameLoop();
+            // Carica l'ultimo account usato
+            const savedUser = loadLastUser();
+            if (savedUser) {
+                currentUser = savedUser;
+                getUserRecords(currentUser); // Inizializza se non esiste
+            }
+
+            resetGame();
+            gameLoop();
     </script>
 </body>
 
