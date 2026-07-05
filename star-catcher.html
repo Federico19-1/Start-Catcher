@@ -188,7 +188,7 @@
                 // Prova a usare il suono caricato, altrimenti genera un suono sintetico
                 if (starSound) {
                     starSound.currentTime = 0;
-                    starSound.play().catch(() => {});
+                    starSound.play().catch(() => { });
                 } else {
                     // Suono sintetico di fallback
                     const oscillator = audioCtx.createOscillator();
@@ -305,19 +305,19 @@
 
         function addScoreToUser(username, newScore) {
             if (newScore <= 0) return -1;
-            
+
             let records = getUserRecords(username);
             const previousMin = records.length >= 10 ? records[9] : 0;
-            
+
             records.push(newScore);
             records.sort((a, b) => b - a);
             records = records.slice(0, 10);
             setUserRecords(username, records);
-            
+
             if (newScore <= previousMin && records.length >= 10) {
                 return -1;
             }
-            
+
             return records.indexOf(newScore);
         }
 
@@ -617,13 +617,13 @@
             ctx.shadowColor = 'black';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
-            ctx.fillText('Raccogli le stelle, batti il record!', canvas.width / 2, 310);
+            ctx.fillText('Get the stars, beat the record!', canvas.width / 2, 310);
 
-            ctx.font = '16px Orbitron, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#66dd88';
             ctx.shadowBlur = 10;
             ctx.fillText(
-                currentUser ? `👤 ${currentUser}` : '👤 Nessun account',
+                currentUser ? `👤 ${currentUser}` : '👤 No account',
                 canvas.width / 2,
                 350
             );
@@ -701,7 +701,7 @@
             ctx.shadowColor = 'black';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#aaa';
-            ctx.fillText('Inserisci il tuo nome (max 12 caratteri)', canvas.width / 2, 210);
+            ctx.fillText('Enter your name (max 12 characters)', canvas.width / 2, 210);
 
             const isMobile = window.innerWidth <= 768;
             if (isMobile) {
