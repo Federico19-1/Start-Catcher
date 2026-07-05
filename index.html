@@ -89,6 +89,7 @@
         let touchLeft = false;
         let touchRight = false;
         let mobileInputVisible = false;
+        let menuMusicStarted = false;
 
         const player = {
             x: 400,
@@ -134,16 +135,29 @@
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
+            // Risveglia l'AudioContext se è in stato sospeso (richiesto da Web API)
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
         }
 
         function playMenuMusic() {
-            if (menuMusicInterval) return; // Già in riproduzione
+            // Non ritornare subito se già in riproduzione
+            if (menuMusicInterval) return;
+
             initAudio();
+            if (!audioCtx) return;
+
+            // Risveglia l'AudioContext se necessario (deve essere fatto in contesto di interazione utente)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
 
             const baseFreq = 110; // La2 - bassa e spaziale
             const notes = [0, 2, 4, 5, 7, 9, 11, 12]; // Intervalli di una scale minore
             let noteIndex = 0;
 
+            // Crea un nuovo gain node
             menuMusicGain = audioCtx.createGain();
             menuMusicGain.gain.value = 0.15;
             menuMusicGain.connect(audioCtx.destination);
@@ -386,6 +400,7 @@
                 return;
             }
             stopMenuMusic();
+            menuMusicStarted = false; // Reset il flag della musica del menu
             resetGame();
             showMobileInput(false);
             gameState = GAME_STATES.PLAYING;
@@ -563,7 +578,11 @@
 
         function drawMenu() {
             drawBackground();
-            playMenuMusic();
+            // Avvia la musica del menu solo una volta all'entrata
+            if (!menuMusicStarted) {
+                playMenuMusic();
+                menuMusicStarted = true;
+            }
 
             ctx.textAlign = 'center';
             ctx.shadowColor = '#4af';
@@ -1225,6 +1244,7 @@
                 case 'account':
                     gameState = GAME_STATES.ACCOUNT;
                     accountInput = currentUser || '';
+                    menuMusicStarted = false; // Reset per permettere di rientrare nel menu
                     showMobileInput(true);
                     break;
                 case 'records':
@@ -1282,9 +1302,10 @@
                     updateTouchVisibility();
                     break;
                 case 'menu':
-                    stopMenuMusic();
                     resetGame();
                     gameState = GAME_STATES.MENU;
+                    menuMusicStarted = false; // Reset per permettere di riavviare la musica
+                    playMenuMusic();
                     updateTouchVisibility();
                     break;
                 default:
@@ -1321,7 +1342,7 @@
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 if (distance < 50) {
                     rocketEmoji.isEscaping = true;
-                    rocketEmoji.escapeTimer = 180;
+                    rocketEmoji.escapeTimer = 1200; // 20 secondi a 60 FPS
                     const speed = 5 + Math.random() * 4;
                     const angle = Math.random() * Math.PI * 2;
                     rocketEmoji.vx = Math.cos(angle) * speed;
@@ -1502,6 +1523,19 @@
             draw();
             requestAnimationFrame(gameLoop);
         }
+
+        // Inizializza l'audio alla prima interazione dell'utente (richiesto da Web API)
+        function initAudioOnUserInteraction() {
+            initAudio();
+            // Rimuovi gli event listener dopo l'inizializzazione
+            document.removeEventListener('click', initAudioOnUserInteraction);
+            document.removeEventListener('keydown', initAudioOnUserInteraction);
+            document.removeEventListener('touchstart', initAudioOnUserInteraction);
+        }
+
+        document.addEventListener('click', initAudioOnUserInteraction);
+        document.addEventListener('keydown', initAudioOnUserInteraction);
+        document.addEventListener('touchstart', initAudioOnUserInteraction);
 
         const savedUser = loadLastUser();
         if (savedUser) {
