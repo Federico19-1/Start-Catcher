@@ -5,12 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚀 Star Catcher - Gioco Spaziale</title>
-    <!-- Google Font per il titolo spaziale -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        /* ============================================================
-           0. STILE PAGINA
-        ============================================================ */
         body {
             margin: 0;
             display: flex;
@@ -30,11 +26,11 @@
             cursor: pointer;
         }
 
-        /* Pulsanti touch - visibili solo su mobile */
         @media (max-width: 768px) {
             #touchControls {
                 display: flex !important;
             }
+
             canvas {
                 cursor: default !important;
             }
@@ -45,7 +41,6 @@
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-    <!-- Input per account mobile -->
     <div id="mobileAccountInput"
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
         <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 CREA
@@ -62,7 +57,6 @@
         </div>
     </div>
 
-    <!-- PULSANTI TOUCH PER MOBILE -->
     <div id="touchControls"
         style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10;">
         <button id="btnLeft"
@@ -72,18 +66,15 @@
     </div>
 
     <script>
-        /*============================================================
-           1. SETUP CANVAS E CONTESTO
+        /* ============================================================
+           0. SETUP CANVAS E CONTESTO
         ============================================================ */
-
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // ============================================================
-        //  2. STATO DEL GIOCO E VARIABILI GLOBALI
-        // ============================================================
-
-        // --- STATI DEL GIOCO ---
+        /* ============================================================
+           1. STATO DEL GIOCO E VARIABILI GLOBALI
+        ============================================================ */
         const GAME_STATES = {
             MENU: 'menu',
             ACCOUNT: 'account',
@@ -99,15 +90,13 @@
         let touchRight = false;
         let mobileInputVisible = false;
 
-        // --- GIOCATORE ---
         const player = {
             x: 400,
             y: 550,
-            radius: 25,  // <--- CORRETTO
+            radius: 100,
             targetX: 400
         };
 
-        // --- STELLE E PUNTEGGIO ---
         let stars = [];
         let score = 0;
         let lives = 3;
@@ -118,18 +107,79 @@
         let newRecordPosition = -1;
         const MOVE_SPEED = 5;
 
-        // --- PER IL MENU (click detection) ---
+        const rocketEmoji = {
+            x: 0,
+            y: 0,
+            baseX: 0,
+            baseY: 170,
+            size: 60,
+            isEscaping: false,
+            vx: 0,
+            vy: 0,
+            escapeTimer: 0,
+            angle: 0
+        };
+
         let menuButtons = [];
 
-        // ============================================================
-        //  2b. SISTEMA AUDIO (Web Audio API)
-        // ============================================================
-
+        /* ============================================================
+           2. SISTEMA AUDIO (Web Audio API)
+        ============================================================ */
         let audioCtx = null;
+        let menuMusicInterval = null;
+        let menuMusicGain = null;
+        let menuMusicOscillator = null;
 
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playMenuMusic() {
+            if (menuMusicInterval) return; // Già in riproduzione
+            initAudio();
+
+            const baseFreq = 110; // La2 - bassa e spaziale
+            const notes = [0, 2, 4, 5, 7, 9, 11, 12]; // Intervalli di una scale minore
+            let noteIndex = 0;
+
+            menuMusicGain = audioCtx.createGain();
+            menuMusicGain.gain.value = 0.15;
+            menuMusicGain.connect(audioCtx.destination);
+
+            function playNote() {
+                if (!menuMusicGain) return;
+
+                const freq = baseFreq * Math.pow(2, notes[noteIndex] / 12);
+                menuMusicOscillator = audioCtx.createOscillator();
+                menuMusicOscillator.type = 'sine';
+                menuMusicOscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                menuMusicOscillator.connect(menuMusicGain);
+                menuMusicOscillator.start(audioCtx.currentTime);
+                menuMusicOscillator.stop(audioCtx.currentTime + 1.5);
+
+                noteIndex = (noteIndex + 1) % notes.length;
+            }
+
+            playNote();
+            menuMusicInterval = setInterval(playNote, 1500);
+        }
+
+        function stopMenuMusic() {
+            if (menuMusicInterval) {
+                clearInterval(menuMusicInterval);
+                menuMusicInterval = null;
+            }
+            if (menuMusicOscillator) {
+                menuMusicOscillator.stop();
+                menuMusicOscillator = null;
+            }
+            if (menuMusicGain) {
+                menuMusicGain.gain.setValueAtTime(menuMusicGain.gain.value, audioCtx.currentTime);
+                menuMusicGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                menuMusicGain = null;
             }
         }
 
@@ -146,7 +196,7 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
                 oscillator.start(audioCtx.currentTime);
                 oscillator.stop(audioCtx.currentTime + 0.15);
-            } catch (e) { /* Silenzioso se fallisce */ }
+            } catch (e) { }
         }
 
         function playLoseLifeSound() {
@@ -163,7 +213,7 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
                 oscillator.start(audioCtx.currentTime);
                 oscillator.stop(audioCtx.currentTime + 0.3);
-            } catch (e) { /* Silenzioso se fallisce */ }
+            } catch (e) { }
         }
 
         function playGameOverSound() {
@@ -182,7 +232,7 @@
                     oscillator.start(audioCtx.currentTime + i * 0.12);
                     oscillator.stop(audioCtx.currentTime + i * 0.12 + 0.12);
                 }
-            } catch (e) { /* Silenzioso se fallisce */ }
+            } catch (e) { }
         }
 
         function playRecordSound() {
@@ -201,7 +251,7 @@
                     oscillator.start(audioCtx.currentTime + i * 0.15);
                     oscillator.stop(audioCtx.currentTime + i * 0.15 + 0.2);
                 }
-            } catch (e) { /* Silenzioso se fallisce */ }
+            } catch (e) { }
         }
 
         function playClickSound() {
@@ -217,13 +267,12 @@
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
                 oscillator.start(audioCtx.currentTime);
                 oscillator.stop(audioCtx.currentTime + 0.08);
-            } catch (e) { /* Silenzioso se fallisce */ }
+            } catch (e) { }
         }
 
-        // ============================================================
-        //  3. GESTIONE RECORD PER ACCOUNT (localStorage)
-        // ============================================================
-
+        /* ============================================================
+           3. GESTIONE RECORD (localStorage)
+        ============================================================ */
         function getAllRecords() {
             const data = localStorage.getItem('starCatcherAllRecords');
             return data ? JSON.parse(data) : {};
@@ -249,13 +298,21 @@
         }
 
         function addScoreToUser(username, newScore) {
+            if (newScore <= 0) return -1;
+            
             let records = getUserRecords(username);
+            const previousMin = records.length >= 10 ? records[9] : 0;
+            
             records.push(newScore);
             records.sort((a, b) => b - a);
             records = records.slice(0, 10);
             setUserRecords(username, records);
-            const position = records.indexOf(newScore);
-            return position;
+            
+            if (newScore <= previousMin && records.length >= 10) {
+                return -1;
+            }
+            
+            return records.indexOf(newScore);
         }
 
         function getMaxScore(username) {
@@ -276,7 +333,6 @@
             return localStorage.getItem('starCatcherLastUser') || null;
         }
 
-        // --- Mostra/nasconde il campo input per mobile ---
         function showMobileInput(show) {
             const wrapper = document.getElementById('mobileAccountInput');
             if (!wrapper) return;
@@ -294,10 +350,9 @@
             }
         }
 
-        // ============================================================
-        //  4. FUNZIONI DI GIOCO
-        // ============================================================
-
+        /* ============================================================
+           4. FUNZIONI DI GIOCO
+        ============================================================ */
         function createStar() {
             return {
                 x: Math.random() * canvas.width,
@@ -330,6 +385,7 @@
                 accountInput = '';
                 return;
             }
+            stopMenuMusic();
             resetGame();
             showMobileInput(false);
             gameState = GAME_STATES.PLAYING;
@@ -350,10 +406,48 @@
             }
         }
 
+        function updateRocketEmoji() {
+            if (gameState !== GAME_STATES.MENU) {
+                if (rocketEmoji.isEscaping) {
+                    rocketEmoji.isEscaping = false;
+                    rocketEmoji.escapeTimer = 0;
+                    rocketEmoji.vx = 0;
+                    rocketEmoji.vy = 0;
+                }
+                return;
+            }
+
+            if (rocketEmoji.isEscaping) {
+                rocketEmoji.x += rocketEmoji.vx;
+                rocketEmoji.y += rocketEmoji.vy;
+                rocketEmoji.angle = Math.atan2(rocketEmoji.vy, rocketEmoji.vx) + Math.PI / 2;
+
+                const margin = 40;
+                if (rocketEmoji.x < margin || rocketEmoji.x > canvas.width - margin) {
+                    rocketEmoji.vx *= -1;
+                    rocketEmoji.x = Math.max(margin, Math.min(canvas.width - margin, rocketEmoji.x));
+                }
+                if (rocketEmoji.y < margin || rocketEmoji.y > canvas.height - margin) {
+                    rocketEmoji.vy *= -1;
+                    rocketEmoji.y = Math.max(margin, Math.min(canvas.height - margin, rocketEmoji.y));
+                }
+
+                rocketEmoji.escapeTimer--;
+                if (rocketEmoji.escapeTimer <= 0) {
+                    rocketEmoji.isEscaping = false;
+                    rocketEmoji.vx = 0;
+                    rocketEmoji.vy = 0;
+                    rocketEmoji.angle = 0;
+                }
+            }
+        }
+
+        /* ============================================================
+           5. AGGIORNAMENTO LOGICA
+        ============================================================ */
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
-            // Movimento astronave
             player.x += (player.targetX - player.x) * 0.3;
 
             if (leftPressed || touchLeft) {
@@ -366,12 +460,10 @@
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
 
-            // Creazione nuove stelle
             if (Math.random() < 0.05) {
                 stars.push(createStar());
             }
 
-            // Aggiornamento stelle
             for (let i = stars.length - 1; i >= 0; i--) {
                 const star = stars[i];
                 star.y += star.speed;
@@ -413,10 +505,9 @@
             }
         }
 
-        // ============================================================
-        //  5. FUNZIONI DI DISEGNO
-        // ============================================================
-
+        /* ============================================================
+           6. FUNZIONI DI DISEGNO
+        ============================================================ */
         function drawBackground() {
             ctx.fillStyle = '#0a0a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -472,16 +563,44 @@
 
         function drawMenu() {
             drawBackground();
+            playMenuMusic();
 
             ctx.textAlign = 'center';
             ctx.shadowColor = '#4af';
             ctx.shadowBlur = 50;
 
+            const centerX = canvas.width / 2;
+            const titleY = 170;
+
+            ctx.font = 'bold 72px Orbitron, sans-serif';
+            const starText = 'STAR';
+            const catcherText = 'CATCHER';
+            const starWidth = ctx.measureText(starText).width;
+            const catcherWidth = ctx.measureText(catcherText).width;
+            const totalTextWidth = starWidth + catcherWidth + 20;
+
+            if (!rocketEmoji.isEscaping && rocketEmoji.escapeTimer <= 0) {
+                rocketEmoji.baseX = centerX - totalTextWidth / 2 - 40;
+                rocketEmoji.x = rocketEmoji.baseX;
+                rocketEmoji.y = rocketEmoji.baseY;
+            }
+
             ctx.font = 'bold 72px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText('🚀 STAR', canvas.width / 2, 170);
+            ctx.fillText(starText, centerX - catcherWidth / 2 - 10, titleY);
             ctx.fillStyle = '#ffd700';
-            ctx.fillText('CATCHER', canvas.width / 2, 260);
+            ctx.fillText(catcherText, centerX + starWidth / 2 + 10, titleY);
+
+            ctx.save();
+            ctx.translate(rocketEmoji.x, rocketEmoji.y);
+            ctx.rotate(rocketEmoji.angle);
+            ctx.font = '60px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = '#ff6b35';
+            ctx.shadowBlur = 30;
+            ctx.fillText('🚀', 0, 0);
+            ctx.restore();
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
@@ -573,7 +692,10 @@
             ctx.fillStyle = '#aaa';
             ctx.fillText('Inserisci il tuo nome (max 12 caratteri)', canvas.width / 2, 210);
 
-            showMobileInput(true);
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                showMobileInput(true);
+            }
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
@@ -781,19 +903,19 @@
                 ctx.fillText(`Best Record: ${highScore}`, canvas.width / 2, 200);
             }
 
-            // CLASSIFICA TOP 5 (SINISTRA)
             const leftColX = 60;
+            const col2X = 300;
             const top5Y = 290;
 
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'rgba(200, 50, 50, 0.15)';
             ctx.beginPath();
-            ctx.roundRect(leftColX - 20, top5Y - 30, 280, 220, 12);
+            ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
             ctx.fill();
             ctx.strokeStyle = 'rgba(255, 80, 80, 0.4)';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.roundRect(leftColX - 20, top5Y - 30, 280, 220, 12);
+            ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
             ctx.stroke();
 
             ctx.textAlign = 'left';
@@ -801,7 +923,7 @@
             ctx.shadowBlur = 20;
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd700';
-            ctx.fillText('🏆 TOP 5', leftColX, top5Y);
+            ctx.fillText('🏆 TOP 10', leftColX, top5Y);
 
             if (currentUser) {
                 const records = getUserRecords(currentUser);
@@ -809,15 +931,17 @@
 
                 if (validRecords.length > 0) {
                     ctx.shadowBlur = 5;
-                    for (let i = 0; i < Math.min(5, validRecords.length); i++) {
+                    for (let i = 0; i < Math.min(10, validRecords.length); i++) {
+                        const colX = i < 5 ? leftColX : col2X;
+                        const rowIndex = i < 5 ? i : i - 5;
                         const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
                         const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ccc';
                         ctx.fillStyle = color;
                         ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
                         ctx.fillText(
                             `${medalEmoji} ${validRecords[i]} pts`,
-                            leftColX,
-                            top5Y + 40 + i * 32
+                            colX,
+                            top5Y + 40 + rowIndex * 32
                         );
                     }
                 } else {
@@ -831,7 +955,6 @@
                 ctx.fillText('Create an account', leftColX, top5Y + 40);
             }
 
-            // ASTRONAVE (DESTRA)
             const shipX = canvas.width - 150;
             const shipY = 320;
 
@@ -926,7 +1049,6 @@
             ctx.fillStyle = '#66dd88';
             ctx.fillText('★ YOU', shipX, shipY + 125);
 
-            // PULSANTI IN BASSO
             const btnY = 500;
             const btnW = 170;
             const btnH = 50;
@@ -1006,7 +1128,7 @@
                 ctx.shadowColor = 'black';
                 ctx.font = '22px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
-                ctx.fillText('Crea un account per salvare i tuoi record!', canvas.width / 2, 150);
+                ctx.fillText('Crea un account per vedere i tuoi record!', canvas.width / 2, 150);
             } else {
                 const records = getUserRecords(currentUser);
                 ctx.shadowBlur = 10;
@@ -1020,10 +1142,16 @@
                     const scoreVal = records[i] || 0;
                     let medal = '';
                     let color = '#aaa';
-                    if (i === 0) { medal = '🥇';
-                        color = '#ffd700'; } else if (i === 1) { medal = '🥈';
-                        color = '#c0c0c0'; } else if (i === 2) { medal = '🥉';
-                        color = '#cd7f32'; } else { medal = `${i + 1}.`; }
+                    if (i === 0) {
+                        medal = '🥇';
+                        color = '#ffd700';
+                    } else if (i === 1) {
+                        medal = '🥈';
+                        color = '#c0c0c0';
+                    } else if (i === 2) {
+                        medal = '🥉';
+                        color = '#cd7f32';
+                    } else { medal = `${i + 1}.`; }
 
                     ctx.fillStyle = color;
                     ctx.font = i < 3 ? 'bold 22px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
@@ -1080,10 +1208,9 @@
             }
         }
 
-        // ============================================================
-        //  6. GESTIONE AZIONI MENU
-        // ============================================================
-
+        /* ============================================================
+           7. GESTIONE AZIONI MENU
+        ============================================================ */
         function handleMenuAction(action) {
             switch (action) {
                 case 'play':
@@ -1149,11 +1276,13 @@
                     showMobileInput(false);
                     break;
                 case 'playAgain':
+                    stopMenuMusic();
                     resetGame();
                     gameState = GAME_STATES.PLAYING;
                     updateTouchVisibility();
                     break;
                 case 'menu':
+                    stopMenuMusic();
                     resetGame();
                     gameState = GAME_STATES.MENU;
                     updateTouchVisibility();
@@ -1164,10 +1293,9 @@
             menuButtons = [];
         }
 
-        // ============================================================
-        //  7. INPUT: MOUSE E TASTIERA
-        // ============================================================
-
+        /* ============================================================
+           8. INPUT: MOUSE, TASTIERA E TOUCH
+        ============================================================ */
         canvas.addEventListener('click', (event) => {
             const rect = canvas.getBoundingClientRect();
             const mx = event.clientX - rect.left;
@@ -1183,9 +1311,26 @@
         });
 
         canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = event.clientX - rect.left;
+            const my = event.clientY - rect.top;
+
+            if (gameState === GAME_STATES.MENU && !rocketEmoji.isEscaping) {
+                const dx = mx - rocketEmoji.x;
+                const dy = my - rocketEmoji.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < 50) {
+                    rocketEmoji.isEscaping = true;
+                    rocketEmoji.escapeTimer = 180;
+                    const speed = 5 + Math.random() * 4;
+                    const angle = Math.random() * Math.PI * 2;
+                    rocketEmoji.vx = Math.cos(angle) * speed;
+                    rocketEmoji.vy = Math.sin(angle) * speed;
+                }
+            }
+
             if (gameState === GAME_STATES.PLAYING) {
-                const rect = canvas.getBoundingClientRect();
-                player.targetX = event.clientX - rect.left;
+                player.targetX = mx;
             }
         });
 
@@ -1207,7 +1352,6 @@
                 }
             }
 
-            // Tasto PAUSA
             if (event.key === 'p' || event.key === 'P') {
                 if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
                     togglePause();
@@ -1239,37 +1383,51 @@
             }
         });
 
-        // --- PULSANTI TOUCH PER MOBILE ---
         const btnLeft = document.getElementById('btnLeft');
         const btnRight = document.getElementById('btnRight');
 
         if (btnLeft) {
-            btnLeft.addEventListener('mousedown', (e) => { e.preventDefault();
-                touchLeft = true; });
-            btnLeft.addEventListener('mouseup', (e) => { e.preventDefault();
-                touchLeft = false; });
+            btnLeft.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                touchLeft = true;
+            });
+            btnLeft.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                touchLeft = false;
+            });
             btnLeft.addEventListener('mouseleave', (e) => { touchLeft = false; });
-            btnLeft.addEventListener('touchstart', (e) => { e.preventDefault();
-                touchLeft = true; });
-            btnLeft.addEventListener('touchend', (e) => { e.preventDefault();
-                touchLeft = false; });
+            btnLeft.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchLeft = true;
+            });
+            btnLeft.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchLeft = false;
+            });
             btnLeft.addEventListener('touchcancel', (e) => { touchLeft = false; });
         }
 
         if (btnRight) {
-            btnRight.addEventListener('mousedown', (e) => { e.preventDefault();
-                touchRight = true; });
-            btnRight.addEventListener('mouseup', (e) => { e.preventDefault();
-                touchRight = false; });
+            btnRight.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                touchRight = true;
+            });
+            btnRight.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                touchRight = false;
+            });
             btnRight.addEventListener('mouseleave', (e) => { touchRight = false; });
-            btnRight.addEventListener('touchstart', (e) => { e.preventDefault();
-                touchRight = true; });
-            btnRight.addEventListener('touchend', (e) => { e.preventDefault();
-                touchRight = false; });
+            btnRight.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchRight = true;
+            });
+            btnRight.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchRight = false;
+            });
             btnRight.addEventListener('touchcancel', (e) => { touchRight = false; });
         }
 
-        // --- PULSANTI DEL WRAPPER ACCOUNT (mobile) ---
         const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
         const mobileCancelBtn = document.getElementById('mobileCancelBtn');
         const accountMobileInput = document.getElementById('accountMobileInput');
@@ -1305,23 +1463,11 @@
             });
         }
 
-        // --- VISIBILITÀ PULSANTI TOUCH ---
-        function updateTouchVisibility() {
-            const controls = document.getElementById('touchControls');
-            if (!controls) return;
-            if (gameState === GAME_STATES.PLAYING && !gameOver) {
-                controls.style.display = 'flex';
-            } else {
-                controls.style.display = 'none';
-            }
-        }
-
-        // ============================================================
-        //  8. POLYFILL per roundRect
-        // ============================================================
-
+        /* ============================================================
+           9. POLYFILL E UTILITÀ
+        ============================================================ */
         if (!CanvasRenderingContext2D.prototype.roundRect) {
-            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
                 if (r > w / 2) r = w / 2;
                 if (r > h / 2) r = h / 2;
                 this.moveTo(x + r, y);
@@ -1337,19 +1483,25 @@
             };
         }
 
-        // ============================================================
-        //  9. GAME LOOP
-        // ============================================================
+        function updateTouchVisibility() {
+            const controls = document.getElementById('touchControls');
+            if (!controls) return;
+            if (gameState === GAME_STATES.PLAYING && !gameOver) {
+                controls.style.display = 'flex';
+            } else {
+                controls.style.display = 'none';
+            }
+        }
 
+        /* ============================================================
+           10. GAME LOOP E INIZIALIZZAZIONE
+        ============================================================ */
         function gameLoop() {
             update();
+            updateRocketEmoji();
             draw();
             requestAnimationFrame(gameLoop);
         }
-
-        // ============================================================
-        //  10. AVVIA IL GIOCO!
-        // ============================================================
 
         const savedUser = loadLastUser();
         if (savedUser) {
