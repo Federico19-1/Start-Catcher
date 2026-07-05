@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Star Catcher - Gioco Spaziale</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #0a0a1a;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        canvas {
+            border: 2px solid #4a4a8a;
+            border-radius: 10px;
+            box-shadow: 0 0 40px rgba(74, 74, 138, 0.5);
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            #touchControls {
+                display: flex !important;
+            }
+
+            canvas {
+                cursor: default !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <div id="mobileAccountInput"
+        style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
+        <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 CREA
+            ACCOUNT</div>
+        <input type="text" id="accountMobileInput" maxlength="12" placeholder="Nome (max 12 char)"
+            style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
+            <button id="mobileConfirmBtn"
+                style="background: #2a6aff; color: white; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✅
+                CONFERMA</button>
+            <button id="mobileCancelBtn"
+                style="background: #3a3a5a; color: #aaa; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✖
+                ANNULLA</button>
+        </div>
+    </div>
+
+    <div id="touchControls"
+        style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10;">
+        <button id="btnLeft"
+            style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">◀</button>
+        <button id="btnRight"
+            style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">▶</button>
+    </div>
+
+    <script>
+        /* ============================================================
+           0. SETUP CANVAS E CONTESTO
+        ============================================================ */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        /* ============================================================
+           1. STATO DEL GIOCO E VARIABILI GLOBALI
+        ============================================================ */
+        const GAME_STATES = {
+            MENU: 'menu',
+            ACCOUNT: 'account',
+            PLAYING: 'playing',
+            PAUSED: 'paused'
+        };
+
+        let gameState = GAME_STATES.MENU;
+        let currentUser = null;
+        let accountInput = '';
+        let isPaused = false;
+        let touchLeft = false;
+        let touchRight = false;
+        let mobileInputVisible = false;
+        let menuMusicStarted = false;
+
+        const player = {
+            x: 400,
+            y: 550,
+            radius: 100,
+            targetX: 400
+        };
+
+        let stars = [];
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let leftPressed = false;
+        let rightPressed = false;
+        let isNewRecord = false;
+        let newRecordPosition = -1;
+        const MOVE_SPEED = 5;
+
+        const rocketEmoji = {
+            x: 0,
+            y: 0,
+            baseX: 0,
+            baseY: 170,
+            size: 60,
+            isEscaping: false,
+            vx: 0,
+            vy: 0,
+            escapeTimer: 0,
+            angle: 0
+        };
+
+        let menuButtons = [];
+
+        /* ============================================================
+           2. SISTEMA AUDIO
+        ============================================================ */
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // Risveglia l'AudioContext se è in stato sospeso
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Elemento audio per la musica del menu
+        let menuAudio = null;
+
+        function initMenuAudio() {
+            if (!menuAudio) {
+                menuAudio = new Audio('menu-song.mp3');
+                menuAudio.loop = true;
+                menuAudio.volume = 0.3; // Volume ridotto per non far sovrastare i suoni del gioco
+            }
+        }
+
+        function playMenuMusic() {
+            if (menuAudio && menuAudio.paused) {
+                initMenuAudio();
+                menuAudio.play().catch(e => console.log('Menu music play failed:', e));
+            }
+        }
+
+        function stopMenuMusic() {
+            if (menuAudio && !menuAudio.paused) {
+                menuAudio.pause();
+                menuAudio.currentTime = 0;
+            }
+        }
+
+        // Suono di raccolta stellina - caricato dal file star-sound.txt
+        let starSound = null;
+
+        function loadStarSound() {
+            if (!starSound) {
+                // Leggi il contenuto del file come blob (richiede che il file sia servito correttamente)
+                fetch('star-sound.txt')
+                    .then(response => response.blob())
+                    .then(blob => {
+                        starSound = new Audio(URL.createObjectURL(blob));
+                    })
+                    .catch(e => {
+                        // Fallback: crea un suono sintetico se il file non è disponibile
+                        console.log('Star sound file not available, using synthesized sound');
+                        starSound = null;
+                    });
+            }
+        }
+
+        function playCollectSound() {
+            try {
+                initAudio();
+                // Prova a usare il suono caricato, altrimenti genera un suono sintetico
+                if (starSound) {
+                    starSound.currentTime = 0;
+                    starSound.play().catch(() => {});
+                } else {
+                    // Suono sintetico di fallback
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+                    gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.15);
+                }
+            } catch (e) { }
+        }
+
+        function playLoseLifeSound() {
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) { }
+        }
+
+        function playGameOverSound() {
+            try {
+                initAudio();
+                const notes = [440, 400, 350, 300, 250];
+                for (let i = 0; i < notes.length; i++) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.12);
+                    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.12);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.12 + 0.12);
+                    oscillator.start(audioCtx.currentTime + i * 0.12);
+                    oscillator.stop(audioCtx.currentTime + i * 0.12 + 0.12);
+                }
+            } catch (e) { }
+        }
+
+        function playRecordSound() {
+            try {
+                initAudio();
+                const notes = [523, 659, 784, 1047];
+                for (let i = 0; i < notes.length; i++) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.type = 'square';
+                    oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.15);
+                    gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime + i * 0.15);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.15 + 0.2);
+                    oscillator.start(audioCtx.currentTime + i * 0.15);
+                    oscillator.stop(audioCtx.currentTime + i * 0.15 + 0.2);
+                }
+            } catch (e) { }
+        }
+
+        function playClickSound() {
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.08);
+            } catch (e) { }
+        }
+
+        /* ============================================================
+           3. GESTIONE RECORD (localStorage)
+        ============================================================ */
+        function getAllRecords() {
+            const data = localStorage.getItem('starCatcherAllRecords');
+            return data ? JSON.parse(data) : {};
+        }
+
+        function saveAllRecords(records) {
+            localStorage.setItem('starCatcherAllRecords', JSON.stringify(records));
+        }
+
+        function getUserRecords(username) {
+            const all = getAllRecords();
+            if (!all[username]) {
+                all[username] = Array(10).fill(0);
+                saveAllRecords(all);
+            }
+            return all[username];
+        }
+
+        function setUserRecords(username, records) {
+            const all = getAllRecords();
+            all[username] = records;
+            saveAllRecords(all);
+        }
+
+        function addScoreToUser(username, newScore) {
+            if (newScore <= 0) return -1;
+            
+            let records = getUserRecords(username);
+            const previousMin = records.length >= 10 ? records[9] : 0;
+            
+            records.push(newScore);
+            records.sort((a, b) => b - a);
+            records = records.slice(0, 10);
+            setUserRecords(username, records);
+            
+            if (newScore <= previousMin && records.length >= 10) {
+                return -1;
+            }
+            
+            return records.indexOf(newScore);
+        }
+
+        function getMaxScore(username) {
+            if (!username) return 0;
+            const records = getUserRecords(username);
+            return records.length > 0 ? records[0] : 0;
+        }
+
+        function saveLastUser(username) {
+            if (username) {
+                localStorage.setItem('starCatcherLastUser', username);
+            } else {
+                localStorage.removeItem('starCatcherLastUser');
+            }
+        }
+
+        function loadLastUser() {
+            return localStorage.getItem('starCatcherLastUser') || null;
+        }
+
+        function showMobileInput(show) {
+            const wrapper = document.getElementById('mobileAccountInput');
+            if (!wrapper) return;
+            if (show) {
+                wrapper.style.display = 'block';
+                const input = document.getElementById('accountMobileInput');
+                if (input) {
+                    input.value = accountInput || '';
+                    setTimeout(() => input.focus(), 100);
+                }
+                mobileInputVisible = true;
+            } else {
+                wrapper.style.display = 'none';
+                mobileInputVisible = false;
+            }
+        }
+
+        /* ============================================================
+           4. FUNZIONI DI GIOCO
+        ============================================================ */
+        function createStar() {
+            return {
+                x: Math.random() * canvas.width,
+                y: -10,
+                radius: 8 + Math.random() * 10,
+                speed: 1 + Math.random() * 3,
+                color: `hsl(${Math.random() * 60 + 30}, 100%, 60%)`
+            };
+        }
+
+        function resetGame() {
+            stars = [];
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            isNewRecord = false;
+            newRecordPosition = -1;
+            player.x = 400;
+            player.y = 550;
+            player.targetX = 400;
+            leftPressed = false;
+            rightPressed = false;
+            updateTouchVisibility();
+        }
+
+        function startGame() {
+            if (!currentUser) {
+                showMobileInput(false);
+                gameState = GAME_STATES.ACCOUNT;
+                accountInput = '';
+                return;
+            }
+            stopMenuMusic();
+            menuMusicStarted = false; // Reset il flag della musica del menu
+            resetGame();
+            showMobileInput(false);
+            gameState = GAME_STATES.PLAYING;
+            updateTouchVisibility();
+        }
+
+        function togglePause() {
+            if (gameState === GAME_STATES.PLAYING && !gameOver) {
+                gameState = GAME_STATES.PAUSED;
+                isPaused = true;
+                playClickSound();
+                updateTouchVisibility();
+            } else if (gameState === GAME_STATES.PAUSED) {
+                gameState = GAME_STATES.PLAYING;
+                isPaused = false;
+                playClickSound();
+                updateTouchVisibility();
+            }
+        }
+
+        function updateRocketEmoji() {
+            if (gameState !== GAME_STATES.MENU) {
+                if (rocketEmoji.isEscaping) {
+                    rocketEmoji.isEscaping = false;
+                    rocketEmoji.escapeTimer = 0;
+                    rocketEmoji.vx = 0;
+                    rocketEmoji.vy = 0;
+                }
+                return;
+            }
+
+            if (rocketEmoji.isEscaping) {
+                rocketEmoji.x += rocketEmoji.vx;
+                rocketEmoji.y += rocketEmoji.vy;
+                rocketEmoji.angle = Math.atan2(rocketEmoji.vy, rocketEmoji.vx) + Math.PI / 2;
+
+                const margin = 40;
+                if (rocketEmoji.x < margin || rocketEmoji.x > canvas.width - margin) {
+                    rocketEmoji.vx *= -1;
+                    rocketEmoji.x = Math.max(margin, Math.min(canvas.width - margin, rocketEmoji.x));
+                }
+                if (rocketEmoji.y < margin || rocketEmoji.y > canvas.height - margin) {
+                    rocketEmoji.vy *= -1;
+                    rocketEmoji.y = Math.max(margin, Math.min(canvas.height - margin, rocketEmoji.y));
+                }
+
+                rocketEmoji.escapeTimer--;
+                if (rocketEmoji.escapeTimer <= 0) {
+                    rocketEmoji.isEscaping = false;
+                    rocketEmoji.vx = 0;
+                    rocketEmoji.vy = 0;
+                    rocketEmoji.angle = 0;
+                }
+            }
+        }
+
+        /* ============================================================
+           5. AGGIORNAMENTO LOGICA
+        ============================================================ */
+        function update() {
+            if (gameState !== GAME_STATES.PLAYING || gameOver) return;
+
+            player.x += (player.targetX - player.x) * 0.3;
+
+            if (leftPressed || touchLeft) {
+                player.x -= MOVE_SPEED;
+            }
+            if (rightPressed || touchRight) {
+                player.x += MOVE_SPEED;
+            }
+
+            if (player.x < player.radius) player.x = player.radius;
+            if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+
+            if (Math.random() < 0.05) {
+                stars.push(createStar());
+            }
+
+            for (let i = stars.length - 1; i >= 0; i--) {
+                const star = stars[i];
+                star.y += star.speed;
+
+                const dx = player.x - star.x;
+                const dy = player.y - star.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const collisionDistance = player.radius + star.radius;
+
+                if (distance < collisionDistance) {
+                    score++;
+                    playCollectSound();
+                    stars.splice(i, 1);
+                    continue;
+                }
+
+                if (star.y > canvas.height + star.radius) {
+                    lives--;
+                    playLoseLifeSound();
+                    stars.splice(i, 1);
+                    if (lives <= 0) {
+                        gameOver = true;
+                        playGameOverSound();
+                        if (currentUser) {
+                            const pos = addScoreToUser(currentUser, score);
+                            if (pos !== -1) {
+                                isNewRecord = true;
+                                newRecordPosition = pos;
+                                playRecordSound();
+                            }
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            if (stars.length > 100) {
+                stars.splice(0, stars.length - 100);
+            }
+        }
+
+        /* ============================================================
+           6. FUNZIONI DI DISEGNO
+        ============================================================ */
+        function drawBackground() {
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.shadowBlur = 0;
+            for (let i = 0; i < 100; i++) {
+                const x = (i * 137 + 50) % canvas.width;
+                const y = (i * 251 + 30) % canvas.height;
+                const size = 0.5 + (i % 3) * 0.5;
+                const brightness = 0.6 + Math.random() * 0.4;
+                ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const g1 = ctx.createRadialGradient(120, 100, 10, 120, 100, 60);
+            g1.addColorStop(0, '#ff8c42');
+            g1.addColorStop(0.7, '#b84a1c');
+            g1.addColorStop(1, '#4a1a0a');
+            ctx.shadowColor = '#ff8c42';
+            ctx.shadowBlur = 30;
+            ctx.beginPath();
+            ctx.arc(120, 100, 60, 0, Math.PI * 2);
+            ctx.fillStyle = g1;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255,200,100,0.3)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.ellipse(120, 100, 90, 25, -0.2, 0, Math.PI * 2);
+            ctx.stroke();
+
+            const g2 = ctx.createRadialGradient(700, 500, 15, 700, 500, 45);
+            g2.addColorStop(0, '#4fc3ff');
+            g2.addColorStop(0.5, '#1a7ab5');
+            g2.addColorStop(1, '#0a2a4a');
+            ctx.shadowColor = '#4fc3ff';
+            ctx.shadowBlur = 25;
+            ctx.beginPath();
+            ctx.arc(700, 500, 45, 0, Math.PI * 2);
+            ctx.fillStyle = g2;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(690, 490, 20, 10, 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(710, 510, 15, 8, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMenu() {
+            drawBackground();
+            // Avvia la musica del menu solo una volta all'entrata
+            if (!menuMusicStarted) {
+                playMenuMusic();
+                menuMusicStarted = true;
+            }
+
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#4af';
+            ctx.shadowBlur = 50;
+
+            const centerX = canvas.width / 2;
+            const titleY = 170;
+
+            ctx.font = 'bold 72px Orbitron, sans-serif';
+            const starText = 'STAR';
+            const catcherText = 'CATCHER';
+            const starWidth = ctx.measureText(starText).width;
+            const catcherWidth = ctx.measureText(catcherText).width;
+            const totalTextWidth = starWidth + catcherWidth + 20;
+
+            if (!rocketEmoji.isEscaping && rocketEmoji.escapeTimer <= 0) {
+                rocketEmoji.baseX = centerX - totalTextWidth / 2 - 40;
+                rocketEmoji.x = rocketEmoji.baseX;
+                rocketEmoji.y = rocketEmoji.baseY;
+            }
+
+            ctx.font = 'bold 72px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(starText, centerX - catcherWidth / 2 - 10, titleY);
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(catcherText, centerX + starWidth / 2 + 10, titleY);
+
+            ctx.save();
+            ctx.translate(rocketEmoji.x, rocketEmoji.y);
+            ctx.rotate(rocketEmoji.angle);
+            ctx.font = '60px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = '#ff6b35';
+            ctx.shadowBlur = 30;
+            ctx.fillText('🚀', 0, 0);
+            ctx.restore();
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillStyle = '#88aaff';
+            ctx.fillText('Raccogli le stelle, batti il record!', canvas.width / 2, 310);
+
+            ctx.font = '16px Orbitron, sans-serif';
+            ctx.fillStyle = '#66dd88';
+            ctx.shadowBlur = 10;
+            ctx.fillText(
+                currentUser ? `👤 ${currentUser}` : '👤 Nessun account',
+                canvas.width / 2,
+                350
+            );
+
+            const btnY = 390;
+            const btnW = 180;
+            const btnH = 50;
+            const gap = 25;
+
+            const playX = canvas.width / 2 - btnW - gap / 2;
+            const playCenterX = playX + btnW / 2;
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a6aff';
+            ctx.beginPath();
+            ctx.roundRect(playX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.fillText('▶ PLAY', playCenterX, btnY + 34);
+
+            const accX = canvas.width / 2 + gap / 2;
+            const accCenterX = accX + btnW / 2;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#88aaff';
+            ctx.fillStyle = '#3a3a6a';
+            ctx.beginPath();
+            ctx.roundRect(accX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#88aaff';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34);
+
+            const recY = btnY + btnH + 20;
+            const recW = 200;
+            const recH = 40;
+            const recX = canvas.width / 2 - recW / 2;
+            const recCenterX = canvas.width / 2;
+            const recRect = { x: recX, y: recY, w: recW, h: recH };
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillStyle = '#2a2a4a';
+            ctx.beginPath();
+            ctx.roundRect(recX, recY, recW, recH, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = '20px Orbitron, sans-serif';
+            ctx.fillText('🏆 RECORDS', recCenterX, recY + 28);
+
+            menuButtons = [
+                { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
+                { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
+                { rect: recRect, action: 'records' }
+            ];
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        function drawAccountScreen() {
+            drawBackground();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#4af';
+
+            ctx.font = 'bold 44px Orbitron, sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.fillText('👤 ACCOUNT', canvas.width / 2, 150);
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillStyle = '#aaa';
+            ctx.fillText('Inserisci il tuo nome (max 12 caratteri)', canvas.width / 2, 210);
+
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                showMobileInput(true);
+            }
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        function drawFallingStars() {
+            for (const star of stars) {
+                ctx.save();
+                ctx.translate(star.x, star.y);
+                ctx.shadowColor = star.color;
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = star.color;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+
+                const spikes = 5;
+                const outerRadius = star.radius;
+                const innerRadius = star.radius * 0.4;
+                ctx.beginPath();
+                for (let i = 0; i < spikes * 2; i++) {
+                    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                    const angle = (i * Math.PI) / spikes - Math.PI / 2;
+                    const x = radius * Math.cos(angle);
+                    const y = radius * Math.sin(angle);
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function drawShip() {
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.shadowColor = '#4af';
+            ctx.shadowBlur = 25;
+
+            ctx.beginPath();
+            ctx.ellipse(0, -5, 18, 12, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#4a8cff';
+            ctx.fill();
+            ctx.strokeStyle = '#8cf';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.ellipse(0, -12, 10, 7, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#8cf';
+            ctx.fill();
+            ctx.strokeStyle = '#adf';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(-4, -14, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(4, -14, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#3a7add';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(-20, 5);
+            ctx.lineTo(-8, -2);
+            ctx.lineTo(-8, 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(20, 5);
+            ctx.lineTo(8, -2);
+            ctx.lineTo(8, 8);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#f90';
+            ctx.fillStyle = '#f90';
+            ctx.beginPath();
+            ctx.moveTo(-6, 12);
+            ctx.lineTo(0, 22);
+            ctx.lineTo(6, 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fd0';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.moveTo(-3, 12);
+            ctx.lineTo(0, 18);
+            ctx.lineTo(3, 12);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawGameUI() {
+            const highScore = currentUser ? getMaxScore(currentUser) : 0;
+
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 10;
+
+            if (currentUser) {
+                ctx.fillStyle = '#66dd88';
+                ctx.textAlign = 'right';
+                ctx.fillText(`👤 ${currentUser}`, canvas.width - 20, 30);
+                ctx.textAlign = 'left';
+            }
+
+            ctx.fillStyle = 'white';
+            ctx.fillText(`⭐ Punteggio: ${score}`, 20, 40);
+
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(`🏆 Record: ${highScore}`, 20, 80);
+
+            if (score === highScore && score > 0 && !gameOver && currentUser) {
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 30;
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 26px Orbitron, sans-serif';
+                ctx.fillText('✦ NUOVO RECORD! ✦', canvas.width / 2 - 110, 130);
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.fillStyle = 'white';
+            ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, 80);
+        }
+
+        function drawPauseScreen() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#4af';
+            ctx.shadowBlur = 40;
+
+            ctx.font = 'bold 70px Orbitron, sans-serif';
+            ctx.fillStyle = '#4a8cff';
+            ctx.fillText('⏸ PAUSA', canvas.width / 2, canvas.height / 2 - 40);
+
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = '24px Orbitron, sans-serif';
+            ctx.fillStyle = '#88aaff';
+            ctx.fillText('Premi "P" per riprendere', canvas.width / 2, canvas.height / 2 + 40);
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        function drawGameOver() {
+            const highScore = currentUser ? getMaxScore(currentUser) : 0;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.textAlign = 'center';
+
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 40;
+            ctx.font = 'bold 60px Orbitron, sans-serif';
+            ctx.fillStyle = '#ff4444';
+            ctx.fillText('GAME OVER', canvas.width / 2, 100);
+
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 15;
+            ctx.font = 'bold 28px Orbitron, sans-serif';
+            ctx.fillStyle = 'white';
+            ctx.fillText(`Score: ${score}`, canvas.width / 2, 150);
+
+            if (isNewRecord && currentUser && score > 0) {
+                let label = '';
+                const pos = newRecordPosition;
+                if (pos === 0) {
+                    label = '🏆 NEW BEST RECORD! 🏆';
+                } else if (pos === 1) {
+                    label = '🥈 NEW RECORD! (2nd place)';
+                } else if (pos === 2) {
+                    label = '🥉 NEW RECORD! (3rd place)';
+                } else {
+                    label = `🎯 NEW RECORD! (${pos + 1}th place)`;
+                }
+
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 50;
+                ctx.font = 'bold 32px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd700';
+                ctx.fillText(label, canvas.width / 2, 200);
+
+                ctx.font = '50px Arial';
+                ctx.shadowBlur = 60;
+                const medal = pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯';
+                ctx.fillText(medal, canvas.width / 2, 260);
+            } else {
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 10;
+                ctx.font = '20px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText(`Best Record: ${highScore}`, canvas.width / 2, 200);
+            }
+
+            const leftColX = 60;
+            const col2X = 300;
+            const top5Y = 290;
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(200, 50, 50, 0.15)';
+            ctx.beginPath();
+            ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 80, 80, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
+            ctx.stroke();
+
+            ctx.textAlign = 'left';
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 20;
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('🏆 TOP 10', leftColX, top5Y);
+
+            if (currentUser) {
+                const records = getUserRecords(currentUser);
+                const validRecords = records.filter(r => r > 0);
+
+                if (validRecords.length > 0) {
+                    ctx.shadowBlur = 5;
+                    for (let i = 0; i < Math.min(10, validRecords.length); i++) {
+                        const colX = i < 5 ? leftColX : col2X;
+                        const rowIndex = i < 5 ? i : i - 5;
+                        const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                        const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ccc';
+                        ctx.fillStyle = color;
+                        ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
+                        ctx.fillText(
+                            `${medalEmoji} ${validRecords[i]} pts`,
+                            colX,
+                            top5Y + 40 + rowIndex * 32
+                        );
+                    }
+                } else {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '16px Orbitron, sans-serif';
+                    ctx.fillText('No records yet', leftColX, top5Y + 40);
+                }
+            } else {
+                ctx.fillStyle = '#666';
+                ctx.font = '16px Orbitron, sans-serif';
+                ctx.fillText('Create an account', leftColX, top5Y + 40);
+            }
+
+            const shipX = canvas.width - 150;
+            const shipY = 320;
+
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#44ff88';
+            ctx.beginPath();
+            ctx.arc(shipX, shipY, 95, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(68, 255, 136, 0.12)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(68, 255, 136, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.save();
+            ctx.translate(shipX, shipY);
+            ctx.shadowColor = '#4af';
+            ctx.shadowBlur = 30;
+
+            ctx.beginPath();
+            ctx.ellipse(0, -8, 30, 20, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#4a8cff';
+            ctx.fill();
+            ctx.strokeStyle = '#8cf';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.ellipse(0, -20, 16, 12, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#8cf';
+            ctx.fill();
+            ctx.strokeStyle = '#adf';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-6, -22, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(6, -22, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#222';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(-5, -21, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(7, -21, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#3a7add';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.moveTo(-32, 8);
+            ctx.lineTo(-14, -2);
+            ctx.lineTo(-14, 14);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(32, 8);
+            ctx.lineTo(14, -2);
+            ctx.lineTo(14, 14);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.shadowBlur = 40;
+            ctx.shadowColor = '#f90';
+            ctx.fillStyle = '#f90';
+            ctx.beginPath();
+            ctx.moveTo(-10, 20);
+            ctx.lineTo(0, 36);
+            ctx.lineTo(10, 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fd0';
+            ctx.shadowBlur = 30;
+            ctx.beginPath();
+            ctx.moveTo(-5, 20);
+            ctx.lineTo(0, 30);
+            ctx.lineTo(5, 20);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            ctx.fillStyle = '#66dd88';
+            ctx.fillText('★ YOU', shipX, shipY + 125);
+
+            const btnY = 500;
+            const btnW = 170;
+            const btnH = 50;
+            const gap = 40;
+            const btnRadius = 14;
+
+            const playAgainX = canvas.width / 2 - btnW - gap / 2;
+            const playAgainCenterX = playAgainX + btnW / 2;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#1a3a6a';
+            ctx.beginPath();
+            ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(74, 170, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
+            ctx.stroke();
+
+            ctx.fillStyle = 'white';
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
+
+            const menuX = canvas.width / 2 + gap / 2;
+            const menuCenterX = menuX + btnW / 2;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ff8800';
+            ctx.fillStyle = '#6a3a1a';
+            ctx.beginPath();
+            ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
+
+            menuButtons = [
+                { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
+                { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'menu' }
+            ];
+
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = 'black';
+            ctx.font = '14px Orbitron, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.textAlign = 'center';
+            ctx.fillText('Press "R" to restart', canvas.width / 2, btnY + btnH + 35);
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        function drawRecordsScreen() {
+            drawBackground();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd700';
+            ctx.font = 'bold 40px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('🏆 CLASSIFICA', canvas.width / 2, 80);
+
+            if (!currentUser) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '22px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('Crea un account per vedere i tuoi record!', canvas.width / 2, 150);
+            } else {
+                const records = getUserRecords(currentUser);
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '18px Orbitron, sans-serif';
+                ctx.fillStyle = '#66dd88';
+                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 140);
+
+                const startY = 190;
+                for (let i = 0; i < 10; i++) {
+                    const scoreVal = records[i] || 0;
+                    let medal = '';
+                    let color = '#aaa';
+                    if (i === 0) {
+                        medal = '🥇';
+                        color = '#ffd700';
+                    } else if (i === 1) {
+                        medal = '🥈';
+                        color = '#c0c0c0';
+                    } else if (i === 2) {
+                        medal = '🥉';
+                        color = '#cd7f32';
+                    } else { medal = `${i + 1}.`; }
+
+                    ctx.fillStyle = color;
+                    ctx.font = i < 3 ? 'bold 22px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
+                    ctx.fillText(
+                        `${medal}  ${scoreVal} punti`,
+                        canvas.width / 2,
+                        startY + i * 35
+                    );
+                }
+            }
+
+            const backY = 560;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a4a7a';
+            ctx.beginPath();
+            ctx.roundRect(canvas.width / 2 - 80, backY, 160, 35, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillText('← TORNA', canvas.width / 2, backY + 25);
+
+            menuButtons = [
+                { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
+            ];
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        function draw() {
+            switch (gameState) {
+                case GAME_STATES.MENU:
+                    drawMenu();
+                    break;
+                case GAME_STATES.ACCOUNT:
+                    drawAccountScreen();
+                    break;
+                case GAME_STATES.PLAYING:
+                    drawBackground();
+                    drawFallingStars();
+                    drawShip();
+                    drawGameUI();
+                    if (gameOver) drawGameOver();
+                    break;
+                case GAME_STATES.PAUSED:
+                    drawBackground();
+                    drawFallingStars();
+                    drawShip();
+                    drawGameUI();
+                    drawPauseScreen();
+                    break;
+            }
+        }
+
+        /* ============================================================
+           7. GESTIONE AZIONI MENU
+        ============================================================ */
+        function handleMenuAction(action) {
+            switch (action) {
+                case 'play':
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        startGame();
+                    }
+                    break;
+                case 'account':
+                    gameState = GAME_STATES.ACCOUNT;
+                    accountInput = currentUser || '';
+                    menuMusicStarted = false; // Reset per permettere di rientrare nel menu
+                    showMobileInput(true);
+                    break;
+                case 'records':
+                    if (!currentUser) {
+                        alert('Crea un account per vedere i tuoi record!');
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        const records = getUserRecords(currentUser);
+                        const valid = records.filter(r => r > 0);
+                        let msg = `📊 Record di ${currentUser}:\n\n`;
+                        if (valid.length === 0) {
+                            msg += 'Nessun record salvato. Gioca per crearne!';
+                        } else {
+                            for (let i = 0; i < Math.min(10, valid.length); i++) {
+                                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                                msg += `${medal} ${valid[i]} punti\n`;
+                            }
+                        }
+                        alert(msg);
+                    }
+                    break;
+                case 'confirm':
+                    if (accountInput.trim().length > 0) {
+                        const newUser = accountInput.trim();
+                        if (newUser.length > 12) {
+                            alert('Il nome deve essere massimo 12 caratteri!');
+                            return;
+                        }
+                        currentUser = newUser;
+                        getUserRecords(currentUser);
+                        saveLastUser(currentUser);
+                        resetGame();
+                        gameState = GAME_STATES.MENU;
+                        accountInput = '';
+                        showMobileInput(false);
+                    } else {
+                        alert('Inserisci un nome!');
+                    }
+                    break;
+                case 'cancel':
+                    gameState = GAME_STATES.MENU;
+                    accountInput = '';
+                    showMobileInput(false);
+                    break;
+                case 'back':
+                    gameState = GAME_STATES.MENU;
+                    showMobileInput(false);
+                    break;
+                case 'playAgain':
+                    stopMenuMusic();
+                    resetGame();
+                    gameState = GAME_STATES.PLAYING;
+                    updateTouchVisibility();
+                    break;
+                case 'menu':
+                    resetGame();
+                    gameState = GAME_STATES.MENU;
+                    menuMusicStarted = false; // Reset per permettere di riavviare la musica
+                    playMenuMusic();
+                    updateTouchVisibility();
+                    break;
+                default:
+                    break;
+            }
+            menuButtons = [];
+        }
+
+        /* ============================================================
+           8. INPUT: MOUSE, TASTIERA E TOUCH
+        ============================================================ */
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = event.clientX - rect.left;
+            const my = event.clientY - rect.top;
+
+            for (const btn of menuButtons) {
+                const r = btn.rect;
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                    handleMenuAction(btn.action);
+                    break;
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = event.clientX - rect.left;
+            const my = event.clientY - rect.top;
+
+            if (gameState === GAME_STATES.MENU && !rocketEmoji.isEscaping) {
+                const dx = mx - rocketEmoji.x;
+                const dy = my - rocketEmoji.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < 50) {
+                    rocketEmoji.isEscaping = true;
+                    rocketEmoji.escapeTimer = 1200; // 20 secondi a 60 FPS
+                    const speed = 5 + Math.random() * 4;
+                    const angle = Math.random() * Math.PI * 2;
+                    rocketEmoji.vx = Math.cos(angle) * speed;
+                    rocketEmoji.vy = Math.sin(angle) * speed;
+                }
+            }
+
+            if (gameState === GAME_STATES.PLAYING) {
+                player.targetX = mx;
+            }
+        });
+
+        window.addEventListener('keydown', (event) => {
+            if (gameState === GAME_STATES.PLAYING) {
+                if (event.key === 'ArrowLeft') {
+                    leftPressed = true;
+                    event.preventDefault();
+                }
+                if (event.key === 'ArrowRight') {
+                    rightPressed = true;
+                    event.preventDefault();
+                }
+                if (event.key === 'r' || event.key === 'R') {
+                    if (gameOver) {
+                        resetGame();
+                        gameState = GAME_STATES.PLAYING;
+                    }
+                }
+            }
+
+            if (event.key === 'p' || event.key === 'P') {
+                if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
+                    togglePause();
+                    event.preventDefault();
+                }
+            }
+
+            if (gameState === GAME_STATES.ACCOUNT) {
+                if (event.key === 'Backspace') {
+                    accountInput = accountInput.slice(0, -1);
+                    event.preventDefault();
+                } else if (event.key.length === 1 && accountInput.length < 12) {
+                    if (/^[a-zA-Z0-9_]$/.test(event.key)) {
+                        accountInput += event.key;
+                        event.preventDefault();
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            if (event.key === 'ArrowLeft') {
+                leftPressed = false;
+                event.preventDefault();
+            }
+            if (event.key === 'ArrowRight') {
+                rightPressed = false;
+                event.preventDefault();
+            }
+        });
+
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+
+        if (btnLeft) {
+            btnLeft.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                touchLeft = true;
+            });
+            btnLeft.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                touchLeft = false;
+            });
+            btnLeft.addEventListener('mouseleave', (e) => { touchLeft = false; });
+            btnLeft.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchLeft = true;
+            });
+            btnLeft.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchLeft = false;
+            });
+            btnLeft.addEventListener('touchcancel', (e) => { touchLeft = false; });
+        }
+
+        if (btnRight) {
+            btnRight.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                touchRight = true;
+            });
+            btnRight.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                touchRight = false;
+            });
+            btnRight.addEventListener('mouseleave', (e) => { touchRight = false; });
+            btnRight.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                touchRight = true;
+            });
+            btnRight.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touchRight = false;
+            });
+            btnRight.addEventListener('touchcancel', (e) => { touchRight = false; });
+        }
+
+        const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
+        const mobileCancelBtn = document.getElementById('mobileCancelBtn');
+        const accountMobileInput = document.getElementById('accountMobileInput');
+
+        if (mobileConfirmBtn) {
+            mobileConfirmBtn.addEventListener('click', () => {
+                const input = document.getElementById('accountMobileInput');
+                const name = input.value.trim();
+                if (name.length > 0 && name.length <= 12) {
+                    accountInput = name;
+                    handleMenuAction('confirm');
+                } else {
+                    alert('Inserisci un nome tra 1 e 12 caratteri!');
+                    input.focus();
+                }
+            });
+        }
+
+        if (mobileCancelBtn) {
+            mobileCancelBtn.addEventListener('click', () => {
+                handleMenuAction('cancel');
+            });
+        }
+
+        if (accountMobileInput) {
+            accountMobileInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('mobileConfirmBtn').click();
+                }
+                if (e.key === 'Escape') {
+                    document.getElementById('mobileCancelBtn').click();
+                }
+            });
+        }
+
+        /* ============================================================
+           9. POLYFILL E UTILITÀ
+        ============================================================ */
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                if (r > w / 2) r = w / 2;
+                if (r > h / 2) r = h / 2;
+                this.moveTo(x + r, y);
+                this.lineTo(x + w - r, y);
+                this.quadraticCurveTo(x + w, y, x + w, y + r);
+                this.lineTo(x + w, y + h - r);
+                this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                this.lineTo(x + r, y + h);
+                this.quadraticCurveTo(x, y + h, x, y + h - r);
+                this.lineTo(x, y + r);
+                this.quadraticCurveTo(x, y, x + r, y);
+                return this;
+            };
+        }
+
+        function updateTouchVisibility() {
+            const controls = document.getElementById('touchControls');
+            if (!controls) return;
+            if (gameState === GAME_STATES.PLAYING && !gameOver) {
+                controls.style.display = 'flex';
+            } else {
+                controls.style.display = 'none';
+            }
+        }
+
+        /* ============================================================
+           10. GAME LOOP E INIZIALIZZAZIONE
+        ============================================================ */
+        function gameLoop() {
+            update();
+            updateRocketEmoji();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Inizializza l'audio alla prima interazione dell'utente (richiesto da Web API)
+        function initAudioOnUserInteraction() {
+            initAudio();
+            initMenuAudio();
+            loadStarSound();
+            // Rimuovi gli event listener dopo l'inizializzazione
+            document.removeEventListener('click', initAudioOnUserInteraction);
+            document.removeEventListener('keydown', initAudioOnUserInteraction);
+            document.removeEventListener('touchstart', initAudioOnUserInteraction);
+        }
+
+        document.addEventListener('click', initAudioOnUserInteraction);
+        document.addEventListener('keydown', initAudioOnUserInteraction);
+        document.addEventListener('touchstart', initAudioOnUserInteraction);
+
+        const savedUser = loadLastUser();
+        if (savedUser) {
+            currentUser = savedUser;
+            getUserRecords(currentUser);
+        }
+
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+
+</html>
