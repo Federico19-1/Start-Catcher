@@ -92,7 +92,6 @@
         let touchRight = false;
         let mobileInputVisible = false;
         let menuMusicStarted = false;
-        let useMouseControl = true; // Controlla se il mouse/touch drag è abilitato
 
         const player = {
             x: 400,
@@ -350,7 +349,8 @@
                 const input = document.getElementById('accountMobileInput');
                 if (input) {
                     input.value = accountInput || '';
-                    setTimeout(() => input.focus(), 100);
+                    // Focus con ritardo per mobile
+                    setTimeout(() => input.focus(), 150);
                 }
                 mobileInputVisible = true;
             } else {
@@ -458,32 +458,18 @@
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
-            // Se i pulsanti touch sono premuti, usa solo il movimento manuale
-            if (touchLeft || touchRight) {
-                useMouseControl = false;
-                if (touchLeft) {
-                    player.x -= MOVE_SPEED;
-                }
-                if (touchRight) {
-                    player.x += MOVE_SPEED;
-                }
-            } else if (leftPressed || rightPressed) {
-                // Movimento con tastiera
-                useMouseControl = false;
-                if (leftPressed) {
-                    player.x -= MOVE_SPEED;
-                }
-                if (rightPressed) {
-                    player.x += MOVE_SPEED;
-                }
-            } else if (useMouseControl) {
+            // Movimento con pulsanti premuti (priorità assoluta)
+            if (touchLeft) {
+                player.x -= MOVE_SPEED;
+            } else if (touchRight) {
+                player.x += MOVE_SPEED;
+            } else if (leftPressed) {
+                player.x -= MOVE_SPEED;
+            } else if (rightPressed) {
+                player.x += MOVE_SPEED;
+            } else {
                 // Altrimenti segue il mouse/touch drag
                 player.x += (player.targetX - player.x) * 0.3;
-            }
-
-            // Resetta useMouseControl quando tutti i pulsanti vengono rilasciati
-            if (!touchLeft && !touchRight && !leftPressed && !rightPressed) {
-                useMouseControl = true;
             }
 
             if (player.x < player.radius) player.x = player.radius;
@@ -1364,7 +1350,7 @@
                 }
             }
 
-            if (gameState === GAME_STATES.PLAYING && useMouseControl) {
+            if (gameState === GAME_STATES.PLAYING) {
                 player.targetX = mx;
             }
         });
@@ -1518,18 +1504,6 @@
             });
         }
 
-        // Quando i pulsanti vengono rilasciati, riabilita il controllo con mouse
-        document.addEventListener('mouseup', () => {
-            if (!touchLeft && !touchRight) {
-                useMouseControl = true;
-            }
-        });
-        document.addEventListener('touchend', () => {
-            if (!touchLeft && !touchRight) {
-                useMouseControl = true;
-            }
-        });
-
         const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
         const mobileCancelBtn = document.getElementById('mobileCancelBtn');
         const accountMobileInput = document.getElementById('accountMobileInput');
@@ -1538,6 +1512,7 @@
             mobileConfirmBtn.addEventListener('click', () => {
                 const input = document.getElementById('accountMobileInput');
                 const name = input.value.trim();
+                console.log('Confirm clicked, name:', name);
                 if (name.length > 0 && name.length <= 12) {
                     accountInput = name;
                     handleMenuAction('confirm');
@@ -1550,7 +1525,16 @@
 
         if (mobileCancelBtn) {
             mobileCancelBtn.addEventListener('click', () => {
+                console.log('Cancel clicked');
                 handleMenuAction('cancel');
+            });
+        }
+
+        // Focus automatico sull'input quando l'utente lo tocca
+        const accountInputField = document.getElementById('accountMobileInput');
+        if (accountInputField) {
+            accountInputField.addEventListener('touchstart', () => {
+                accountInputField.focus();
             });
         }
 
