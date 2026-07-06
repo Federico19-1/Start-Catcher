@@ -24,6 +24,8 @@
             border-radius: 10px;
             box-shadow: 0 0 40px rgba(74, 74, 138, 0.5);
             cursor: pointer;
+            touch-action: none;
+            user-select: none;
         }
 
         @media (max-width: 768px) {
@@ -58,11 +60,11 @@
     </div>
 
     <div id="touchControls"
-        style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 20px; pointer-events: none; z-index: 10;">
+        style="position: absolute; bottom: 20px; left: 0; right: 0; display: none; justify-content: space-between; padding: 0 30px; pointer-events: none; z-index: 10;">
         <button id="btnLeft"
-            style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">◀</button>
+            style="pointer-events: auto; width: 120px; height: 120px; border-radius: 50%; border: 4px solid rgba(74, 170, 255, 0.8); background: rgba(74, 170, 255, 0.3); color: rgba(74, 170, 255, 1); font-size: 56px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(10px); cursor: pointer; user-select: none; touch-action: none;">◀</button>
         <button id="btnRight"
-            style="pointer-events: auto; width: 80px; height: 80px; border-radius: 50%; border: 3px solid rgba(74, 170, 255, 0.6); background: rgba(74, 170, 255, 0.2); color: rgba(74, 170, 255, 0.8); font-size: 40px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px); cursor: pointer; user-select: none; touch-action: manipulation;">▶</button>
+            style="pointer-events: auto; width: 120px; height: 120px; border-radius: 50%; border: 4px solid rgba(74, 170, 255, 0.8); background: rgba(74, 170, 255, 0.3); color: rgba(74, 170, 255, 1); font-size: 56px; font-family: 'Orbitron', sans-serif; backdrop-filter: blur(10px); cursor: pointer; user-select: none; touch-action: none;">▶</button>
     </div>
 
     <script>
@@ -90,6 +92,7 @@
         let touchRight = false;
         let mobileInputVisible = false;
         let menuMusicStarted = false;
+        let useMouseControl = true; // Controlla se il mouse/touch drag è abilitato
 
         const player = {
             x: 400,
@@ -455,13 +458,32 @@
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
-            player.x += (player.targetX - player.x) * 0.3;
-
-            if (leftPressed || touchLeft) {
-                player.x -= MOVE_SPEED;
+            // Se i pulsanti touch sono premuti, usa solo il movimento manuale
+            if (touchLeft || touchRight) {
+                useMouseControl = false;
+                if (touchLeft) {
+                    player.x -= MOVE_SPEED;
+                }
+                if (touchRight) {
+                    player.x += MOVE_SPEED;
+                }
+            } else if (leftPressed || rightPressed) {
+                // Movimento con tastiera
+                useMouseControl = false;
+                if (leftPressed) {
+                    player.x -= MOVE_SPEED;
+                }
+                if (rightPressed) {
+                    player.x += MOVE_SPEED;
+                }
+            } else if (useMouseControl) {
+                // Altrimenti segue il mouse/touch drag
+                player.x += (player.targetX - player.x) * 0.3;
             }
-            if (rightPressed || touchRight) {
-                player.x += MOVE_SPEED;
+
+            // Resetta useMouseControl quando tutti i pulsanti vengono rilasciati
+            if (!touchLeft && !touchRight && !leftPressed && !rightPressed) {
+                useMouseControl = true;
             }
 
             if (player.x < player.radius) player.x = player.radius;
@@ -1342,7 +1364,7 @@
                 }
             }
 
-            if (gameState === GAME_STATES.PLAYING) {
+            if (gameState === GAME_STATES.PLAYING && useMouseControl) {
                 player.targetX = mx;
             }
         });
@@ -1396,6 +1418,29 @@
             }
         });
 
+        // Supporto per touch drag su canvas (mobile)
+        let canvasTouchActive = false;
+        canvas.addEventListener('touchstart', (event) => {
+            if (gameState === GAME_STATES.PLAYING) {
+                canvasTouchActive = true;
+                const rect = canvas.getBoundingClientRect();
+                const touch = event.touches[0];
+                player.targetX = touch.clientX - rect.left;
+            }
+        });
+        canvas.addEventListener('touchmove', (event) => {
+            if (gameState === GAME_STATES.PLAYING && canvasTouchActive) {
+                const rect = canvas.getBoundingClientRect();
+                const touch = event.touches[0];
+                player.targetX = touch.clientX - rect.left;
+            }
+        });
+        canvas.addEventListener('touchend', (event) => {
+            if (gameState === GAME_STATES.PLAYING) {
+                canvasTouchActive = false;
+            }
+        });
+
         const btnLeft = document.getElementById('btnLeft');
         const btnRight = document.getElementById('btnRight');
 
@@ -1403,43 +1448,87 @@
             btnLeft.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 touchLeft = true;
+                btnLeft.style.transform = 'scale(0.95)';
+                btnLeft.style.background = 'rgba(74, 170, 255, 0.5)';
             });
             btnLeft.addEventListener('mouseup', (e) => {
                 e.preventDefault();
                 touchLeft = false;
+                btnLeft.style.transform = '';
+                btnLeft.style.background = '';
             });
-            btnLeft.addEventListener('mouseleave', (e) => { touchLeft = false; });
+            btnLeft.addEventListener('mouseleave', (e) => {
+                touchLeft = false;
+                btnLeft.style.transform = '';
+                btnLeft.style.background = '';
+            });
             btnLeft.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 touchLeft = true;
+                btnLeft.style.transform = 'scale(0.95)';
+                btnLeft.style.background = 'rgba(74, 170, 255, 0.5)';
             });
             btnLeft.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 touchLeft = false;
+                btnLeft.style.transform = '';
+                btnLeft.style.background = '';
             });
-            btnLeft.addEventListener('touchcancel', (e) => { touchLeft = false; });
+            btnLeft.addEventListener('touchcancel', (e) => {
+                touchLeft = false;
+                btnLeft.style.transform = '';
+                btnLeft.style.background = '';
+            });
         }
 
         if (btnRight) {
             btnRight.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 touchRight = true;
+                btnRight.style.transform = 'scale(0.95)';
+                btnRight.style.background = 'rgba(74, 170, 255, 0.5)';
             });
             btnRight.addEventListener('mouseup', (e) => {
                 e.preventDefault();
                 touchRight = false;
+                btnRight.style.transform = '';
+                btnRight.style.background = '';
             });
-            btnRight.addEventListener('mouseleave', (e) => { touchRight = false; });
+            btnRight.addEventListener('mouseleave', (e) => {
+                touchRight = false;
+                btnRight.style.transform = '';
+                btnRight.style.background = '';
+            });
             btnRight.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 touchRight = true;
+                btnRight.style.transform = 'scale(0.95)';
+                btnRight.style.background = 'rgba(74, 170, 255, 0.5)';
             });
             btnRight.addEventListener('touchend', (e) => {
                 e.preventDefault();
                 touchRight = false;
+                btnRight.style.transform = '';
+                btnRight.style.background = '';
             });
-            btnRight.addEventListener('touchcancel', (e) => { touchRight = false; });
+            btnRight.addEventListener('touchcancel', (e) => {
+                touchRight = false;
+                btnRight.style.transform = '';
+                btnRight.style.background = '';
+            });
         }
+
+        // Quando i pulsanti vengono rilasciati, riabilita il controllo con mouse
+        document.addEventListener('mouseup', () => {
+            if (!touchLeft && !touchRight) {
+                useMouseControl = true;
+            }
+        });
+        document.addEventListener('touchend', () => {
+            if (!touchLeft && !touchRight) {
+                useMouseControl = true;
+            }
+        });
 
         const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
         const mobileCancelBtn = document.getElementById('mobileCancelBtn');
