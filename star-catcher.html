@@ -43,6 +43,9 @@
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
+    <button id="pauseButton" aria-label="Pausa gioco"
+        style="position: absolute; top: 18px; left: 18px; z-index: 20; width: 64px; height: 64px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.9); background: rgba(10, 10, 26, 0.75); color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900; cursor: pointer; backdrop-filter: blur(10px); box-shadow: 0 0 18px rgba(74, 140, 255, 0.35); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
+
     <div id="mobileAccountInput"
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
         <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 CREA
@@ -413,6 +416,19 @@
                 isPaused = false;
                 playClickSound();
                 updateTouchVisibility();
+            }
+        }
+
+        function updatePauseButton() {
+            const pauseButton = document.getElementById('pauseButton');
+            if (!pauseButton) return;
+
+            if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
+                pauseButton.style.display = 'flex';
+                pauseButton.textContent = gameState === GAME_STATES.PAUSED ? '▶' : '⏸';
+                pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Riprendi gioco' : 'Metti in pausa');
+            } else {
+                pauseButton.style.display = 'none';
             }
         }
 
@@ -1429,6 +1445,7 @@
 
         const btnLeft = document.getElementById('btnLeft');
         const btnRight = document.getElementById('btnRight');
+        const pauseButton = document.getElementById('pauseButton');
 
         if (btnLeft) {
             btnLeft.addEventListener('mousedown', (e) => {
@@ -1504,6 +1521,19 @@
             });
         }
 
+        if (pauseButton) {
+            const handlePausePress = (e) => {
+                e.preventDefault();
+                if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
+                    togglePause();
+                }
+            };
+
+            pauseButton.addEventListener('mousedown', handlePausePress);
+            pauseButton.addEventListener('touchstart', handlePausePress, { passive: false });
+            pauseButton.addEventListener('click', handlePausePress);
+        }
+
         const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
         const mobileCancelBtn = document.getElementById('mobileCancelBtn');
         const accountMobileInput = document.getElementById('accountMobileInput');
@@ -1577,6 +1607,7 @@
             } else {
                 controls.style.display = 'none';
             }
+            updatePauseButton();
         }
 
         /* ============================================================
