@@ -72,13 +72,13 @@
 
     <script>
         /* ============================================================
-           0. SETUP CANVAS E CONTESTO
+           0. SETUP CANVAS AND CONTEXT
         ============================================================ */
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
         /* ============================================================
-           1. STATO DEL GIOCO E VARIABILI GLOBALI
+           1. GAME STATE AND GLOBAL VARIABLES
         ============================================================ */
         const GAME_STATES = {
             MENU: 'menu',
@@ -129,7 +129,7 @@
         let menuButtons = [];
 
         /* ============================================================
-           2. SISTEMA AUDIO
+           2. AUDIO SETUP
         ============================================================ */
         let audioCtx = null;
 
@@ -282,7 +282,7 @@
         }
 
         /* ============================================================
-           3. GESTIONE RECORD (localStorage)
+           3. RECORDS GESTION (localStorage)
         ============================================================ */
         function getAllRecords() {
             const data = localStorage.getItem('starCatcherAllRecords');
@@ -363,7 +363,7 @@
         }
 
         /* ============================================================
-           4. FUNZIONI DI GIOCO
+           4. GAME LOGIC FUNCTIONS
         ============================================================ */
         function createStar() {
             return {
@@ -469,7 +469,7 @@
         }
 
         /* ============================================================
-           5. AGGIORNAMENTO LOGICA
+           5. UPDATE GAME STATE
         ============================================================ */
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
@@ -537,7 +537,7 @@
         }
 
         /* ============================================================
-           6. FUNZIONI DI DISEGNO
+           6. DRAWING FUNCTIONS
         ============================================================ */
         function drawBackground() {
             ctx.fillStyle = '#0a0a1a';
@@ -1244,7 +1244,7 @@
         }
 
         /* ============================================================
-           7. GESTIONE AZIONI MENU
+           7. HANDLE MENU ACTIONS
         ============================================================ */
         function handleMenuAction(action) {
             switch (action) {
@@ -1331,7 +1331,7 @@
         }
 
         /* ============================================================
-           8. INPUT: MOUSE, TASTIERA E TOUCH
+           8. INPUT: MOUSE, KEYBOARD AND TOUCH
         ============================================================ */
         canvas.addEventListener('click', (event) => {
             const rect = canvas.getBoundingClientRect();
@@ -1529,9 +1529,7 @@
                 }
             };
 
-            pauseButton.addEventListener('mousedown', handlePausePress);
-            pauseButton.addEventListener('touchstart', handlePausePress, { passive: false });
-            pauseButton.addEventListener('click', handlePausePress);
+            pauseButton.addEventListener('pointerup', handlePausePress);
         }
 
         const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
@@ -1580,7 +1578,7 @@
         }
 
         /* ============================================================
-           9. POLYFILL E UTILITÀ
+           9. POLYFILL AND UTILITIES
         ============================================================ */
         if (!CanvasRenderingContext2D.prototype.roundRect) {
             CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
@@ -1611,7 +1609,7 @@
         }
 
         /* ============================================================
-           10. GAME LOOP E INIZIALIZZAZIONE
+           10. GAME LOOP AND INITIALIZATION
         ============================================================ */
         function gameLoop() {
             update();
