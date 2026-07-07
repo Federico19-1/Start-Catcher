@@ -875,13 +875,44 @@
 
             ctx.font = 'bold 70px Orbitron, sans-serif';
             ctx.fillStyle = '#4a8cff';
-            ctx.fillText('⏸ PAUSA', canvas.width / 2, canvas.height / 2 - 40);
+            ctx.fillText('⏸ PAUSA', canvas.width / 2, canvas.height / 2 - 80);
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = '24px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
-            ctx.fillText('Premi "P" per riprendere', canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText('Premi "P" per riprendere', canvas.width / 2, canvas.height / 2 - 20);
+
+            // Pulsante MENU
+            const btnY = canvas.height / 2 + 40;
+            const btnW = 180;
+            const btnH = 50;
+            const menuX = canvas.width / 2 - btnW / 2;
+            const menuCenterX = canvas.width / 2;
+
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ff8800';
+            ctx.fillStyle = '#6a3a1a';
+            ctx.beginPath();
+            ctx.roundRect(menuX, btnY, btnW, btnH, 14);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(menuX, btnY, btnW, btnH, 14);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
+
+            // Imposta i menuButtons per il click
+            menuButtons = [
+                { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'pauseMenu' }
+            ];
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
@@ -1321,6 +1352,14 @@
                     resetGame();
                     gameState = GAME_STATES.MENU;
                     menuMusicStarted = false; // Reset per permettere di riavviare la musica
+                    playMenuMusic();
+                    updateTouchVisibility();
+                    break;
+                case 'pauseMenu':
+                    stopMenuMusic();
+                    resetGame();
+                    gameState = GAME_STATES.MENU;
+                    menuMusicStarted = false;
                     playMenuMusic();
                     updateTouchVisibility();
                     break;
