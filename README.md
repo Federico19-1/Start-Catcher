@@ -60,7 +60,6 @@ Alternatively, you can simply double-click `star-catcher.html` to open it: the g
 ## 🎧 Credits
 
 - Menu music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
-- Star collect sound — **Ribhav Agrawal**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 
 ## 📄 License
 
