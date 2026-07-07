@@ -350,7 +350,7 @@
             if (show) {
                 wrapper.style.display = 'block';
                 const input = document.getElementById('accountMobileInput');
-                if (input) {
+                if (input && !mobileInputVisible) {
                     input.value = accountInput || '';
                     // Focus con ritardo per mobile
                     setTimeout(() => input.focus(), 150);
@@ -1602,6 +1602,12 @@
         if (accountInputField) {
             accountInputField.addEventListener('touchstart', () => {
                 accountInputField.focus();
+            });
+            accountInputField.addEventListener('input', () => {
+                accountInput = accountInputField.value.slice(0, 12);
+                if (accountInputField.value !== accountInput) {
+                    accountInputField.value = accountInput;
+                }
             });
         }
 
