@@ -847,17 +847,17 @@
             }
 
             ctx.fillStyle = 'white';
-            ctx.fillText(`⭐ Punteggio: ${score}`, 20, 40);
+            ctx.fillText(`⭐ Points: ${score}`, 20, 40);
 
             ctx.fillStyle = '#ffd700';
-            ctx.fillText(`🏆 Record: ${highScore}`, 20, 80);
+            ctx.fillText(`🏆 High Score: ${highScore}`, 20, 80);
 
             if (score === highScore && score > 0 && !gameOver && currentUser) {
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 30;
                 ctx.fillStyle = '#ffd700';
                 ctx.font = 'bold 26px Orbitron, sans-serif';
-                ctx.fillText('✦ NUOVO RECORD! ✦', canvas.width / 2 - 110, 130);
+                ctx.fillText('✦ NEW RECORD! ✦', canvas.width / 2 - 110, 130);
                 ctx.shadowBlur = 0;
             }
 
