@@ -48,17 +48,17 @@
 
     <div id="mobileAccountInput"
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
-        <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 CREA
+        <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 NEW
             ACCOUNT</div>
         <input type="text" id="accountMobileInput" maxlength="12" placeholder="Nome (max 12 char)"
             style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
         <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
             <button id="mobileConfirmBtn"
                 style="background: #2a6aff; color: white; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✅
-                CONFERMA</button>
+                CONFIRM</button>
             <button id="mobileCancelBtn"
                 style="background: #3a3a5a; color: #aaa; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✖
-                ANNULLA</button>
+                CANCEL</button>
         </div>
     </div>
 
@@ -1296,20 +1296,20 @@
                     break;
                 case 'records':
                     if (!currentUser) {
-                        alert('Crea un account per vedere i tuoi record!');
+                        alert('Create an account to see your records!');
                         gameState = GAME_STATES.ACCOUNT;
                         accountInput = '';
                         showMobileInput(true);
                     } else {
                         const records = getUserRecords(currentUser);
                         const valid = records.filter(r => r > 0);
-                        let msg = `📊 Record di ${currentUser}:\n\n`;
+                        let msg = `📊 Records from ${currentUser}:\n\n`;
                         if (valid.length === 0) {
-                            msg += 'Nessun record salvato. Gioca per crearne!';
+                            msg += 'No records saved. Play to create some!';
                         } else {
                             for (let i = 0; i < Math.min(10, valid.length); i++) {
                                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                                msg += `${medal} ${valid[i]} punti\n`;
+                                msg += `${medal} ${valid[i]} points\n`;
                             }
                         }
                         alert(msg);
@@ -1319,7 +1319,7 @@
                     if (accountInput.trim().length > 0) {
                         const newUser = accountInput.trim();
                         if (newUser.length > 12) {
-                            alert('Il nome deve essere massimo 12 caratteri!');
+                            alert('The name must be at most 12 characters!');
                             return;
                         }
                         currentUser = newUser;
@@ -1330,7 +1330,7 @@
                         accountInput = '';
                         showMobileInput(false);
                     } else {
-                        alert('Inserisci un nome!');
+                        alert('Please enter a name!');
                     }
                     break;
                 case 'cancel':
