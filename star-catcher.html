@@ -43,7 +43,7 @@
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-    <button id="pauseButton" aria-label="Pausa gioco"
+    <button id="pauseButton" aria-label="Game Pause"
         style="position: absolute; top: 18px; left: 18px; z-index: 20; width: 64px; height: 64px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.9); background: rgba(10, 10, 26, 0.75); color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900; cursor: pointer; backdrop-filter: blur(10px); box-shadow: 0 0 18px rgba(74, 140, 255, 0.35); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
 
     <div id="mobileAccountInput"
@@ -426,7 +426,7 @@
             if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
                 pauseButton.style.display = 'flex';
                 pauseButton.textContent = gameState === GAME_STATES.PAUSED ? '▶' : '⏸';
-                pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Riprendi gioco' : 'Metti in pausa');
+                pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Resume Game' : 'Pause Game');
             } else {
                 pauseButton.style.display = 'none';
             }
@@ -875,13 +875,13 @@
 
             ctx.font = 'bold 70px Orbitron, sans-serif';
             ctx.fillStyle = '#4a8cff';
-            ctx.fillText('⏸ PAUSA', canvas.width / 2, canvas.height / 2 - 80);
+            ctx.fillText('⏸ PAUSED', canvas.width / 2, canvas.height / 2 - 80);
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = '24px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
-            ctx.fillText('Premi "P" per riprendere', canvas.width / 2, canvas.height / 2 - 20);
+            ctx.fillText('Press "P" to resume', canvas.width / 2, canvas.height / 2 - 20);
 
             // Pulsante MENU
             const btnY = canvas.height / 2 + 40;
