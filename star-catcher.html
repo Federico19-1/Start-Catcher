@@ -838,10 +838,12 @@
                 if (meteoriteHitCooldown === 0) {
                     const dx = player.x - m.x;
                     const dy = player.y - m.y;
-                    // Use a forgiving hit box for the meteorite (slightly
-                    // smaller than its visible radius) so glancing contact
-                    // doesn't feel unfair.
-                    const hitDistance = player.radius * 0.55 + m.radius * 0.85;
+                    // Survival uses an almost-minimum capture radius so a
+                    // glancing meteorite won't drain a life. The hit zone
+                    // shrinks to a tiny core near the player's centre:
+                    // meteorites must almost literally land on the ship to
+                    // count. The mode is intentionally easy / enjoyable.
+                    const hitDistance = player.radius * 0.15 + m.radius * 0.30;
                     const dist2 = dx * dx + dy * dy;
                     if (dist2 < hitDistance * hitDistance) {
                         lives--;
