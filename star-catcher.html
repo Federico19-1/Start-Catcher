@@ -144,7 +144,8 @@
             ACCOUNT: 'account',
             PLAYING: 'playing',
             PAUSED: 'paused',
-            SETTINGS: 'settings'
+            SETTINGS: 'settings',
+            RECORDS: 'records'
         };
 
         const GAME_MODES = {
@@ -163,6 +164,13 @@
         let touchRight = false;
         let mobileInputVisible = false;
         let menuMusicStarted = false;
+
+        // Play-time tracking: how long the player spent in the
+        // PLAYING state on the current account. The timer is paused
+        // while the game is PAUSED so only active play counts toward
+        // the "How much time did you play" totals shown on the
+        // Records screen.
+        let playingStartedAt = 0;
 
         // Per-account audio preferences. music = menu background song,
         // sfx = every other in-game sound effect.
@@ -532,6 +540,56 @@
             return records.length > 0 ? records[0] : 0;
         }
 
+        // ----- Play-time helpers (per account) -----
+        // Stored as a single integer (ms) under `${user}__playTime`
+        // alongside the records so the Records screen can answer
+        // "how much time have you been gaming on this account".
+        function getPlayTime(username) {
+            if (!username) return 0;
+            const key = `${username}__playTime`;
+            const all = getAllRecords();
+            const v = all[key];
+            return typeof v === 'number' && v > 0 ? v : 0;
+        }
+
+        function addPlayTimeToUser(username, ms) {
+            if (!username || !ms || ms <= 0) return;
+            const key = `${username}__playTime`;
+            const all = getAllRecords();
+            const prev = typeof all[key] === 'number' ? all[key] : 0;
+            all[key] = prev + ms;
+            saveAllRecords(all);
+        }
+
+        // Save any in-flight session time to the current user's bucket.
+        // Called whenever we leave the PLAYING state, the game ends,
+        // the player pauses, or they back out to the menu.
+        function flushPlayTime() {
+            if (currentUser && playingStartedAt > 0) {
+                const elapsed = Date.now() - playingStartedAt;
+                if (elapsed > 0) addPlayTimeToUser(currentUser, elapsed);
+                playingStartedAt = 0;
+            }
+        }
+
+        // Start (or restart) the play-time clock for the next run.
+        function startPlayTimer() {
+            playingStartedAt = Date.now();
+        }
+
+        // Render ms as a friendly "Xh Ym Zs". The records screen
+        // uses this to answer "how much time did you play".
+        function formatPlayTime(ms) {
+            if (!ms || ms <= 0) return '0s';
+            const totalSec = Math.floor(ms / 1000);
+            const hours = Math.floor(totalSec / 3600);
+            const minutes = Math.floor((totalSec % 3600) / 60);
+            const seconds = totalSec % 60;
+            if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+            if (minutes > 0) return `${minutes}m ${seconds}s`;
+            return `${seconds}s`;
+        }
+
         function saveLastUser(username) {
             if (username) {
                 localStorage.setItem('starCatcherLastUser', username);
@@ -661,16 +719,19 @@
             resetGame();
             showMobileInput(false);
             gameState = GAME_STATES.PLAYING;
+            startPlayTimer();          // begin timing this play session
             updateTouchVisibility();
         }
 
         function togglePause() {
             if (gameState === GAME_STATES.PLAYING && !gameOver) {
+                flushPlayTime();       // stop the clock while paused
                 gameState = GAME_STATES.PAUSED;
                 isPaused = true;
                 playClickSound();
                 updateTouchVisibility();
             } else if (gameState === GAME_STATES.PAUSED) {
+                startPlayTimer();      // resume the clock on unpause
                 gameState = GAME_STATES.PLAYING;
                 isPaused = false;
                 playClickSound();
@@ -873,6 +934,7 @@
         function endGame() {
             // Centralised game-over so both classic (star missed) and
             // survival (meteorite hit) paths honour the same record logic.
+            flushPlayTime();   // persist this run's time to the account
             gameOver = true;
             playGameOverSound();
             if (currentUser) {
@@ -1936,31 +1998,32 @@
             ctx.textAlign = 'center';
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#ffd700';
-            ctx.font = 'bold 40px Orbitron, sans-serif';
+            ctx.font = 'bold 38px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd700';
-            ctx.fillText('🏆 RECORDS', canvas.width / 2, 75);
+            ctx.fillText('🏆 RECORDS', canvas.width / 2, 60);
 
             if (!currentUser) {
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
                 ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
-                ctx.fillText('Create an account to see your records!', canvas.width / 2, 140);
+                ctx.fillText('Create an account to see your records!', canvas.width / 2, 110);
             } else {
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
-                ctx.font = '16px Orbitron, sans-serif';
+                ctx.font = '15px Orbitron, sans-serif';
                 ctx.fillStyle = '#66dd88';
-                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 125);
+                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 92);
 
                 const classicRecords = getUserRecords(currentUser).filter(r => r > 0);
                 const survivalRecords = getSurvivalRecords(currentUser).filter(r => r > 0);
 
                 // Two side-by-side columns so the player can compare their
-                // classic and survival bests at a glance.
+                // classic and survival bests at a glance. Sized so a
+                // "How much time did you play" band can live beneath.
                 const colW = 350;
-                const colY = 165;
-                const colH = 350;
+                const colY = 120;
+                const colH = 290;
                 const leftColX = canvas.width / 2 - colW - 15;
                 const rightColX = canvas.width / 2 + 15;
 
@@ -2053,12 +2116,72 @@
                 }
             }
 
-            const backY = 560;
+            // ----- "How much time did you play" card -----
+            // Sits beneath the two record columns; the value is the
+            // per-account cumulative ms spent in the PLAYING state,
+            // formatted nicely. Always rendered (zero value still
+            // shows "0s" so the screen never feels broken on a
+            // brand-new account).
+            const cardX = 75;
+            const cardY = 425;
+            const cardW = canvas.width - cardX * 2;
+            const cardH = 90;
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#66e0ff';
+            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH);
+            cardGrad.addColorStop(0, 'rgba(20, 50, 80, 0.85)');
+            cardGrad.addColorStop(1, 'rgba(10, 25, 50, 0.95)');
+            ctx.fillStyle = cardGrad;
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, 14);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(102, 224, 255, 0.55)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, 14);
+            ctx.stroke();
+
+            // Header label (left)
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            ctx.fillStyle = '#9cd3ff';
+            ctx.fillText('⏱  HOW MUCH TIME DID YOU PLAY', cardX + 22, cardY + 26);
+
+            // Friendly description
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.fillStyle = '#7eaad6';
+            ctx.shadowBlur = 3;
+            ctx.fillText('Active gameplay across this account', cardX + 22, cardY + 46);
+
+            // Big value (right-aligned)
+            const playMs = currentUser ? getPlayTime(currentUser) : 0;
+            const playText = formatPlayTime(playMs);
+            ctx.textAlign = 'right';
+            ctx.font = 'bold 30px Orbitron, sans-serif';
+            ctx.shadowColor = '#66e0ff';
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(playText, cardX + cardW - 22, cardY + 60);
+            ctx.shadowBlur = 0;
+
+            // Lightweight sub-label under the value
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.fillStyle = '#7eaad6';
+            ctx.shadowBlur = 3;
+            ctx.fillText('h   m   s', cardX + cardW - 22, cardY + 78);
+
+            const backY = 540;
+            const backW = 160;
+            const backH = 35;
+            const backX = canvas.width / 2 - backW / 2;
             ctx.shadowBlur = 10;
             ctx.shadowColor = '#4af';
             ctx.fillStyle = '#2a4a7a';
             ctx.beginPath();
-            ctx.roundRect(canvas.width / 2 - 80, backY, 160, 35, 10);
+            ctx.roundRect(backX, backY, backW, backH, 10);
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
@@ -2067,7 +2190,7 @@
             ctx.fillText('← BACK', canvas.width / 2, backY + 25);
 
             menuButtons = [
-                { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
+                { rect: { x: backX, y: backY, w: backW, h: backH }, action: 'back' }
             ];
 
             ctx.textAlign = 'left';
@@ -2233,6 +2356,9 @@
                 case GAME_STATES.SETTINGS:
                     drawSettingsScreen();
                     break;
+                case GAME_STATES.RECORDS:
+                    drawRecordsScreen();
+                    break;
                 case GAME_STATES.PLAYING:
                     drawBackground();
                     if (gameMode === GAME_MODES.SURVIVAL) {
@@ -2291,23 +2417,12 @@
                     break;
                 case 'records':
                     if (!currentUser) {
-                        alert('Create an account to see your records!');
                         gameState = GAME_STATES.ACCOUNT;
                         accountInput = '';
                         showMobileInput(true);
                     } else {
-                        const records = getUserRecords(currentUser);
-                        const valid = records.filter(r => r > 0);
-                        let msg = `📊 Records from ${currentUser}:\n\n`;
-                        if (valid.length === 0) {
-                            msg += 'No records saved. Play to create some!';
-                        } else {
-                            for (let i = 0; i < Math.min(10, valid.length); i++) {
-                                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                                msg += `${medal} ${valid[i]} points\n`;
-                            }
-                        }
-                        alert(msg);
+                        flushPlayTime();      // ensure displayed time is current
+                        gameState = GAME_STATES.RECORDS;
                     }
                     break;
                 case 'confirm':
@@ -2360,11 +2475,14 @@
                     break;
                 case 'playAgain':
                     stopMenuMusic();
+                    flushPlayTime();
                     resetGame();
                     gameState = GAME_STATES.PLAYING;
+                    startPlayTimer();
                     updateTouchVisibility();
                     break;
                 case 'menu':
+                    flushPlayTime();
                     resetGame();
                     gameState = GAME_STATES.MENU;
                     menuMusicStarted = false; // Reset per permettere di riavviare la musica
@@ -2372,6 +2490,7 @@
                     updateTouchVisibility();
                     break;
                 case 'pauseMenu':
+                    flushPlayTime();
                     stopMenuMusic();
                     resetGame();
                     gameState = GAME_STATES.MENU;

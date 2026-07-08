@@ -1,0 +1,59 @@
+2292:                 case 'records':
+2293:                     if (!currentUser) {
+2294:                         alert('Create an account to see your records!');
+2295:                         gameState = GAME_STATES.ACCOUNT;
+2296:                         accountInput = '';
+2297:                         showMobileInput(true);
+2298:                     } else {
+2299:                         const records = getUserRecords(currentUser);
+2300:                         const valid = records.filter(r => r > 0);
+2301:                         let msg = `📊 Records from ${currentUser}:\n\n`;
+2302:                         if (valid.length === 0) {
+2303:                             msg += 'No records saved. Play to create some!';
+2304:                         } else {
+2305:                             for (let i = 0; i < Math.min(10, valid.length); i++) {
+2306:                                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+2307:                                 msg += `${medal} ${valid[i]} points\n`;
+2308:                             }
+2309:                         }
+2310:                         alert(msg);
+2311:                     }
+2312:                     break;
+2313:                 case 'confirm':
+2314:                     if (accountInput.trim().length > 0) {
+2315:                         const newUser = accountInput.trim();
+2316:                         if (newUser.length > 12) {
+2317:                             alert('The name must be at most 12 characters!');
+2318:                             return;
+2319:                         }
+2320:                         // Se è un nuovo nome diverso da currentUser, azzera i record
+2321:                         if (newUser !== currentUser && currentUser) {
+2322:                             if (confirm(`Changing account from "${currentUser}" to "${newUser}".\nYour previous records will be reset. Continue?`)) {
+2323:                                 // Rimuovi i record del vecchio account
+2324:                                 const allRecords = getAllRecords();
+2325:                                 delete allRecords[currentUser];
+2326:                                 delete allRecords[currentUser + '__survival'];
+2327:                                 saveAllRecords(allRecords);
+2328:                                 currentUser = newUser;
+2329:                                 getUserRecords(currentUser);
+2330:                                 saveLastUser(currentUser);
+2331:                                 settings = loadSettings();
+2332:                                 resetGame();
+2333:                                 gameState = GAME_STATES.MENU;
+2334:                                 accountInput = newUser; // Mantieni il nuovo nome
+2335:                                 showMobileInput(false);
+2336:                             }
+2337:                             // Se l'utente annulla, rimane nella schermata account
+2338:                         } else {
+2339:                             currentUser = newUser;
+2340:                             getUserRecords(currentUser);
+2341:                             saveLastUser(currentUser);
+2342:                             settings = loadSettings();
+2343:                             resetGame();
+2344:                             gameState = GAME_STATES.MENU;
+2345:                             accountInput = newUser; // Mantieni il nome
+2346:                             showMobileInput(false);
+2347:                         }
+2348:                     } else {
+2349:                         alert('Please enter a name!');
+2350:                     }

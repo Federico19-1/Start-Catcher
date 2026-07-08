@@ -1,0 +1,29 @@
+ 142:         const GAME_STATES = {
+ 143:             MENU: 'menu',
+ 144:             ACCOUNT: 'account',
+ 145:             PLAYING: 'playing',
+ 146:             PAUSED: 'paused',
+ 147:             SETTINGS: 'settings'
+ 148:         };
+ 149: 
+ 150:         const GAME_MODES = {
+ 151:             CLASSIC: 'classic',
+ 152:             SURVIVAL: 'survival'
+ 153:         };
+ 154: 
+ 155:         let gameState = GAME_STATES.MENU;
+ 156:         let gameMode = GAME_MODES.CLASSIC;
+ 157:         let survivalStartTime = 0;        // Date.now() when survival run starts
+ 158:         let survivalScorePerSecondTick = 0; // accumulator that turns real time into integer seconds
+ 159:         let currentUser = null;
+ 160:         let accountInput = '';
+ 161:         let isPaused = false;
+ 162:         let touchLeft = false;
+ 163:         let touchRight = false;
+ 164:         let mobileInputVisible = false;
+ 165:         let menuMusicStarted = false;
+ 166: 
+ 167:         // Per-account audio preferences. music = menu background song,
+ 168:         // sfx = every other in-game sound effect.
+ 169:         let settings = { music: true, sfx: true };
+ 170: 
