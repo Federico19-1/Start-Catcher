@@ -92,7 +92,8 @@
             MENU: 'menu',
             ACCOUNT: 'account',
             PLAYING: 'playing',
-            PAUSED: 'paused'
+            PAUSED: 'paused',
+            SETTINGS: 'settings'
         };
 
         let gameState = GAME_STATES.MENU;
@@ -103,6 +104,10 @@
         let touchRight = false;
         let mobileInputVisible = false;
         let menuMusicStarted = false;
+
+        // Per-account audio preferences. music = menu background song,
+        // sfx = every other in-game sound effect.
+        let settings = { music: true, sfx: true };
 
         const player = {
             x: 400,
@@ -120,6 +125,9 @@
         let isNewRecord = false;
         let newRecordPosition = -1;
         const MOVE_SPEED = 5;
+        const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
+        let inGameRecordShown = false;        // banner visibility flag
+        let inGameRecordShownAt = 0;          // ms timestamp when the banner started
 
         const rocketEmoji = {
             x: 0,
@@ -163,6 +171,14 @@
         }
 
         function playMenuMusic() {
+            if (!settings.music) {
+                // Music is disabled — make sure nothing is playing.
+                if (menuAudio && !menuAudio.paused) {
+                    menuAudio.pause();
+                    menuAudio.currentTime = 0;
+                }
+                return;
+            }
             if (menuAudio && menuAudio.paused) {
                 initMenuAudio();
                 menuAudio.play().catch(e => console.log('Menu music play failed:', e));
@@ -196,6 +212,7 @@
         }
 
         function playCollectSound() {
+            if (!settings.sfx) return;
             try {
                 initAudio();
                 // Prova a usare il suono caricato, altrimenti genera un suono sintetico
@@ -219,6 +236,7 @@
         }
 
         function playLoseLifeSound() {
+            if (!settings.sfx) return;
             try {
                 initAudio();
                 const oscillator = audioCtx.createOscillator();
@@ -236,6 +254,7 @@
         }
 
         function playGameOverSound() {
+            if (!settings.sfx) return;
             try {
                 initAudio();
                 const notes = [440, 400, 350, 300, 250];
@@ -255,6 +274,7 @@
         }
 
         function playRecordSound() {
+            if (!settings.sfx) return;
             try {
                 initAudio();
                 const notes = [523, 659, 784, 1047];
@@ -274,6 +294,7 @@
         }
 
         function playClickSound() {
+            if (!settings.sfx) return;
             try {
                 initAudio();
                 const oscillator = audioCtx.createOscillator();
@@ -352,6 +373,35 @@
             return localStorage.getItem('starCatcherLastUser') || null;
         }
 
+        // Settings are stored per-account so each player keeps their own
+        // audio preferences. A separate "default" key is used when no
+        // account is active (before creating one, or after clearing it).
+        function settingsStorageKey() {
+            return currentUser
+                ? `starCatcherSettings_${currentUser}`
+                : 'starCatcherSettings__default';
+        }
+
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem(settingsStorageKey());
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    return {
+                        music: typeof parsed.music === 'boolean' ? parsed.music : true,
+                        sfx: typeof parsed.sfx === 'boolean' ? parsed.sfx : true
+                    };
+                }
+            } catch (e) { /* fall through to defaults */ }
+            return { music: true, sfx: true };
+        }
+
+        function saveSettings() {
+            try {
+                localStorage.setItem(settingsStorageKey(), JSON.stringify(settings));
+            } catch (e) { /* silent fail on quota / disabled storage */ }
+        }
+
         function showMobileInput(show) {
             const wrapper = document.getElementById('mobileAccountInput');
             if (!wrapper) return;
@@ -390,6 +440,8 @@
             gameOver = false;
             isNewRecord = false;
             newRecordPosition = -1;
+            inGameRecordShown = false;
+            inGameRecordShownAt = 0;
             player.x = 400;
             player.y = 550;
             player.targetX = 400;
@@ -542,6 +594,18 @@
             if (stars.length > 100) {
                 stars.splice(0, stars.length - 100);
             }
+
+            // Trigger the in-game NEW RECORD banner the first time the
+            // player matches or beats their previous best score. It will
+            // stay on screen for RECORD_NOTIFICATION_DURATION (3 seconds).
+            // Only fires when there is an existing record to beat — a fresh
+            // account with no saved scores doesn't trigger a banner.
+            if (!inGameRecordShown && currentUser && score > 0
+                && getMaxScore(currentUser) > 0
+                && score >= getMaxScore(currentUser)) {
+                inGameRecordShown = true;
+                inGameRecordShownAt = Date.now();
+            }
         }
 
         /* ============================================================
@@ -660,10 +724,13 @@
                 350
             );
 
-            const btnY = 390;
+            // Two rows of two buttons: PLAY/ACCOUNT top, RECORDS/SETTINGS bottom
+            const btnY = 380;
             const btnW = 180;
             const btnH = 50;
             const gap = 25;
+            const row2Y = btnY + btnH + 35;
+            const row2H = 40;
 
             const playX = canvas.width / 2 - btnW - gap / 2;
             const playCenterX = playX + btnW / 2;
@@ -691,27 +758,42 @@
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34);
 
-            const recY = btnY + btnH + 20;
-            const recW = 200;
-            const recH = 40;
-            const recX = canvas.width / 2 - recW / 2;
-            const recCenterX = canvas.width / 2;
-            const recRect = { x: recX, y: recY, w: recW, h: recH };
+            const recX = canvas.width / 2 - btnW - gap / 2;
+            const recCenterX = recX + btnW / 2;
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#ffd700';
             ctx.fillStyle = '#2a2a4a';
             ctx.beginPath();
-            ctx.roundRect(recX, recY, recW, recH, 10);
+            ctx.roundRect(recX, row2Y, btnW, row2H, 10);
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#ffd700';
             ctx.font = '20px Orbitron, sans-serif';
-            ctx.fillText('🏆 RECORDS', recCenterX, recY + 28);
+            ctx.fillText('🏆 RECORDS', recCenterX, row2Y + 28);
+
+            const settingsX = canvas.width / 2 + gap / 2;
+            const settingsCenterX = settingsX + btnW / 2;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#aaaaaa';
+            ctx.fillStyle = '#2a2a3a';
+            ctx.beginPath();
+            ctx.roundRect(settingsX, row2Y, btnW, row2H, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(170, 170, 170, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(settingsX, row2Y, btnW, row2H, 10);
+            ctx.stroke();
+            ctx.fillStyle = '#cccccc';
+            ctx.font = '20px Orbitron, sans-serif';
+            ctx.fillText('⚙ SETTINGS', settingsCenterX, row2Y + 28);
 
             menuButtons = [
                 { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
                 { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
-                { rect: recRect, action: 'records' }
+                { rect: { x: recX, y: row2Y, w: btnW, h: row2H }, action: 'records' },
+                { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' }
             ];
 
             ctx.textAlign = 'left';
@@ -860,7 +942,12 @@
             ctx.fillStyle = '#ffd700';
             ctx.fillText(`🏆 High Score: ${highScore}`, 20, 80);
 
-            if (score === highScore && score > 0 && !gameOver && currentUser) {
+            const recordBannerActive = inGameRecordShown
+                && gameState === GAME_STATES.PLAYING
+                && currentUser
+                && !gameOver
+                && (Date.now() - inGameRecordShownAt) < RECORD_NOTIFICATION_DURATION;
+            if (recordBannerActive) {
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 30;
                 ctx.fillStyle = '#ffd700';
@@ -1257,6 +1344,154 @@
             ctx.shadowBlur = 0;
         }
 
+        function drawSettingsRow(x, y, w, h, title, description, value, action) {
+            // Label (left)
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 6;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(title, x, y + 30);
+
+            // Description (left, smaller)
+            ctx.font = '12px Orbitron, sans-serif';
+            ctx.fillStyle = '#8cf';
+            ctx.shadowBlur = 3;
+            ctx.fillText(description, x, y + 52);
+
+            // Toggle pill (right)
+            const pillW = 96;
+            const pillH = 44;
+            const pillX = x + w - pillW;
+            const pillY = y + (h - pillH) / 2;
+
+            // Pill background
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = value ? 'rgba(0, 200, 100, 0.6)' : 'rgba(0, 0, 0, 0.5)';
+            ctx.fillStyle = value ? '#1a4a2a' : '#2a2a3a';
+            ctx.beginPath();
+            ctx.roundRect(pillX, pillY, pillW, pillH, 22);
+            ctx.fill();
+
+            // ON / OFF label
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = value ? '#aaffaa' : '#888';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(value ? 'ON' : 'OFF', pillX + pillW / 2, pillY + 28);
+
+            // Knob (decorative, positioned left or right)
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = value ? '#aaffaa' : '#cccccc';
+            ctx.fillStyle = value ? '#ddffdd' : '#dddddd';
+            ctx.beginPath();
+            ctx.arc(value ? pillX + pillW - 22 : pillX + 22, pillY + pillH / 2, 13, 0, Math.PI * 2);
+            ctx.fill();
+
+            // The whole pill is the click target
+            menuButtons.push({
+                rect: { x: pillX, y: pillY, w: pillW, h: pillH },
+                action: action
+            });
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 0;
+        }
+
+        function drawSettingsScreen() {
+            drawBackground();
+
+            ctx.textAlign = 'center';
+
+            // Title
+            ctx.font = 'bold 44px Orbitron, sans-serif';
+            ctx.shadowColor = '#4a8cff';
+            ctx.shadowBlur = 30;
+            ctx.fillStyle = 'white';
+            ctx.fillText('⚙ SETTINGS', canvas.width / 2, 100);
+
+            // Subtitle
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.font = '15px Orbitron, sans-serif';
+            ctx.fillStyle = '#aaa';
+            ctx.fillText('Customize your audio', canvas.width / 2, 140);
+
+            // Outer panel
+            const panelW = 480;
+            const panelH = 250;
+            const panelX = canvas.width / 2 - panelW / 2;
+            const panelY = 175;
+
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#4a8cff';
+            ctx.fillStyle = 'rgba(15, 25, 50, 0.85)';
+            ctx.beginPath();
+            ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+            ctx.stroke();
+
+            // Two toggle rows inside the panel
+            const padX = 30;
+            const innerW = panelW - padX * 2;
+            const rowX = panelX + padX;
+
+            drawSettingsRow(rowX, panelY + 15, innerW, 100,
+                '🎵 MUSIC',
+                'Background song in the menu',
+                settings.music, 'toggleMusic');
+
+            drawSettingsRow(rowX, panelY + 125, innerW, 100,
+                '🔊 SFX',
+                'All other sounds during gameplay',
+                settings.sfx, 'toggleSfx');
+
+            // Per-account note (subtle, below panel)
+            ctx.font = '12px Orbitron, sans-serif';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'black';
+            ctx.fillStyle = '#666';
+            ctx.fillText(
+                currentUser ? `Saved for 👤 ${currentUser}` : 'Settings saved locally',
+                canvas.width / 2, panelY + panelH + 25
+            );
+
+            // BACK button
+            const btnW = 180;
+            const btnH = 50;
+            const btnX = canvas.width / 2 - btnW / 2;
+            const btnY = canvas.height - 70;
+
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ff8800';
+            ctx.fillStyle = '#6a3a1a';
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 14);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 14);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillText('← BACK', canvas.width / 2, btnY + 34);
+
+            // Preserve the pill hit-rects that drawSettingsRow() pushed
+            // earlier in this call, then add the BACK button rect.
+            menuButtons.push({ rect: { x: btnX, y: btnY, w: btnW, h: btnH }, action: 'settingsBack' });
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
         function draw() {
             switch (gameState) {
                 case GAME_STATES.MENU:
@@ -1264,6 +1499,9 @@
                     break;
                 case GAME_STATES.ACCOUNT:
                     drawAccountScreen();
+                    break;
+                case GAME_STATES.SETTINGS:
+                    drawSettingsScreen();
                     break;
                 case GAME_STATES.PLAYING:
                     drawBackground();
@@ -1340,6 +1578,7 @@
                                 currentUser = newUser;
                                 getUserRecords(currentUser);
                                 saveLastUser(currentUser);
+                                settings = loadSettings();
                                 resetGame();
                                 gameState = GAME_STATES.MENU;
                                 accountInput = newUser; // Mantieni il nuovo nome
@@ -1350,6 +1589,7 @@
                             currentUser = newUser;
                             getUserRecords(currentUser);
                             saveLastUser(currentUser);
+                            settings = loadSettings();
                             resetGame();
                             gameState = GAME_STATES.MENU;
                             accountInput = newUser; // Mantieni il nome
@@ -1388,6 +1628,25 @@
                     menuMusicStarted = false;
                     playMenuMusic();
                     updateTouchVisibility();
+                    break;
+                case 'settings':
+                    gameState = GAME_STATES.SETTINGS;
+                    showMobileInput(false);
+                    break;
+                case 'toggleMusic':
+                    settings.music = !settings.music;
+                    saveSettings();
+                    playMenuMusic(); // respects new settings.music value
+                    playClickSound();
+                    break;
+                case 'toggleSfx':
+                    settings.sfx = !settings.sfx;
+                    saveSettings();
+                    playClickSound();
+                    break;
+                case 'settingsBack':
+                    gameState = GAME_STATES.MENU;
+                    showMobileInput(false);
                     break;
                 default:
                     break;
@@ -1652,6 +1911,7 @@
 
                     currentUser = null;
                     accountInput = '';
+                    settings = loadSettings();
                     gameState = GAME_STATES.ACCOUNT;
                     showMobileInput(true);
                     const input = document.getElementById('accountMobileInput');
@@ -1764,6 +2024,7 @@
             currentUser = savedUser;
             getUserRecords(currentUser);
         }
+        settings = loadSettings();
 
         resetGame();
         gameLoop();
