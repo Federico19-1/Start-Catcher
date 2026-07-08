@@ -1342,16 +1342,17 @@
                                 saveLastUser(currentUser);
                                 resetGame();
                                 gameState = GAME_STATES.MENU;
-                                accountInput = '';
+                                accountInput = newUser; // Mantieni il nuovo nome
                                 showMobileInput(false);
                             }
+                            // Se l'utente annulla, rimane nella schermata account
                         } else {
                             currentUser = newUser;
                             getUserRecords(currentUser);
                             saveLastUser(currentUser);
                             resetGame();
                             gameState = GAME_STATES.MENU;
-                            accountInput = '';
+                            accountInput = newUser; // Mantieni il nome
                             showMobileInput(false);
                         }
                     } else {
@@ -1659,14 +1660,22 @@
         // Focus automatico sull'input quando l'utente lo tocca
         const accountInputField = document.getElementById('accountMobileInput');
         if (accountInputField) {
+            // Imposta il valore corrente all'avvio
+            accountInputField.value = accountInput || '';
+
             accountInputField.addEventListener('touchstart', () => {
                 accountInputField.focus();
+                accountInputField.value = accountInput || '';
             });
             accountInputField.addEventListener('input', () => {
                 accountInput = accountInputField.value.slice(0, 12);
                 if (accountInputField.value !== accountInput) {
                     accountInputField.value = accountInput;
                 }
+            });
+            // Sincronizza anche con tastiera
+            accountInputField.addEventListener('keydown', () => {
+                accountInputField.value = accountInput || '';
             });
         }
 
