@@ -542,7 +542,6 @@
             if (stars.length > 100) {
                 stars.splice(0, stars.length - 100);
             }
-
         }
 
         /* ============================================================
@@ -861,7 +860,7 @@
             ctx.fillStyle = '#ffd700';
             ctx.fillText(`🏆 High Score: ${highScore}`, 20, 80);
 
-            if (newRecordTimer > 0 && score > 0 && !gameOver && currentUser) {
+            if (score === highScore && score > 0 && !gameOver && currentUser) {
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 30;
                 ctx.fillStyle = '#ffd700';
@@ -947,7 +946,7 @@
             ctx.fillStyle = 'white';
             ctx.fillText(`Score: ${score}`, canvas.width / 2, 150);
 
-            if (newRecordTimer > 0 && currentUser && score > 0) {
+            if (isNewRecord && currentUser && score > 0) {
                 let label = '';
                 const pos = newRecordPosition;
                 if (pos === 0) {
