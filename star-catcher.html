@@ -53,12 +53,20 @@
         <input type="text" id="accountMobileInput" maxlength="12" placeholder="Nome (max 12 char)"
             style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
         <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
+            <button id="mobileClearNameBtn"
+                style="background: #5a4a2a; color: #ffdd88; border: none; border-radius: 10px; padding: 12px 20px; font-family: 'Orbitron', sans-serif; font-size: 14px; cursor: pointer;">🗑️
+                Clear Name</button>
             <button id="mobileConfirmBtn"
                 style="background: #2a6aff; color: white; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✅
                 CONFIRM</button>
             <button id="mobileCancelBtn"
                 style="background: #3a3a5a; color: #aaa; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✖
                 CANCEL</button>
+        </div>
+        <div style="margin-top: 15px;">
+            <button id="mobileClearAccountBtn"
+                style="background: #5a2a2a; color: #ff8888; border: none; border-radius: 10px; padding: 10px 25px; font-family: 'Orbitron', sans-serif; font-size: 14px; cursor: pointer;">🗑️
+                Clear Account</button>
         </div>
     </div>
 
@@ -350,7 +358,7 @@
             if (show) {
                 wrapper.style.display = 'block';
                 const input = document.getElementById('accountMobileInput');
-                if (input && !mobileInputVisible) {
+                if (input) {
                     input.value = accountInput || '';
                     // Focus con ritardo per mobile
                     setTimeout(() => input.focus(), 150);
@@ -1322,13 +1330,30 @@
                             alert('The name must be at most 12 characters!');
                             return;
                         }
-                        currentUser = newUser;
-                        getUserRecords(currentUser);
-                        saveLastUser(currentUser);
-                        resetGame();
-                        gameState = GAME_STATES.MENU;
-                        accountInput = '';
-                        showMobileInput(false);
+                        // Se è un nuovo nome diverso da currentUser, azzera i record
+                        if (newUser !== currentUser && currentUser) {
+                            if (confirm(`Changing account from "${currentUser}" to "${newUser}".\nYour previous records will be reset. Continue?`)) {
+                                // Rimuovi i record del vecchio account
+                                const allRecords = getAllRecords();
+                                delete allRecords[currentUser];
+                                saveAllRecords(allRecords);
+                                currentUser = newUser;
+                                getUserRecords(currentUser);
+                                saveLastUser(currentUser);
+                                resetGame();
+                                gameState = GAME_STATES.MENU;
+                                accountInput = '';
+                                showMobileInput(false);
+                            }
+                        } else {
+                            currentUser = newUser;
+                            getUserRecords(currentUser);
+                            saveLastUser(currentUser);
+                            resetGame();
+                            gameState = GAME_STATES.MENU;
+                            accountInput = '';
+                            showMobileInput(false);
+                        }
                     } else {
                         alert('Please enter a name!');
                     }
@@ -1594,6 +1619,40 @@
             mobileCancelBtn.addEventListener('click', () => {
                 console.log('Cancel clicked');
                 handleMenuAction('cancel');
+            });
+        }
+
+        // Gestore per cancellare il nome corrente
+        const mobileClearNameBtn = document.getElementById('mobileClearNameBtn');
+        if (mobileClearNameBtn) {
+            mobileClearNameBtn.addEventListener('click', () => {
+                accountInput = '';
+                const input = document.getElementById('accountMobileInput');
+                if (input) input.value = '';
+                input.focus();
+            });
+        }
+
+        // Gestore per cancellare l'account
+        const mobileClearAccountBtn = document.getElementById('mobileClearAccountBtn');
+        if (mobileClearAccountBtn) {
+            mobileClearAccountBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to delete your account?\nThis will remove all your records permanently.')) {
+                    // Rimuovi tutti i record dell'account
+                    const allRecords = getAllRecords();
+                    delete allRecords[currentUser];
+                    saveAllRecords(allRecords);
+
+                    // Rimuovi l'ultimo utente salvato
+                    localStorage.removeItem('starCatcherLastUser');
+
+                    currentUser = null;
+                    accountInput = '';
+                    gameState = GAME_STATES.ACCOUNT;
+                    showMobileInput(true);
+                    const input = document.getElementById('accountMobileInput');
+                    if (input) input.value = '';
+                }
             });
         }
 
