@@ -96,7 +96,15 @@
             SETTINGS: 'settings'
         };
 
+        const GAME_MODES = {
+            CLASSIC: 'classic',
+            SURVIVAL: 'survival'
+        };
+
         let gameState = GAME_STATES.MENU;
+        let gameMode = GAME_MODES.CLASSIC;
+        let survivalStartTime = 0;        // Date.now() when survival run starts
+        let survivalScorePerSecondTick = 0; // accumulator that turns real time into integer seconds
         let currentUser = null;
         let accountInput = '';
         let isPaused = false;
@@ -117,9 +125,11 @@
         };
 
         let stars = [];
+        let meteorites = [];
         let score = 0;
         let lives = 3;
         let gameOver = false;
+        let meteoriteHitCooldown = 0; // frames of i-frames after a hit in survival
         let leftPressed = false;
         let rightPressed = false;
         let isNewRecord = false;
@@ -361,6 +371,49 @@
             return records.length > 0 ? records[0] : 0;
         }
 
+        // Survival mode uses a separate bucket of records (per-mode top-10),
+        // identified by a `${user}__survival` key in the same localStorage object.
+        function getSurvivalRecords(username) {
+            const key = `${username}__survival`;
+            const all = getAllRecords();
+            if (!all[key]) {
+                all[key] = Array(10).fill(0);
+                saveAllRecords(all);
+            }
+            return all[key];
+        }
+
+        function setSurvivalRecords(username, records) {
+            const key = `${username}__survival`;
+            const all = getAllRecords();
+            all[key] = records;
+            saveAllRecords(all);
+        }
+
+        function addSurvivalScoreToUser(username, newScore) {
+            if (newScore <= 0) return -1;
+
+            let records = getSurvivalRecords(username);
+            const previousMin = records.length >= 10 ? records[9] : 0;
+
+            records.push(newScore);
+            records.sort((a, b) => b - a);
+            records = records.slice(0, 10);
+            setSurvivalRecords(username, records);
+
+            if (newScore <= previousMin && records.length >= 10) {
+                return -1;
+            }
+
+            return records.indexOf(newScore);
+        }
+
+        function getMaxSurvivalScore(username) {
+            if (!username) return 0;
+            const records = getSurvivalRecords(username);
+            return records.length > 0 ? records[0] : 0;
+        }
+
         function saveLastUser(username) {
             if (username) {
                 localStorage.setItem('starCatcherLastUser', username);
@@ -433,8 +486,30 @@
             };
         }
 
+        function createMeteorite() {
+            // Meteorites spawn at the top and descend. They rotate while
+            // falling, have a fiery trail, and come in varying sizes — larger
+            // ones move slower but are harder to dodge.
+            const sizes = [
+                { radius: 22, speed: 1.4 + Math.random() * 0.6 },
+                { radius: 30, speed: 1.1 + Math.random() * 0.5 },
+                { radius: 40, speed: 0.8 + Math.random() * 0.4 }
+            ];
+            const pick = sizes[Math.floor(Math.random() * sizes.length)];
+            return {
+                x: Math.random() * (canvas.width - 80) + 40,
+                y: -50,
+                radius: pick.radius,
+                speed: pick.speed,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.08,
+                hue: 18 + Math.random() * 20      // reddish-orange rock palette
+            };
+        }
+
         function resetGame() {
             stars = [];
+            meteorites = [];
             score = 0;
             lives = 3;
             gameOver = false;
@@ -442,6 +517,9 @@
             newRecordPosition = -1;
             inGameRecordShown = false;
             inGameRecordShownAt = 0;
+            meteoriteHitCooldown = 0;
+            survivalStartTime = 0;
+            survivalScorePerSecondTick = 0;
             player.x = 400;
             player.y = 550;
             player.targetX = 400;
@@ -450,7 +528,10 @@
             updateTouchVisibility();
         }
 
-        function startGame() {
+        function startGame(mode) {
+            if (typeof mode === 'string') {
+                gameMode = mode;
+            }
             if (!currentUser) {
                 showMobileInput(false);
                 gameState = GAME_STATES.ACCOUNT;
@@ -551,60 +632,144 @@
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
 
-            if (Math.random() < 0.05) {
-                stars.push(createStar());
-            }
-
-            for (let i = stars.length - 1; i >= 0; i--) {
-                const star = stars[i];
-                star.y += star.speed;
-
-                const dx = player.x - star.x;
-                const dy = player.y - star.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const collisionDistance = player.radius + star.radius;
-
-                if (distance < collisionDistance) {
-                    score++;
-                    playCollectSound();
-                    stars.splice(i, 1);
-                    continue;
+            if (gameMode === GAME_MODES.CLASSIC) {
+                // Classic: stars fall; catching them gives points, missing
+                // them costs a life.
+                if (Math.random() < 0.05) {
+                    stars.push(createStar());
                 }
 
-                if (star.y > canvas.height + star.radius) {
-                    lives--;
-                    playLoseLifeSound();
-                    stars.splice(i, 1);
-                    if (lives <= 0) {
-                        gameOver = true;
-                        playGameOverSound();
-                        if (currentUser) {
-                            const pos = addScoreToUser(currentUser, score);
-                            if (pos !== -1) {
-                                isNewRecord = true;
-                                newRecordPosition = pos;
-                                playRecordSound();
-                            }
-                        }
+                for (let i = stars.length - 1; i >= 0; i--) {
+                    const star = stars[i];
+                    star.y += star.speed;
+
+                    const dx = player.x - star.x;
+                    const dy = player.y - star.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const collisionDistance = player.radius + star.radius;
+
+                    if (distance < collisionDistance) {
+                        score++;
+                        playCollectSound();
+                        stars.splice(i, 1);
+                        continue;
                     }
-                    continue;
+
+                    if (star.y > canvas.height + star.radius) {
+                        lives--;
+                        playLoseLifeSound();
+                        stars.splice(i, 1);
+                        if (lives <= 0) endGame();
+                        continue;
+                    }
+                }
+
+                if (stars.length > 100) {
+                    stars.splice(0, stars.length - 100);
+                }
+
+                // In-game NEW RECORD banner (classic only)
+                if (!inGameRecordShown && currentUser && score > 0
+                    && getMaxScore(currentUser) > 0
+                    && score >= getMaxScore(currentUser)) {
+                    inGameRecordShown = true;
+                    inGameRecordShownAt = Date.now();
+                }
+            } else {
+                // Survival: meteorites fall; dodging them is the goal.
+                // Hitting the ship costs a life. Score = seconds survived.
+                updateSurvival();
+            }
+        }
+
+        function updateSurvival() {
+            // Score grows with time — convert real-time elapsed since the
+            // run started into an integer-seconds counter via an accumulator.
+            if (survivalStartTime === 0) {
+                // Late-initialise so the timer starts the moment survival
+                // begins. resetGame() also prepares this to 0.
+                survivalStartTime = Date.now();
+            }
+            survivalScorePerSecondTick += (Date.now() - survivalStartTime) / 1000;
+            const newSeconds = Math.floor(survivalScorePerSecondTick);
+            survivalStartTime = Date.now();
+            if (newSeconds > score) {
+                score = newSeconds;
+            }
+
+            // Meteorite spawn cadence gradually ramps up the longer the
+            // player survives, so the run keeps getting harder.
+            const elapsedSec = score;
+            const spawnChance = Math.min(0.025 + elapsedSec * 0.0008, 0.10);
+            if (Math.random() < spawnChance) {
+                meteorites.push(createMeteorite());
+            }
+
+            // Tick down i-frames after a hit so the player can take another
+            // one once the brief invincibility window is over.
+            if (meteoriteHitCooldown > 0) meteoriteHitCooldown--;
+
+            for (let i = meteorites.length - 1; i >= 0; i--) {
+                const m = meteorites[i];
+                m.y += m.speed;
+                m.rotation += m.rotationSpeed;
+
+                // Player is briefly invincible after a hit so consecutive
+                // meteorites in roughly the same column cannot drain all
+                // three lives in an instant.
+                if (meteoriteHitCooldown === 0) {
+                    const dx = player.x - m.x;
+                    const dy = player.y - m.y;
+                    // Use a forgiving hit box for the meteorite (slightly
+                    // smaller than its visible radius) so glancing contact
+                    // doesn't feel unfair.
+                    const hitDistance = player.radius * 0.55 + m.radius * 0.85;
+                    const dist2 = dx * dx + dy * dy;
+                    if (dist2 < hitDistance * hitDistance) {
+                        lives--;
+                        meteoriteHitCooldown = 60;  // ~1 second of i-frames at 60fps
+                        playLoseLifeSound();
+                        meteorites.splice(i, 1);
+                        if (lives <= 0) endGame();
+                        continue;
+                    }
+                }
+
+                if (m.y > canvas.height + m.radius * 2) {
+                    // Safely dodged — meteorites that leave the screen
+                    // simply disappear. In survival we never punish a miss.
+                    meteorites.splice(i, 1);
                 }
             }
 
-            if (stars.length > 100) {
-                stars.splice(0, stars.length - 100);
+            // Safety cap so a long survival run can't accumulate thousands
+            // of meteorites and tank the framerate.
+            if (meteorites.length > 40) {
+                meteorites.splice(0, meteorites.length - 40);
             }
+        }
 
-            // Trigger the in-game NEW RECORD banner the first time the
-            // player matches or beats their previous best score. It will
-            // stay on screen for RECORD_NOTIFICATION_DURATION (3 seconds).
-            // Only fires when there is an existing record to beat — a fresh
-            // account with no saved scores doesn't trigger a banner.
-            if (!inGameRecordShown && currentUser && score > 0
-                && getMaxScore(currentUser) > 0
-                && score >= getMaxScore(currentUser)) {
-                inGameRecordShown = true;
-                inGameRecordShownAt = Date.now();
+        function endGame() {
+            // Centralised game-over so both classic (star missed) and
+            // survival (meteorite hit) paths honour the same record logic.
+            gameOver = true;
+            playGameOverSound();
+            if (currentUser) {
+                if (gameMode === GAME_MODES.SURVIVAL) {
+                    const pos = addSurvivalScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                } else {
+                    const pos = addScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                }
             }
         }
 
@@ -789,11 +954,33 @@
             ctx.font = '20px Orbitron, sans-serif';
             ctx.fillText('⚙ SETTINGS', settingsCenterX, row2Y + 28);
 
+            // Row 3 SURVIVAL: full-width red button with skull emoji,
+            // entry point for the high-difficulty dodge mode.
+            const survivalMenuY = row2Y + row2H + 25;
+            const survivalMenuW = 200;
+            const survivalMenuX = canvas.width / 2 - survivalMenuW / 2;
+            ctx.shadowBlur = 35;
+            ctx.shadowColor = '#ff0000';
+            ctx.fillStyle = '#a01010';
+            ctx.beginPath();
+            ctx.roundRect(survivalMenuX, survivalMenuY, survivalMenuW, 40, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 90, 90, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(survivalMenuX, survivalMenuY, survivalMenuW, 40, 10);
+            ctx.stroke();
+            ctx.fillStyle = '#ffcccc';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillText('💀 SURVIVAL', canvas.width / 2, survivalMenuY + 27);
+
             menuButtons = [
                 { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
                 { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
                 { rect: { x: recX, y: row2Y, w: btnW, h: row2H }, action: 'records' },
-                { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' }
+                { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' },
+                { rect: { x: survivalMenuX, y: survivalMenuY, w: survivalMenuW, h: 40 }, action: 'survival' }
             ];
 
             ctx.textAlign = 'left';
@@ -852,6 +1039,99 @@
                 ctx.fill();
                 ctx.stroke();
                 ctx.restore();
+            }
+        }
+
+        function drawMeteorite(m) {
+            // Fire trail: a soft comma-shaped flame painted underneath the
+            // rock that gets fainter and smaller the further back it goes.
+            ctx.save();
+            ctx.translate(m.x, m.y);
+            ctx.rotate(m.rotation);
+
+            const trailLen = m.radius * 2.4;
+            const trailGrad = ctx.createLinearGradient(0, m.radius * 0.6, 0, m.radius * 0.6 + trailLen);
+            trailGrad.addColorStop(0, `hsla(${m.hue}, 95%, 65%, 0.85)`);
+            trailGrad.addColorStop(0.4, `hsla(${m.hue + 10}, 95%, 55%, 0.45)`);
+            trailGrad.addColorStop(1, `hsla(${m.hue + 20}, 95%, 45%, 0)`);
+            ctx.fillStyle = trailGrad;
+            ctx.beginPath();
+            ctx.moveTo(-m.radius * 0.55, m.radius * 0.6);
+            ctx.quadraticCurveTo(0, m.radius * 0.6 + trailLen * 0.55, m.radius * 0.55, m.radius * 0.6);
+            ctx.lineTo(m.radius * 0.25, m.radius * 0.6 + trailLen);
+            ctx.quadraticCurveTo(-m.radius * 0.4, m.radius * 0.6 + trailLen * 1.1, -m.radius * 0.25, m.radius * 0.6 + trailLen);
+            ctx.closePath();
+            ctx.fill();
+
+            // Soft outer glow so the meteorite reads as burning
+            ctx.shadowColor = `hsl(${m.hue}, 95%, 60%)`;
+            ctx.shadowBlur = 24;
+
+            // Rocky body — irregular polygon with a fiery outer ring
+            const sides = 7;
+            const ringGrad = ctx.createRadialGradient(0, 0, m.radius * 0.4, 0, 0, m.radius);
+            ringGrad.addColorStop(0, `hsl(${m.hue + 15}, 80%, 55%)`);
+            ringGrad.addColorStop(0.7, `hsl(${m.hue}, 60%, 30%)`);
+            ringGrad.addColorStop(1, '#1a0a05');
+            ctx.fillStyle = ringGrad;
+            ctx.beginPath();
+            for (let i = 0; i < sides; i++) {
+                const wobble = 0.82 + ((i * 41) % 17) / 100;   // pseudo-random radius wobble
+                const angle = (i / sides) * Math.PI * 2;
+                const px = Math.cos(angle) * m.radius * wobble;
+                const py = Math.sin(angle) * m.radius * wobble;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = `hsla(${m.hue + 10}, 95%, 70%, 0.8)`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // A few bright crater highlights for texture
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = `hsla(${m.hue + 20}, 100%, 75%, 0.6)`;
+            ctx.beginPath();
+            ctx.arc(-m.radius * 0.25, -m.radius * 0.15, m.radius * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(m.radius * 0.3, m.radius * 0.18, m.radius * 0.12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawMeteorites() {
+            for (const m of meteorites) {
+                drawMeteorite(m);
+            }
+        }
+
+        function drawSurvivalOverlay() {
+            // Same background, with a red filter on top so it is obvious
+            // the player is in survival mode. The vignette darkens the
+            // edges a bit to feel more "dangerous".
+            const bodyRed = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bodyRed.addColorStop(0, 'rgba(180, 20, 20, 0.30)');
+            bodyRed.addColorStop(0.5, 'rgba(200, 30, 30, 0.28)');
+            bodyRed.addColorStop(1, 'rgba(140, 10, 10, 0.34)');
+            ctx.fillStyle = bodyRed;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const vignette = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, canvas.height * 0.35,
+                canvas.width / 2, canvas.height / 2, canvas.height * 0.9
+            );
+            vignette.addColorStop(0, 'rgba(255, 80, 80, 0)');
+            vignette.addColorStop(1, 'rgba(120, 0, 0, 0.45)');
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Subtle red scanline flicker, much weaker than the body tint
+            ctx.fillStyle = 'rgba(255, 60, 60, 0.05)';
+            for (let y = 0; y < canvas.height; y += 4) {
+                ctx.fillRect(0, y, canvas.width, 2);
             }
         }
 
@@ -923,11 +1203,25 @@
         }
 
         function drawGameUI() {
-            const highScore = currentUser ? getMaxScore(currentUser) : 0;
+            const isSurvival = gameMode === GAME_MODES.SURVIVAL;
+            const highScore = currentUser
+                ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
+                : 0;
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 10;
+
+            if (isSurvival) {
+                // Survival mode badge in the top-left so the player always
+                // remembers they're in the harder variant.
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 12;
+                ctx.fillText('☠ SURVIVAL', 20, 20);
+                ctx.shadowBlur = 10;
+            }
 
             if (currentUser) {
                 ctx.fillStyle = '#66dd88';
@@ -936,11 +1230,33 @@
                 ctx.textAlign = 'left';
             }
 
-            ctx.fillStyle = 'white';
-            ctx.fillText(`⭐ Points: ${score}`, 20, 40);
+            const scoreLabelY = isSurvival ? 60 : 40;
+            const scoreValueY = isSurvival ? 85 : 40;
+            const highScoreY = isSurvival ? 110 : 80;
+            const topLabelOffset = isSurvival ? 22 : 0;
 
+            // Score readout (with mode-appropriate label)
+            if (isSurvival) {
+                ctx.font = '14px Orbitron, sans-serif';
+                ctx.fillStyle = '#ff9999';
+                ctx.shadowBlur = 4;
+                ctx.fillText('☠ SURVIVED', 20, scoreLabelY);
+                ctx.font = 'bold 26px Orbitron, sans-serif';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ff5b5b';
+                ctx.fillStyle = '#ffcccc';
+                ctx.fillText(`${score}s`, 20, scoreValueY);
+            } else {
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.fillStyle = 'white';
+                ctx.fillText(`⭐ Points: ${score}`, 20, scoreValueY);
+            }
+
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
             ctx.fillStyle = '#ffd700';
-            ctx.fillText(`🏆 High Score: ${highScore}`, 20, 80);
+            ctx.fillText(`🏆 Best: ${highScore}${isSurvival ? 's' : ''}`, 20, highScoreY);
 
             const recordBannerActive = inGameRecordShown
                 && gameState === GAME_STATES.PLAYING
@@ -948,16 +1264,19 @@
                 && !gameOver
                 && (Date.now() - inGameRecordShownAt) < RECORD_NOTIFICATION_DURATION;
             if (recordBannerActive) {
-                ctx.shadowColor = '#ffd700';
+                ctx.shadowColor = isSurvival ? '#ff6b6b' : '#ffd700';
                 ctx.shadowBlur = 30;
-                ctx.fillStyle = '#ffd700';
+                ctx.fillStyle = isSurvival ? '#ff6b6b' : '#ffd700';
                 ctx.font = 'bold 26px Orbitron, sans-serif';
-                ctx.fillText('✦ NEW RECORD! ✦', canvas.width / 2 - 110, 130);
+                ctx.fillText('✦ NEW RECORD! ✦', canvas.width / 2 - 110, 130 + topLabelOffset);
                 ctx.shadowBlur = 0;
             }
 
-            ctx.fillStyle = 'white';
-            ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, 80);
+            ctx.fillStyle = isSurvival ? '#ff9999' : 'white';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'black';
+            ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80);
         }
 
         function drawPauseScreen() {
@@ -1014,7 +1333,10 @@
         }
 
         function drawGameOver() {
-            const highScore = currentUser ? getMaxScore(currentUser) : 0;
+            const isSurvival = gameMode === GAME_MODES.SURVIVAL;
+            const highScore = currentUser
+                ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
+                : 0;
 
             ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1025,18 +1347,33 @@
             ctx.shadowBlur = 40;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#ff4444';
-            ctx.fillText('GAME OVER', canvas.width / 2, 100);
+            ctx.fillText(isSurvival ? '☠ SURVIVAL OVER' : 'GAME OVER', canvas.width / 2, 100);
 
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
             ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
-            ctx.fillText(`Score: ${score}`, canvas.width / 2, 150);
+            ctx.fillText(
+                isSurvival ? `☠ Survived ${score}s` : `Score: ${score}`,
+                canvas.width / 2, 150
+            );
 
             if (isNewRecord && currentUser && score > 0) {
                 let label = '';
                 const pos = newRecordPosition;
-                if (pos === 0) {
+                if (isSurvival) {
+                    // Survival uses a red-ish badge to stay on-brand with
+                    // the mode's colour scheme.
+                    if (pos === 0) {
+                        label = '☠ BEST SURVIVAL TIME ☠';
+                    } else if (pos === 1) {
+                        label = '☠ NEW SURVIVAL RECORD! (2nd)';
+                    } else if (pos === 2) {
+                        label = '☠ NEW SURVIVAL RECORD! (3rd)';
+                    } else {
+                        label = `☠ NEW SURVIVAL RECORD! (${pos + 1}th)`;
+                    }
+                } else if (pos === 0) {
                     label = '🏆 NEW BEST RECORD! 🏆';
                 } else if (pos === 1) {
                     label = '🥈 NEW RECORD! (2nd place)';
@@ -1046,22 +1383,27 @@
                     label = `🎯 NEW RECORD! (${pos + 1}th place)`;
                 }
 
-                ctx.shadowColor = '#ffd700';
+                ctx.shadowColor = isSurvival ? '#ff6b6b' : '#ffd700';
                 ctx.shadowBlur = 50;
-                ctx.font = 'bold 32px Orbitron, sans-serif';
-                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 30px Orbitron, sans-serif';
+                ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
                 ctx.fillText(label, canvas.width / 2, 200);
 
                 ctx.font = '50px Arial';
                 ctx.shadowBlur = 60;
-                const medal = pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯';
+                const medal = isSurvival
+                    ? '☠'
+                    : (pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯');
                 ctx.fillText(medal, canvas.width / 2, 260);
             } else {
                 ctx.shadowColor = 'black';
                 ctx.shadowBlur = 10;
                 ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
-                ctx.fillText(`Best Record: ${highScore}`, canvas.width / 2, 200);
+                ctx.fillText(
+                    `Best${isSurvival ? ' Survival Time' : ' Record'}: ${highScore}${isSurvival ? 's' : ''}`,
+                    canvas.width / 2, 200
+                );
             }
 
             const leftColX = 60;
@@ -1069,29 +1411,32 @@
             const top5Y = 290;
 
             ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(200, 50, 50, 0.15)';
+            ctx.fillStyle = isSurvival ? 'rgba(200, 30, 30, 0.18)' : 'rgba(200, 50, 50, 0.15)';
             ctx.beginPath();
             ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 80, 80, 0.4)';
+            ctx.strokeStyle = isSurvival ? 'rgba(255, 80, 80, 0.5)' : 'rgba(255, 80, 80, 0.4)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
             ctx.stroke();
 
             ctx.textAlign = 'left';
-            ctx.shadowColor = '#ffd700';
+            ctx.shadowColor = isSurvival ? '#ff8a8a' : '#ffd700';
             ctx.shadowBlur = 20;
             ctx.font = 'bold 24px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffd700';
-            ctx.fillText('🏆 TOP 10', leftColX, top5Y);
+            ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
+            ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL' : '🏆 TOP 10', leftColX, top5Y);
 
             if (currentUser) {
-                const records = getUserRecords(currentUser);
+                const records = isSurvival
+                    ? getSurvivalRecords(currentUser)
+                    : getUserRecords(currentUser);
                 const validRecords = records.filter(r => r > 0);
 
                 if (validRecords.length > 0) {
                     ctx.shadowBlur = 5;
+                    const suffix = isSurvival ? 's' : ' pts';
                     for (let i = 0; i < Math.min(10, validRecords.length); i++) {
                         const colX = i < 5 ? leftColX : col2X;
                         const rowIndex = i < 5 ? i : i - 5;
@@ -1100,7 +1445,7 @@
                         ctx.fillStyle = color;
                         ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
                         ctx.fillText(
-                            `${medalEmoji} ${validRecords[i]} pts`,
+                            `${medalEmoji} ${validRecords[i]}${suffix}`,
                             colX,
                             top5Y + 40 + rowIndex * 32
                         );
@@ -1120,12 +1465,12 @@
             const shipY = 320;
 
             ctx.shadowBlur = 30;
-            ctx.shadowColor = '#44ff88';
+            ctx.shadowColor = isSurvival ? '#ff5555' : '#44ff88';
             ctx.beginPath();
             ctx.arc(shipX, shipY, 95, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(68, 255, 136, 0.12)';
+            ctx.fillStyle = isSurvival ? 'rgba(255, 80, 80, 0.12)' : 'rgba(68, 255, 136, 0.12)';
             ctx.fill();
-            ctx.strokeStyle = 'rgba(68, 255, 136, 0.3)';
+            ctx.strokeStyle = isSurvival ? 'rgba(255, 80, 80, 0.3)' : 'rgba(68, 255, 136, 0.3)';
             ctx.lineWidth = 2;
             ctx.stroke();
 
@@ -1207,8 +1552,8 @@
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = 'bold 16px Orbitron, sans-serif';
-            ctx.fillStyle = '#66dd88';
-            ctx.fillText('★ YOU', shipX, shipY + 125);
+            ctx.fillStyle = isSurvival ? '#ff9999' : '#66dd88';
+            ctx.fillText(isSurvival ? '☠ YOU' : '★ YOU', shipX, shipY + 125);
 
             const btnY = 500;
             const btnW = 170;
@@ -1219,23 +1564,23 @@
             const playAgainX = canvas.width / 2 - btnW - gap / 2;
             const playAgainCenterX = playAgainX + btnW / 2;
             ctx.shadowBlur = 25;
-            ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#1a3a6a';
+            ctx.shadowColor = isSurvival ? '#ff3333' : '#4af';
+            ctx.fillStyle = isSurvival ? '#1a0606' : '#1a3a6a';
             ctx.beginPath();
             ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
             ctx.fill();
             ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(74, 170, 255, 0.5)';
+            ctx.strokeStyle = isSurvival ? 'rgba(255, 80, 80, 0.6)' : 'rgba(74, 170, 255, 0.5)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
             ctx.stroke();
 
-            ctx.fillStyle = 'white';
+            ctx.fillStyle = isSurvival ? '#ff8888' : 'white';
             ctx.shadowBlur = 0;
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
+            ctx.fillText(isSurvival ? '☠ RETRY' : '▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
 
             const menuX = canvas.width / 2 + gap / 2;
             const menuCenterX = menuX + btnW / 2;
@@ -1282,45 +1627,118 @@
             ctx.shadowColor = '#ffd700';
             ctx.font = 'bold 40px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd700';
-            ctx.fillText('🏆 CLASSIFICA', canvas.width / 2, 80);
+            ctx.fillText('🏆 RECORDS', canvas.width / 2, 75);
 
             if (!currentUser) {
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
-                ctx.font = '22px Orbitron, sans-serif';
+                ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
-                ctx.fillText('Crea un account per vedere i tuoi record!', canvas.width / 2, 150);
+                ctx.fillText('Create an account to see your records!', canvas.width / 2, 140);
             } else {
-                const records = getUserRecords(currentUser);
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
-                ctx.font = '18px Orbitron, sans-serif';
+                ctx.font = '16px Orbitron, sans-serif';
                 ctx.fillStyle = '#66dd88';
-                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 140);
+                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 125);
 
-                const startY = 190;
-                for (let i = 0; i < 10; i++) {
-                    const scoreVal = records[i] || 0;
-                    let medal = '';
-                    let color = '#aaa';
-                    if (i === 0) {
-                        medal = '🥇';
-                        color = '#ffd700';
-                    } else if (i === 1) {
-                        medal = '🥈';
-                        color = '#c0c0c0';
-                    } else if (i === 2) {
-                        medal = '🥉';
-                        color = '#cd7f32';
-                    } else { medal = `${i + 1}.`; }
+                const classicRecords = getUserRecords(currentUser).filter(r => r > 0);
+                const survivalRecords = getSurvivalRecords(currentUser).filter(r => r > 0);
 
-                    ctx.fillStyle = color;
-                    ctx.font = i < 3 ? 'bold 22px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
-                    ctx.fillText(
-                        `${medal}  ${scoreVal} punti`,
-                        canvas.width / 2,
-                        startY + i * 35
-                    );
+                // Two side-by-side columns so the player can compare their
+                // classic and survival bests at a glance.
+                const colW = 350;
+                const colY = 165;
+                const colH = 350;
+                const leftColX = canvas.width / 2 - colW - 15;
+                const rightColX = canvas.width / 2 + 15;
+
+                // Classic column
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ffd700';
+                ctx.fillStyle = 'rgba(74, 140, 255, 0.10)';
+                ctx.beginPath();
+                ctx.roundRect(leftColX, colY, colW, colH, 12);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(leftColX, colY, colW, colH, 12);
+                ctx.stroke();
+
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.fillStyle = '#88aaff';
+                ctx.shadowColor = '#4af';
+                ctx.shadowBlur = 15;
+                ctx.fillText('⭐ CLASSIC', leftColX + colW / 2, colY + 30);
+
+                ctx.font = '14px Orbitron, sans-serif';
+                ctx.shadowBlur = 4;
+                ctx.fillStyle = '#aac8ff';
+                ctx.fillText('Stars caught', leftColX + colW / 2, colY + 50);
+
+                ctx.shadowBlur = 4;
+                ctx.textAlign = 'left';
+                const classicStartY = colY + 85;
+                if (classicRecords.length === 0) {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No records yet', leftColX + colW / 2, classicStartY + 10);
+                } else {
+                    for (let i = 0; i < Math.min(5, classicRecords.length); i++) {
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+                        const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#aac8ff';
+                        ctx.fillStyle = color;
+                        ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowColor = 'black';
+                        ctx.fillText(medal + '  ' + classicRecords[i] + ' pts', leftColX + 25, classicStartY + i * 38);
+                    }
+                }
+
+                // Survival column
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ff6b6b';
+                ctx.fillStyle = 'rgba(180, 20, 20, 0.12)';
+                ctx.beginPath();
+                ctx.roundRect(rightColX, colY, colW, colH, 12);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 90, 90, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(rightColX, colY, colW, colH, 12);
+                ctx.stroke();
+
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.fillStyle = '#ff8888';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 15;
+                ctx.fillText('☠ SURVIVAL', rightColX + colW / 2, colY + 30);
+
+                ctx.font = '14px Orbitron, sans-serif';
+                ctx.shadowBlur = 4;
+                ctx.fillStyle = '#ffb0b0';
+                ctx.fillText('Time survived', rightColX + colW / 2, colY + 50);
+
+                ctx.textAlign = 'left';
+                const survivalStartY = colY + 85;
+                if (survivalRecords.length === 0) {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No records yet', rightColX + colW / 2, survivalStartY + 10);
+                } else {
+                    for (let i = 0; i < Math.min(5, survivalRecords.length); i++) {
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+                        const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ffb0b0';
+                        ctx.fillStyle = color;
+                        ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowColor = 'black';
+                        ctx.fillText(medal + '  ' + survivalRecords[i] + 's', rightColX + 25, survivalStartY + i * 38);
+                    }
                 }
             }
 
@@ -1334,7 +1752,8 @@
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
             ctx.font = '18px Orbitron, sans-serif';
-            ctx.fillText('← TORNA', canvas.width / 2, backY + 25);
+            ctx.textAlign = 'center';
+            ctx.fillText('← BACK', canvas.width / 2, backY + 25);
 
             menuButtons = [
                 { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
@@ -1505,14 +1924,24 @@
                     break;
                 case GAME_STATES.PLAYING:
                     drawBackground();
-                    drawFallingStars();
+                    if (gameMode === GAME_MODES.SURVIVAL) {
+                        drawMeteorites();
+                        drawSurvivalOverlay();   // red filter on top of bg+rocks+ship
+                    } else {
+                        drawFallingStars();
+                    }
                     drawShip();
                     drawGameUI();
                     if (gameOver) drawGameOver();
                     break;
                 case GAME_STATES.PAUSED:
                     drawBackground();
-                    drawFallingStars();
+                    if (gameMode === GAME_MODES.SURVIVAL) {
+                        drawMeteorites();
+                        drawSurvivalOverlay();
+                    } else {
+                        drawFallingStars();
+                    }
                     drawShip();
                     drawGameUI();
                     drawPauseScreen();
@@ -1531,7 +1960,16 @@
                         accountInput = '';
                         showMobileInput(true);
                     } else {
-                        startGame();
+                        startGame(GAME_MODES.CLASSIC);
+                    }
+                    break;
+                case 'survival':
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        startGame(GAME_MODES.SURVIVAL);
                     }
                     break;
                 case 'account':
@@ -1574,6 +2012,7 @@
                                 // Rimuovi i record del vecchio account
                                 const allRecords = getAllRecords();
                                 delete allRecords[currentUser];
+                                delete allRecords[currentUser + '__survival'];
                                 saveAllRecords(allRecords);
                                 currentUser = newUser;
                                 getUserRecords(currentUser);
@@ -1904,6 +2343,7 @@
                     // Rimuovi tutti i record dell'account
                     const allRecords = getAllRecords();
                     delete allRecords[currentUser];
+                    delete allRecords[currentUser + '__survival'];
                     saveAllRecords(allRecords);
 
                     // Rimuovi l'ultimo utente salvato
