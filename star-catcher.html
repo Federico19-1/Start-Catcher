@@ -119,7 +119,6 @@
         let rightPressed = false;
         let isNewRecord = false;
         let newRecordPosition = -1;
-        let newRecordTimer = 180; // Timer per mostrare "NEW RECORD!" per 3 secondi
         const MOVE_SPEED = 5;
 
         const rocketEmoji = {
@@ -532,7 +531,6 @@
                             if (pos !== -1) {
                                 isNewRecord = true;
                                 newRecordPosition = pos;
-                                newRecordTimer = 180; // 3 secondi a 60 FPS
                                 playRecordSound();
                             }
                         }
@@ -545,10 +543,6 @@
                 stars.splice(0, stars.length - 100);
             }
 
-            // Decresce il timer del new record
-            if (newRecordTimer > 0) {
-                newRecordTimer--;
-            }
         }
 
         /* ============================================================
