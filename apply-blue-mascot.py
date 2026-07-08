@@ -16,10 +16,10 @@ new1 = """        let menuButtons = [];
         const BLUE_LINES = [
             'Hi, my name is Blue.',
             'Try the new SURVIVAL mode!',
-            'A project for HackClub.',
+            'A project for HackClub\'s Challenge.',
             'Beware the meteorites...',
             'Catch them all!',
-            'Made with love by HackClub.',
+            'Stardance... or Starcatcher Challenge?.',
             'Three lives, infinite stars!',
             'Tip: arrow keys also work.',
             'Watch out - those rocks hurt.'
