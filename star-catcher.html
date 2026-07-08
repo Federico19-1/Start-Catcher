@@ -1665,17 +1665,13 @@
 
             accountInputField.addEventListener('touchstart', () => {
                 accountInputField.focus();
-                accountInputField.value = accountInput || '';
+                // Non reimpostare il valore qui! Altrimenti cancella ciò che l'utente sta scrivendo
             });
             accountInputField.addEventListener('input', () => {
                 accountInput = accountInputField.value.slice(0, 12);
                 if (accountInputField.value !== accountInput) {
                     accountInputField.value = accountInput;
                 }
-            });
-            // Sincronizza anche con tastiera
-            accountInputField.addEventListener('keydown', () => {
-                accountInputField.value = accountInput || '';
             });
         }
 
