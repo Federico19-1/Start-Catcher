@@ -1462,12 +1462,15 @@
             }
 
             if (gameState === GAME_STATES.ACCOUNT) {
+                const inputField = document.getElementById('accountMobileInput');
                 if (event.key === 'Backspace') {
                     accountInput = accountInput.slice(0, -1);
+                    if (inputField) inputField.value = accountInput;
                     event.preventDefault();
                 } else if (event.key.length === 1 && accountInput.length < 12) {
                     if (/^[a-zA-Z0-9_]$/.test(event.key)) {
                         accountInput += event.key;
+                        if (inputField) inputField.value = accountInput;
                         event.preventDefault();
                     }
                 }
