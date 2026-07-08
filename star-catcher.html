@@ -50,7 +50,7 @@
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
         <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 NEW
             ACCOUNT</div>
-        <input type="text" id="accountMobileInput" maxlength="12" placeholder="Nome (max 12 char)"
+        <input type="text" id="accountMobileInput" maxlength="12" placeholder="Name (max 12 char)"
             style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
         <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
             <button id="mobileClearNameBtn"
@@ -1609,7 +1609,7 @@
                     accountInput = name;
                     handleMenuAction('confirm');
                 } else {
-                    alert('Inserisci un nome tra 1 e 12 caratteri!');
+                    alert('Please enter a valid name (1-12 characters).');
                     input.focus();
                 }
             });
@@ -1731,11 +1731,25 @@
             document.removeEventListener('click', initAudioOnUserInteraction);
             document.removeEventListener('keydown', initAudioOnUserInteraction);
             document.removeEventListener('touchstart', initAudioOnUserInteraction);
+
+            // Avvia la musica del menù dopo 1 secondo se siamo sul menù
+            setTimeout(() => {
+                if (gameState === GAME_STATES.MENU && !menuMusicStarted) {
+                    playMenuMusic();
+                }
+            }, 1000);
         }
 
         document.addEventListener('click', initAudioOnUserInteraction);
         document.addEventListener('keydown', initAudioOnUserInteraction);
         document.addEventListener('touchstart', initAudioOnUserInteraction);
+
+        // Avvia la musica del menù dopo 1 seconde anche senza interazione se siamo sul menù
+        setTimeout(() => {
+            if (gameState === GAME_STATES.MENU && !menuMusicStarted) {
+                playMenuMusic();
+            }
+        }, 1000);
 
         const savedUser = loadLastUser();
         if (savedUser) {
