@@ -69,3 +69,85 @@ Distributed under the **MIT License** — see the [LICENSE](LICENSE) file for de
 
 Bug reports, ideas, and pull requests are welcome! Feel free to open an issue in the repository to discuss them.
 ng README.en.md…]()
+## 📱 Playing on a phone
+
+The game is a single-file HTML5 Canvas app with one optional audio
+asset, so it ships to a phone with zero install steps. Below are the
+recipes that actually work today.
+
+### A. Static hosting (easiest, no build)
+
+1. Upload the project folder to any static host (GitHub Pages,
+   Netlify Drop, Cloudflare Pages, Vercel, or a self-hosted nginx).
+   Three files are needed:
+   - `star-catcher.html`
+   - `menu-song.mp3`
+2. Open the deployed URL in the phone's browser (Safari on iOS or
+   Chrome on Android).
+3. Tap the browser's Share / menu button and choose **Add to Home
+   Screen** to install it as a full-screen PWA-style app icon.
+
+### B. Quick local Wi-Fi share (anyone on the same router)
+
+From the project folder on the laptop, run any tiny static server:
+```bash
+npx http-server -p 8000      # or:  python3 -m http.server 8000
+```
+Look up the laptop's local IP (`ipconfig getifaddr en0` on macOS,
+`ipconfig` on Windows, `hostname -I` on Linux) — it will look like
+`192.168.1.42`. On the phone, open `http://192.168.1.42:8000/star-catcher.html`
+in the browser.
+
+### C. GitHub Gist trick (zero infrastructure)
+
+Paste the full contents of `star-catcher.html` into a public GitHub
+Gist (`star-catcher.html`). Append `?raw=true` or use a service such
+as `htmlpreview.github.io` to render the gist as an HTML page, then
+open that page on the phone.
+
+---
+
+### Mobile controls
+
+- **Move the ship**: drag your finger on the canvas, or use the big
+  **◀ ▶** buttons that appear below the canvas on screens narrower
+  than 768 px.
+- **Pause / resume**: tap the **⏸** button in the top-left corner.
+- **Restart after game over**: tap anywhere on the canvas (or press
+  **R** if you have a keyboard paired with the phone).
+- **Blue the mascot**: tap him on the menu screen — he'll say a new
+  line each tap so you can read several in a row.
+
+### Audio notes (important on phones)
+
+Browsers on iOS and Android **block autoplay** of any audio until the
+user interacts with the page. Star Catcher handles this automatically:
+
+- The first tap / click / keypress unlocks the Web Audio context.
+- ~1 second later the menu music starts playing.
+- Use **⚙ Settings → 🎵 MUSIC** to mute or resume; the choice is
+  saved per-account.
+
+### Performance notes
+
+Mobile mode is detected automatically by checking for touch support
+and viewport width. When the device looks like a phone:
+
+- Background twinkles drop from 100 → 50 stars.
+- Meteorite cap drops from 40 → 25 per frame.
+- Meteorite glow shadows are skipped (the most expensive per-rock
+  op-canvas cost).
+- Survival-mode red scanlines use a wider stride.
+
+If the game still feels slow, switch to a simpler browser, disable
+background apps, or lower the device's screen brightness.
+
+### Gotchas
+
+- Some Android browsers aggressively throttle `requestAnimationFrame`
+  when the tab is in the background — switch to the game tab before
+  measuring FPS.
+- Audio cues may have a short delay on the very first interaction;
+  this is normal while the Web Audio context initialises.
+- The mobile account input opens over the canvas; if you accidentally
+  hit it, tap **✖ CANCEL** to go back to the menu.
