@@ -119,6 +119,7 @@
         let rightPressed = false;
         let isNewRecord = false;
         let newRecordPosition = -1;
+        let newRecordTimer = 0; // Timer per mostrare "NEW RECORD!" per 3 secondi
         const MOVE_SPEED = 5;
 
         const rocketEmoji = {
@@ -531,6 +532,7 @@
                             if (pos !== -1) {
                                 isNewRecord = true;
                                 newRecordPosition = pos;
+                                newRecordTimer = 180; // 3 secondi a 60 FPS
                                 playRecordSound();
                             }
                         }
@@ -541,6 +543,11 @@
 
             if (stars.length > 100) {
                 stars.splice(0, stars.length - 100);
+            }
+
+            // Decresce il timer del new record
+            if (newRecordTimer > 0) {
+                newRecordTimer--;
             }
         }
 
@@ -860,7 +867,7 @@
             ctx.fillStyle = '#ffd700';
             ctx.fillText(`🏆 High Score: ${highScore}`, 20, 80);
 
-            if (score === highScore && score > 0 && !gameOver && currentUser) {
+            if (newRecordTimer > 0 && score > 0 && !gameOver && currentUser) {
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 30;
                 ctx.fillStyle = '#ffd700';
@@ -946,7 +953,7 @@
             ctx.fillStyle = 'white';
             ctx.fillText(`Score: ${score}`, canvas.width / 2, 150);
 
-            if (isNewRecord && currentUser && score > 0) {
+            if (newRecordTimer > 0 && currentUser && score > 0) {
                 let label = '';
                 const pos = newRecordPosition;
                 if (pos === 0) {
