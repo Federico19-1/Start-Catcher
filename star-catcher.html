@@ -163,7 +163,6 @@
         let touchLeft = false;
         let touchRight = false;
         let mobileInputVisible = false;
-        let menuMusicStarted = false;
 
         // Play-time tracking: how long the player spent in the
         // PLAYING state on the current account. The timer is paused
@@ -315,7 +314,9 @@
                 }
                 return;
             }
-            if (menuAudio && menuAudio.paused) {
+            // Also fire when menuAudio is still null (first call after
+            // page load) so the song reliably starts in the boot path.
+            if (!menuAudio || menuAudio.paused) {
                 initMenuAudio();
                 menuAudio.play().catch(e => console.log('Menu music play failed:', e));
             }
@@ -327,6 +328,15 @@
                 menuAudio.currentTime = 0;
             }
         }
+
+        // Kick off the menu song ~300 ms after the script runs so the
+        // player hears it from the very first moment the game opens.
+        // 300 ms is short enough to feel instant but long enough for
+        // the audio stack to settle and avoid clipping the first beat.
+        // On strict mobile autoplay policies the .catch() in
+        // playMenuMusic() swallows the rejection; tapping anywhere
+        // afterwards re-triggers playback via the in-game hooks.
+        setTimeout(playMenuMusic, 300);
 
         // Suono di raccolta stellina - caricato dal file star-sound.txt
         let starSound = null;
@@ -715,7 +725,6 @@
                 return;
             }
             stopMenuMusic();
-            menuMusicStarted = false; // Reset il flag della musica del menu
             resetGame();
             showMobileInput(false);
             gameState = GAME_STATES.PLAYING;
@@ -1194,11 +1203,14 @@
 
         function drawMenu() {
             drawBackground();
-            // Avvia la musica del menu solo una volta all'entrata
-            if (!menuMusicStarted) {
-                playMenuMusic();
-                menuMusicStarted = true;
-            }
+            // Menu music is no longer auto-started here on the first
+            // render frame: doing so would fire at ~16 ms, shadowing
+            // the setTimeout(playMenuMusic, 300) that the boot path
+            // schedules right after stopMenuMusic(). Every later
+            // "return to menu" branch (post-game 'menu' and
+            // post-pause 'pauseMenu') already calls playMenuMusic()
+            // explicitly so the song restarts correctly without us
+            // needing an auto-trigger here.
 
             ctx.textAlign = 'center';
             ctx.shadowColor = '#4af';
@@ -2412,7 +2424,6 @@
                 case 'account':
                     gameState = GAME_STATES.ACCOUNT;
                     accountInput = currentUser || '';
-                    menuMusicStarted = false; // Reset per permettere di rientrare nel menu
                     showMobileInput(true);
                     break;
                 case 'records':
@@ -2485,7 +2496,6 @@
                     flushPlayTime();
                     resetGame();
                     gameState = GAME_STATES.MENU;
-                    menuMusicStarted = false; // Reset per permettere di riavviare la musica
                     playMenuMusic();
                     updateTouchVisibility();
                     break;
@@ -2494,7 +2504,6 @@
                     stopMenuMusic();
                     resetGame();
                     gameState = GAME_STATES.MENU;
-                    menuMusicStarted = false;
                     playMenuMusic();
                     updateTouchVisibility();
                     break;
@@ -2886,9 +2895,11 @@
             document.removeEventListener('keydown', initAudioOnUserInteraction);
             document.removeEventListener('touchstart', initAudioOnUserInteraction);
 
-            // Avvia la musica del menù dopo 1 secondo se siamo sul menù
+            // Mobile autoplay-unlock recovery: re-attempt to start
+            // the menu song at +1 s, after the user's first
+            // interaction has unlocked audio on iOS / Android.
             setTimeout(() => {
-                if (gameState === GAME_STATES.MENU && !menuMusicStarted) {
+                if (gameState === GAME_STATES.MENU) {
                     playMenuMusic();
                 }
             }, 1000);
@@ -2898,9 +2909,10 @@
         document.addEventListener('keydown', initAudioOnUserInteraction);
         document.addEventListener('touchstart', initAudioOnUserInteraction);
 
-        // Avvia la musica del menù dopo 1 seconde anche senza interazione se siamo sul menù
+        // No-interaction fallback: also attempt to start the menu
+        // song at +1 s for desktop / browsers that allow autoplay.
         setTimeout(() => {
-            if (gameState === GAME_STATES.MENU && !menuMusicStarted) {
+            if (gameState === GAME_STATES.MENU) {
                 playMenuMusic();
             }
         }, 1000);
