@@ -1,0 +1,43 @@
+ 628:         function resetGame() {
+ 629:             stars = [];
+ 630:             meteorites = [];
+ 631:             score = 0;
+ 632:             lives = 3;
+ 633:             gameOver = false;
+ 634:             isNewRecord = false;
+ 635:             newRecordPosition = -1;
+ 636:             inGameRecordShown = false;
+ 637:             inGameRecordShownAt = 0;
+ 638:             meteoriteHitCooldown = 0;
+ 639:             survivalStartTime = 0;
+ 640:             survivalScorePerSecondTick = 0;
+ 641:             player.x = 400;
+ 642:             player.y = 550;
+ 643:             player.targetX = 400;
+ 644:             leftPressed = false;
+ 645:             rightPressed = false;
+ 646:             updateTouchVisibility();
+ 647:         }
+ 648: 
+ 649:         function startGame(mode) {
+ 650:             if (typeof mode === 'string') {
+ 651:                 gameMode = mode;
+ 652:             }
+ 653:             if (!currentUser) {
+ 654:                 showMobileInput(false);
+ 655:                 gameState = GAME_STATES.ACCOUNT;
+ 656:                 accountInput = '';
+ 657:                 return;
+ 658:             }
+ 659:             stopMenuMusic();
+ 660:             menuMusicStarted = false; // Reset il flag della musica del menu
+ 661:             resetGame();
+ 662:             showMobileInput(false);
+ 663:             gameState = GAME_STATES.PLAYING;
+ 664:             updateTouchVisibility();
+ 665:         }
+ 666: 
+ 667:         function togglePause() {
+ 668:             if (gameState === GAME_STATES.PLAYING && !gameOver) {
+ 669:                 gameState = GAME_STATES.PAUSED;
+ 670:                 isPaused = true;

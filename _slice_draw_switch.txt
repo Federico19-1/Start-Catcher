@@ -1,0 +1,56 @@
+2225:         function draw() {
+2226:             switch (gameState) {
+2227:                 case GAME_STATES.MENU:
+2228:                     drawMenu();
+2229:                     break;
+2230:                 case GAME_STATES.ACCOUNT:
+2231:                     drawAccountScreen();
+2232:                     break;
+2233:                 case GAME_STATES.SETTINGS:
+2234:                     drawSettingsScreen();
+2235:                     break;
+2236:                 case GAME_STATES.PLAYING:
+2237:                     drawBackground();
+2238:                     if (gameMode === GAME_MODES.SURVIVAL) {
+2239:                         drawMeteorites();
+2240:                         drawSurvivalOverlay();   // red filter on top of bg+rocks+ship
+2241:                     } else {
+2242:                         drawFallingStars();
+2243:                     }
+2244:                     drawShip();
+2245:                     drawGameUI();
+2246:                     if (gameOver) drawGameOver();
+2247:                     break;
+2248:                 case GAME_STATES.PAUSED:
+2249:                     drawBackground();
+2250:                     if (gameMode === GAME_MODES.SURVIVAL) {
+2251:                         drawMeteorites();
+2252:                         drawSurvivalOverlay();
+2253:                     } else {
+2254:                         drawFallingStars();
+2255:                     }
+2256:                     drawShip();
+2257:                     drawGameUI();
+2258:                     drawPauseScreen();
+2259:                     break;
+2260:             }
+2261:         }
+2262: 
+2263:         /* ============================================================
+2264:            7. HANDLE MENU ACTIONS
+2265:         ============================================================ */
+2266:         function handleMenuAction(action) {
+2267:             switch (action) {
+2268:                 case 'play':
+2269:                     if (!currentUser) {
+2270:                         gameState = GAME_STATES.ACCOUNT;
+2271:                         accountInput = '';
+2272:                         showMobileInput(true);
+2273:                     } else {
+2274:                         startGame(GAME_MODES.CLASSIC);
+2275:                     }
+2276:                     break;
+2277:                 case 'survival':
+2278:                     if (!currentUser) {
+2279:                         gameState = GAME_STATES.ACCOUNT;
+2280:                         accountInput = '';

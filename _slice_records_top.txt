@@ -1,0 +1,178 @@
+1933:         function drawRecordsScreen() {
+1934:             drawBackground();
+1935: 
+1936:             ctx.textAlign = 'center';
+1937:             ctx.shadowBlur = 30;
+1938:             ctx.shadowColor = '#ffd700';
+1939:             ctx.font = 'bold 40px Orbitron, sans-serif';
+1940:             ctx.fillStyle = '#ffd700';
+1941:             ctx.fillText('🏆 RECORDS', canvas.width / 2, 75);
+1942: 
+1943:             if (!currentUser) {
+1944:                 ctx.shadowBlur = 10;
+1945:                 ctx.shadowColor = 'black';
+1946:                 ctx.font = '20px Orbitron, sans-serif';
+1947:                 ctx.fillStyle = '#aaa';
+1948:                 ctx.fillText('Create an account to see your records!', canvas.width / 2, 140);
+1949:             } else {
+1950:                 ctx.shadowBlur = 10;
+1951:                 ctx.shadowColor = 'black';
+1952:                 ctx.font = '16px Orbitron, sans-serif';
+1953:                 ctx.fillStyle = '#66dd88';
+1954:                 ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 125);
+1955: 
+1956:                 const classicRecords = getUserRecords(currentUser).filter(r => r > 0);
+1957:                 const survivalRecords = getSurvivalRecords(currentUser).filter(r => r > 0);
+1958: 
+1959:                 // Two side-by-side columns so the player can compare their
+1960:                 // classic and survival bests at a glance.
+1961:                 const colW = 350;
+1962:                 const colY = 165;
+1963:                 const colH = 350;
+1964:                 const leftColX = canvas.width / 2 - colW - 15;
+1965:                 const rightColX = canvas.width / 2 + 15;
+1966: 
+1967:                 // Classic column
+1968:                 ctx.shadowBlur = 12;
+1969:                 ctx.shadowColor = '#ffd700';
+1970:                 ctx.fillStyle = 'rgba(74, 140, 255, 0.10)';
+1971:                 ctx.beginPath();
+1972:                 ctx.roundRect(leftColX, colY, colW, colH, 12);
+1973:                 ctx.fill();
+1974:                 ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
+1975:                 ctx.lineWidth = 2;
+1976:                 ctx.beginPath();
+1977:                 ctx.roundRect(leftColX, colY, colW, colH, 12);
+1978:                 ctx.stroke();
+1979: 
+1980:                 ctx.font = 'bold 20px Orbitron, sans-serif';
+1981:                 ctx.fillStyle = '#88aaff';
+1982:                 ctx.shadowColor = '#4af';
+1983:                 ctx.shadowBlur = 15;
+1984:                 ctx.fillText('⭐ CLASSIC', leftColX + colW / 2, colY + 30);
+1985: 
+1986:                 ctx.font = '14px Orbitron, sans-serif';
+1987:                 ctx.shadowBlur = 4;
+1988:                 ctx.fillStyle = '#aac8ff';
+1989:                 ctx.fillText('Stars caught', leftColX + colW / 2, colY + 50);
+1990: 
+1991:                 ctx.shadowBlur = 4;
+1992:                 ctx.textAlign = 'left';
+1993:                 const classicStartY = colY + 85;
+1994:                 if (classicRecords.length === 0) {
+1995:                     ctx.fillStyle = '#666';
+1996:                     ctx.font = '14px Orbitron, sans-serif';
+1997:                     ctx.textAlign = 'center';
+1998:                     ctx.fillText('No records yet', leftColX + colW / 2, classicStartY + 10);
+1999:                 } else {
+2000:                     for (let i = 0; i < Math.min(5, classicRecords.length); i++) {
+2001:                         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+2002:                         const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#aac8ff';
+2003:                         ctx.fillStyle = color;
+2004:                         ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
+2005:                         ctx.shadowBlur = 4;
+2006:                         ctx.shadowColor = 'black';
+2007:                         ctx.fillText(medal + '  ' + classicRecords[i] + ' pts', leftColX + 25, classicStartY + i * 38);
+2008:                     }
+2009:                 }
+2010: 
+2011:                 // Survival column
+2012:                 ctx.textAlign = 'center';
+2013:                 ctx.shadowBlur = 12;
+2014:                 ctx.shadowColor = '#ff6b6b';
+2015:                 ctx.fillStyle = 'rgba(180, 20, 20, 0.12)';
+2016:                 ctx.beginPath();
+2017:                 ctx.roundRect(rightColX, colY, colW, colH, 12);
+2018:                 ctx.fill();
+2019:                 ctx.strokeStyle = 'rgba(255, 90, 90, 0.5)';
+2020:                 ctx.lineWidth = 2;
+2021:                 ctx.beginPath();
+2022:                 ctx.roundRect(rightColX, colY, colW, colH, 12);
+2023:                 ctx.stroke();
+2024: 
+2025:                 ctx.font = 'bold 20px Orbitron, sans-serif';
+2026:                 ctx.fillStyle = '#ff8888';
+2027:                 ctx.shadowColor = '#ff0000';
+2028:                 ctx.shadowBlur = 15;
+2029:                 ctx.fillText('☠ SURVIVAL', rightColX + colW / 2, colY + 30);
+2030: 
+2031:                 ctx.font = '14px Orbitron, sans-serif';
+2032:                 ctx.shadowBlur = 4;
+2033:                 ctx.fillStyle = '#ffb0b0';
+2034:                 ctx.fillText('Time survived', rightColX + colW / 2, colY + 50);
+2035: 
+2036:                 ctx.textAlign = 'left';
+2037:                 const survivalStartY = colY + 85;
+2038:                 if (survivalRecords.length === 0) {
+2039:                     ctx.fillStyle = '#666';
+2040:                     ctx.font = '14px Orbitron, sans-serif';
+2041:                     ctx.textAlign = 'center';
+2042:                     ctx.fillText('No records yet', rightColX + colW / 2, survivalStartY + 10);
+2043:                 } else {
+2044:                     for (let i = 0; i < Math.min(5, survivalRecords.length); i++) {
+2045:                         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+2046:                         const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ffb0b0';
+2047:                         ctx.fillStyle = color;
+2048:                         ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
+2049:                         ctx.shadowBlur = 4;
+2050:                         ctx.shadowColor = 'black';
+2051:                         ctx.fillText(medal + '  ' + survivalRecords[i] + 's', rightColX + 25, survivalStartY + i * 38);
+2052:                     }
+2053:                 }
+2054:             }
+2055: 
+2056:             const backY = 560;
+2057:             ctx.shadowBlur = 10;
+2058:             ctx.shadowColor = '#4af';
+2059:             ctx.fillStyle = '#2a4a7a';
+2060:             ctx.beginPath();
+2061:             ctx.roundRect(canvas.width / 2 - 80, backY, 160, 35, 10);
+2062:             ctx.fill();
+2063:             ctx.shadowBlur = 0;
+2064:             ctx.fillStyle = 'white';
+2065:             ctx.font = '18px Orbitron, sans-serif';
+2066:             ctx.textAlign = 'center';
+2067:             ctx.fillText('← BACK', canvas.width / 2, backY + 25);
+2068: 
+2069:             menuButtons = [
+2070:                 { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
+2071:             ];
+2072: 
+2073:             ctx.textAlign = 'left';
+2074:             ctx.shadowBlur = 0;
+2075:         }
+2076: 
+2077:         function drawSettingsRow(x, y, w, h, title, description, value, action) {
+2078:             // Label (left)
+2079:             ctx.textAlign = 'left';
+2080:             ctx.font = 'bold 22px Orbitron, sans-serif';
+2081:             ctx.shadowColor = 'black';
+2082:             ctx.shadowBlur = 6;
+2083:             ctx.fillStyle = '#ffffff';
+2084:             ctx.fillText(title, x, y + 30);
+2085: 
+2086:             // Description (left, smaller)
+2087:             ctx.font = '12px Orbitron, sans-serif';
+2088:             ctx.fillStyle = '#8cf';
+2089:             ctx.shadowBlur = 3;
+2090:             ctx.fillText(description, x, y + 52);
+2091: 
+2092:             // Toggle pill (right)
+2093:             const pillW = 96;
+2094:             const pillH = 44;
+2095:             const pillX = x + w - pillW;
+2096:             const pillY = y + (h - pillH) / 2;
+2097: 
+2098:             // Pill background
+2099:             ctx.shadowBlur = 10;
+2100:             ctx.shadowColor = value ? 'rgba(0, 200, 100, 0.6)' : 'rgba(0, 0, 0, 0.5)';
+2101:             ctx.fillStyle = value ? '#1a4a2a' : '#2a2a3a';
+2102:             ctx.beginPath();
+2103:             ctx.roundRect(pillX, pillY, pillW, pillH, 22);
+2104:             ctx.fill();
+2105: 
+2106:             // ON / OFF label
+2107:             ctx.shadowBlur = 0;
+2108:             ctx.fillStyle = value ? '#aaffaa' : '#888';
+2109:             ctx.font = 'bold 16px Orbitron, sans-serif';
+2110:             ctx.textAlign = 'center';

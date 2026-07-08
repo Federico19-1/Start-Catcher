@@ -1,0 +1,30 @@
+ 873:         function endGame() {
+ 874:             // Centralised game-over so both classic (star missed) and
+ 875:             // survival (meteorite hit) paths honour the same record logic.
+ 876:             gameOver = true;
+ 877:             playGameOverSound();
+ 878:             if (currentUser) {
+ 879:                 if (gameMode === GAME_MODES.SURVIVAL) {
+ 880:                     const pos = addSurvivalScoreToUser(currentUser, score);
+ 881:                     if (pos !== -1) {
+ 882:                         isNewRecord = true;
+ 883:                         newRecordPosition = pos;
+ 884:                         playRecordSound();
+ 885:                     }
+ 886:                 } else {
+ 887:                     const pos = addScoreToUser(currentUser, score);
+ 888:                     if (pos !== -1) {
+ 889:                         isNewRecord = true;
+ 890:                         newRecordPosition = pos;
+ 891:                         playRecordSound();
+ 892:                     }
+ 893:                 }
+ 894:             }
+ 895:         }
+ 896: 
+ 897:         /* ============================================================
+ 898:            6. DRAWING FUNCTIONS
+ 899:         ============================================================ */
+ 900:         function drawBackground() {
+ 901:             ctx.fillStyle = '#0a0a1a';
+ 902:             ctx.fillRect(0, 0, canvas.width, canvas.height);

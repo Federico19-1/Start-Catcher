@@ -1,0 +1,55 @@
+2056:             const backY = 560;
+2057:             ctx.shadowBlur = 10;
+2058:             ctx.shadowColor = '#4af';
+2059:             ctx.fillStyle = '#2a4a7a';
+2060:             ctx.beginPath();
+2061:             ctx.roundRect(canvas.width / 2 - 80, backY, 160, 35, 10);
+2062:             ctx.fill();
+2063:             ctx.shadowBlur = 0;
+2064:             ctx.fillStyle = 'white';
+2065:             ctx.font = '18px Orbitron, sans-serif';
+2066:             ctx.textAlign = 'center';
+2067:             ctx.fillText('← BACK', canvas.width / 2, backY + 25);
+2068: 
+2069:             menuButtons = [
+2070:                 { rect: { x: canvas.width / 2 - 80, y: backY, w: 160, h: 35 }, action: 'back' }
+2071:             ];
+2072: 
+2073:             ctx.textAlign = 'left';
+2074:             ctx.shadowBlur = 0;
+2075:         }
+2076: 
+2077:         function drawSettingsRow(x, y, w, h, title, description, value, action) {
+2078:             // Label (left)
+2079:             ctx.textAlign = 'left';
+2080:             ctx.font = 'bold 22px Orbitron, sans-serif';
+2081:             ctx.shadowColor = 'black';
+2082:             ctx.shadowBlur = 6;
+2083:             ctx.fillStyle = '#ffffff';
+2084:             ctx.fillText(title, x, y + 30);
+2085: 
+2086:             // Description (left, smaller)
+2087:             ctx.font = '12px Orbitron, sans-serif';
+2088:             ctx.fillStyle = '#8cf';
+2089:             ctx.shadowBlur = 3;
+2090:             ctx.fillText(description, x, y + 52);
+2091: 
+2092:             // Toggle pill (right)
+2093:             const pillW = 96;
+2094:             const pillH = 44;
+2095:             const pillX = x + w - pillW;
+2096:             const pillY = y + (h - pillH) / 2;
+2097: 
+2098:             // Pill background
+2099:             ctx.shadowBlur = 10;
+2100:             ctx.shadowColor = value ? 'rgba(0, 200, 100, 0.6)' : 'rgba(0, 0, 0, 0.5)';
+2101:             ctx.fillStyle = value ? '#1a4a2a' : '#2a2a3a';
+2102:             ctx.beginPath();
+2103:             ctx.roundRect(pillX, pillY, pillW, pillH, 22);
+2104:             ctx.fill();
+2105: 
+2106:             // ON / OFF label
+2107:             ctx.shadowBlur = 0;
+2108:             ctx.fillStyle = value ? '#aaffaa' : '#888';
+2109:             ctx.font = 'bold 16px Orbitron, sans-serif';
+2110:             ctx.textAlign = 'center';

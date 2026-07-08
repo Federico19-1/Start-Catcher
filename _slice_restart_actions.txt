@@ -1,0 +1,41 @@
+2360:                     break;
+2361:                 case 'playAgain':
+2362:                     stopMenuMusic();
+2363:                     resetGame();
+2364:                     gameState = GAME_STATES.PLAYING;
+2365:                     updateTouchVisibility();
+2366:                     break;
+2367:                 case 'menu':
+2368:                     resetGame();
+2369:                     gameState = GAME_STATES.MENU;
+2370:                     menuMusicStarted = false; // Reset per permettere di riavviare la musica
+2371:                     playMenuMusic();
+2372:                     updateTouchVisibility();
+2373:                     break;
+2374:                 case 'pauseMenu':
+2375:                     stopMenuMusic();
+2376:                     resetGame();
+2377:                     gameState = GAME_STATES.MENU;
+2378:                     menuMusicStarted = false;
+2379:                     playMenuMusic();
+2380:                     updateTouchVisibility();
+2381:                     break;
+2382:                 case 'settings':
+2383:                     gameState = GAME_STATES.SETTINGS;
+2384:                     showMobileInput(false);
+2385:                     break;
+2386:                 case 'toggleMusic':
+2387:                     settings.music = !settings.music;
+2388:                     saveSettings();
+2389:                     playMenuMusic(); // respects new settings.music value
+2390:                     playClickSound();
+2391:                     break;
+2392:                 case 'toggleSfx':
+2393:                     settings.sfx = !settings.sfx;
+2394:                     saveSettings();
+2395:                     playClickSound();
+2396:                     break;
+2397:                 case 'settingsBack':
+2398:                     gameState = GAME_STATES.MENU;
+2399:                     showMobileInput(false);
+2400:                     break;
