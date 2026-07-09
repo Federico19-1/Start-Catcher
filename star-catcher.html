@@ -184,6 +184,7 @@
 
         let stars = [];
         let meteorites = [];
+        let explosions = [];
         let score = 0;
         let lives = 3;
         let gameOver = false;
@@ -693,9 +694,74 @@
             };
         }
 
+        // ----- Meteorite explosion effects (Survival) -----
+        // Particle bursts that fire whenever a meteorite disappears,
+        // either because it hit the ship or because it safely fell off
+        // the bottom of the screen. `intensity` is 1 for the big hit
+        // (bigger burst + shockwave + hot centre flash) and 0 for the
+        // safe-dodge case (smaller, gentler puff), so the player can
+        // visually tell "ouch" apart from "whew".
+        function createExplosion(x, y, hue, intensity) {
+            const count = (intensity ? 24 : 12) + Math.floor(Math.random() * 6);
+            const speedBoost = intensity ? 1.6 : 1.0;
+            const particles = [];
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+                const speedVar = (1.8 + Math.random() * 2.4) * speedBoost;
+                const lifeMax = 30 + Math.random() * 18;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speedVar,
+                    vy: Math.sin(angle) * speedVar - (intensity ? 0.5 : 0),
+                    life: lifeMax,
+                    maxLife: lifeMax,
+                    size: 1.5 + Math.random() * 2.5 + (intensity ? 1.5 : 0)
+                });
+            }
+            return {
+                x: x,
+                y: y,
+                hue: hue,
+                particles: particles,
+                life: 38,
+                maxLife: 38,
+                intensity: intensity,
+                shockLife: intensity ? 14 : 0,
+                shockMaxLife: 14,
+                shockRadius: intensity ? 70 : 0
+            };
+        }
+
+        function updateExplosions() {
+            for (let i = explosions.length - 1; i >= 0; i--) {
+                const e = explosions[i];
+                e.life--;
+                if (e.shockLife > 0) e.shockLife--;
+                for (let j = e.particles.length - 1; j >= 0; j--) {
+                    const p = e.particles[j];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.12;
+                    p.vx *= 0.96;
+                    p.vy *= 0.96;
+                    p.life--;
+                }
+                e.particles = e.particles.filter(p => p.life > 0);
+                if (e.life <= 0 && e.particles.length === 0) {
+                    explosions.splice(i, 1);
+                }
+            }
+            const explCap = IS_MOBILE ? 12 : 25;
+            if (explosions.length > explCap) {
+                explosions.splice(0, explosions.length - explCap);
+            }
+        }
+
         function resetGame() {
             stars = [];
             meteorites = [];
+            explosions = [];
             score = 0;
             lives = 3;
             gameOver = false;
@@ -919,6 +985,7 @@
                         lives--;
                         meteoriteHitCooldown = 60;  // ~1 second of i-frames at 60fps
                         playLoseLifeSound();
+                        explosions.push(createExplosion(m.x, m.y, m.hue, 1));
                         meteorites.splice(i, 1);
                         if (lives <= 0) endGame();
                         continue;
@@ -927,10 +994,18 @@
 
                 if (m.y > canvas.height + m.radius * 2) {
                     // Safely dodged — meteorites that leave the screen
-                    // simply disappear. In survival we never punish a miss.
+                    // get a small puff (intensity 0) so the screen never
+                    // feels static, but it stays clearly gentler than
+                    // the big hit burst on the other path.
+                    explosions.push(createExplosion(m.x, canvas.height, m.hue, 0));
                     meteorites.splice(i, 1);
                 }
             }
+
+            // Tick down active explosions (debris flies, shockwave
+            // expands, every layer fades). Called every frame so bursts
+            // finish cleanly even when no new meteorite spawns.
+            updateExplosions();
 
             // Safety cap so a long survival run can't accumulate thousands
             // of meteorites and tank the framerate. Tighter on mobile.
@@ -1488,6 +1563,71 @@
         function drawMeteorites() {
             for (const m of meteorites) {
                 drawMeteorite(m);
+            }
+        }
+
+        function drawExplosions() {
+            for (const e of explosions) {
+                ctx.save();
+
+                // Expanding shockwave on big hits; lighter mobile path
+                if (e.shockLife > 0 && !IS_MOBILE) {
+                    const t = 1 - e.shockLife / e.shockMaxLife;
+                    const r = e.shockRadius * (0.4 + t * 0.85);
+                    const alpha = e.shockLife / e.shockMaxLife;
+                    ctx.globalAlpha = alpha * 0.7;
+                    ctx.shadowColor = `hsl(${e.hue}, 95%, 70%)`;
+                    ctx.shadowBlur = 20;
+                    ctx.strokeStyle = `hsla(${e.hue}, 95%, 75%, ${alpha})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                    ctx.shadowBlur = 0;
+                }
+                if (e.shockLife > 0 && IS_MOBILE) {
+                    const t = 1 - e.shockLife / e.shockMaxLife;
+                    const r = e.shockRadius * (0.4 + t * 0.85);
+                    const alpha = e.shockLife / e.shockMaxLife;
+                    ctx.globalAlpha = alpha * 0.55;
+                    ctx.strokeStyle = `hsla(${e.hue}, 95%, 75%, ${alpha})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(e.x, e.y, r, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+
+                // Centre flash on hits during the first frames
+                if (e.intensity && e.shockLife >= 7) {
+                    const f = (e.shockLife - 7) / 7;
+                    ctx.globalAlpha = f;
+                    ctx.fillStyle = `hsla(${e.hue}, 100%, 92%, ${f})`;
+                    ctx.shadowColor = `hsl(${e.hue}, 100%, 80%)`;
+                    ctx.shadowBlur = IS_MOBILE ? 0 : 40;
+                    ctx.beginPath();
+                    ctx.arc(e.x, e.y, e.shockRadius * 0.30 + Math.random() * 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1;
+                }
+
+                // Debris: fly outward, cool/fade with remaining life
+                for (const p of e.particles) {
+                    const a = Math.max(0, Math.min(1, p.life / p.maxLife));
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = `hsl(${e.hue}, 95%, ${55 + a * 25}%)`;
+                    ctx.shadowColor = `hsl(${e.hue}, 95%, 65%)`;
+                    ctx.shadowBlur = IS_MOBILE ? 0 : 12;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * (0.4 + a * 0.7), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+                ctx.restore();
             }
         }
 
@@ -2375,6 +2515,7 @@
                     drawBackground();
                     if (gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
+                        drawExplosions();        // explosions between rocks and red tint
                         drawSurvivalOverlay();   // red filter on top of bg+rocks+ship
                     } else {
                         drawFallingStars();
@@ -2387,6 +2528,7 @@
                     drawBackground();
                     if (gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
+                        drawExplosions();        // freeze mid-frame so paused state still shows bursts
                         drawSurvivalOverlay();
                     } else {
                         drawFallingStars();
