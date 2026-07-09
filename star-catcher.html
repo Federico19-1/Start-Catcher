@@ -129,7 +129,8 @@
             PLAYING: 'playing',
             PAUSED: 'paused',
             SETTINGS: 'settings',
-            RECORDS: 'records'
+            RECORDS: 'records',
+            MISSIONS: 'missions'
         };
 
         const GAME_MODES = {
@@ -644,6 +645,450 @@
         /* ============================================================
            4. GAME LOGIC FUNCTIONS
         ============================================================ */
+        // ----- Daily missions + streaks -----
+        // Swipeable page accessible from the main menu. Two streaks
+        // per account: a yellow/orange manual-claim "daily streak"
+        // and a red/burgundy auto-bumped "super streak" earned by
+        // completing all of today's 3 missions.
+        const MISSION_POOL = [
+            { id: 'catch5',     label: 'Catch 5 stars in Classic',       target: 5,  type: 'classic_score' },
+            { id: 'catch10',    label: 'Catch 10 stars in Classic',      target: 10, type: 'classic_score' },
+            { id: 'catch15',    label: 'Catch 15 stars in Classic',      target: 15, type: 'classic_score' },
+            { id: 'survive20',  label: 'Survive 20s in Survival',         target: 20, type: 'survival_time' },
+            { id: 'survive30',  label: 'Survive 30s in Survival',         target: 30, type: 'survival_time' },
+            { id: 'survive45',  label: 'Survive 45s in Survival',         target: 45, type: 'survival_time' },
+            { id: 'no_death',   label: 'Finish Classic with all 3 lives', type: 'no_death_run' },
+            { id: 'visit_set',  label: 'Visit Settings today',           type: 'visit_settings' },
+            { id: 'toggle_set', label: 'Toggle a setting today',         type: 'toggle_setting' },
+            { id: 'both_modes', label: 'Play both Classic + Survival',   type: 'both_modes' }
+        ];
+
+        // Deterministic seed from a YYYY-MM-DD string. Every player sees
+        // the same 3 missions on a given calendar day so friends can
+        // talk about the same set.
+        function dailySeedForToday(todayKey) {
+            let h = 0;
+            for (let i = 0; i < todayKey.length; i++) {
+                h = ((h << 5) - h + todayKey.charCodeAt(i)) | 0;
+            }
+            return Math.abs(h);
+        }
+
+        function generateDailyMissions(todayKey) {
+            const seed = dailySeedForToday(todayKey);
+            const pool = MISSION_POOL.slice();
+            const picked = [];
+            for (let i = 0; i < 3 && pool.length > 0; i++) {
+                const idx = (seed * (i + 7) + Math.floor(seed / 13)) % pool.length;
+                picked.push(pool.splice(idx, 1)[0]);
+            }
+            return picked;
+        }
+
+        // Idempotent per day. Resets to 1 if a day was skipped, grows
+        // by 1 if last claim was yesterday.
+        function claimDailyStreak() {
+            if (!currentUser) return null;
+            const m = refreshMissionsForUser(currentUser);
+            const today = m.currentDayKey;
+            if (m.lastClaimedDate === today) return m.streakCount;
+            if (m.lastClaimedDate && isYesterday(m.lastClaimedDate, today)) {
+                m.streakCount += 1;
+            } else {
+                m.streakCount = 1;
+            }
+            m.lastClaimedDate = today;
+            saveUserMissions(currentUser, m);
+            playRecordSound();
+            return m.streakCount;
+        }
+
+        // Bumped once per day at most — the first recheck during which
+        // every mission is complete wins.
+        function maybeAdvanceSuperStreak(username) {
+            if (!username) return;
+            const m = getUserMissions(username);
+            const total = (m.missionsForDay || []).length;
+            if (total === 0) return;
+            const done = Object.values(m.missionsCompleted || {}).filter(Boolean).length;
+            if (done < total) return;
+            const today = m.currentDayKey;
+            if (m._lastAllCompleteDayKey === today) return;
+            m._lastAllCompleteDayKey = today;
+            if (m.lastSuperClaimDate && isYesterday(m.lastSuperClaimDate, today)) {
+                m.superStreakCount += 1;
+            } else {
+                m.superStreakCount = 1;
+            }
+            m.lastSuperClaimDate = today;
+            saveUserMissions(username, m);
+        }
+
+        function recordMissionEvent(eventType, value) {
+            if (!currentUser) return;
+            const m = refreshMissionsForUser(currentUser);
+            if (eventType === 'finished_classic') {
+                m.modesPlayedToday.classic = true;
+                if (value > m.bestClassicScoreToday) m.bestClassicScoreToday = value;
+                if (lives > 0) m.noDeathClassicToday = true;
+            } else if (eventType === 'finished_survival') {
+                m.modesPlayedToday.survival = true;
+                if (value > m.bestSurvivalTimeToday) m.bestSurvivalTimeToday = value;
+            } else if (eventType === 'visited_settings') {
+                m.settingsVisitedToday = true;
+            } else if (eventType === 'toggled_setting') {
+                m.settingsToggledCountToday = (m.settingsToggledCountToday || 0) + 1;
+            }
+            recheckMissionCompletion(m);
+            maybeAdvanceSuperStreak(currentUser);
+            saveUserMissions(currentUser, m);
+        }
+
+        // ----- Swipe gesture state (touch + mouse drag on canvas) -----
+        // Swiping right from the menu enters the Missions page; swiping
+        // left from the Missions page returns to the menu.
+        let swipeStartX = null;
+        let swipeStartY = null;
+        let swipeStartTime = 0;
+        const SWIPE_DISTANCE_THRESHOLD = 70;
+        const SWIPE_TIME_LIMIT_MS = 700;
+
+        function _swipeBegin(x, y) {
+            swipeStartX = x; swipeStartY = y; swipeStartTime = Date.now();
+        }
+
+        function _swipeEnd(x, y) {
+            if (swipeStartX === null) return false;
+            const dx = x - swipeStartX;
+            const dy = y - swipeStartY;
+            const dt = Date.now() - swipeStartTime;
+            swipeStartX = null; swipeStartY = null;
+            if (dt > SWIPE_TIME_LIMIT_MS) return false;
+            if (Math.abs(dx) < SWIPE_DISTANCE_THRESHOLD) return false;
+            if (Math.abs(dx) < Math.abs(dy) * 1.4) return false;
+            if (dx > 0 && gameState === GAME_STATES.MENU && currentUser) {
+                navigateToMissionsScreen(); return true;
+            }
+            if (dx < 0 && gameState === GAME_STATES.MISSIONS) {
+                navigateFromMissionsScreen(); return true;
+            }
+            return false;
+        }
+
+        function navigateToMissionsScreen() {
+            if (!currentUser) return;
+            refreshMissionsForUser(currentUser);
+            gameState = GAME_STATES.MISSIONS;
+            playClickSound();
+        }
+
+        function navigateFromMissionsScreen() {
+            gameState = GAME_STATES.MENU;
+            playClickSound();
+        }
+
+        function newMissionsRecord() {
+            return {
+                lastClaimedDate: null,
+                streakCount: 0,
+                superStreakCount: 0,
+                lastSuperClaimDate: null,
+                currentDayKey: null,
+                missionsForDay: [],
+                missionsCompleted: {},
+                _lastAllCompleteDayKey: null,
+                modesPlayedToday: { classic: false, survival: false },
+                settingsVisitedToday: false,
+                settingsToggledCountToday: 0,
+                bestClassicScoreToday: 0,
+                bestSurvivalTimeToday: 0,
+                noDeathClassicToday: false
+            };
+        }
+
+        function getUserMissions(username) {
+            if (!username) return newMissionsRecord();
+            const all = getAllRecords();
+            const key = `${username}__missions`;
+            if (!all[key]) {
+                all[key] = newMissionsRecord();
+                saveAllRecords(all);
+            }
+            return all[key];
+        }
+
+        function saveUserMissions(username, data) {
+            if (!username) return;
+            const all = getAllRecords();
+            all[`${username}__missions`] = data;
+            saveAllRecords(all);
+        }
+
+        function recheckMissionCompletion(m) {
+            if (!m.missionsForDay) return;
+            m.missionsCompleted = {};
+            for (const mission of m.missionsForDay) {
+                let done = false;
+                switch (mission.type) {
+                    case 'classic_score': done = m.bestClassicScoreToday >= mission.target; break;
+                    case 'survival_time': done = m.bestSurvivalTimeToday >= mission.target; break;
+                    case 'no_death_run':  done = m.noDeathClassicToday; break;
+                    case 'visit_settings':done = m.settingsVisitedToday; break;
+                    case 'toggle_setting':done = (m.settingsToggledCountToday || 0) >= 1; break;
+                    case 'both_modes':    done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
+                }
+                m.missionsCompleted[mission.id] = done;
+            }
+        }
+
+        function refreshMissionsForUser(username) {
+            const m = getUserMissions(username);
+            const today = new Date().toISOString().slice(0, 10);
+            if (m.currentDayKey !== today) {
+                m.currentDayKey = today;
+                m.missionsForDay = generateDailyMissions(today);
+                m.missionsCompleted = {};
+                m.modesPlayedToday = { classic: false, survival: false };
+                m.settingsVisitedToday = false;
+                m.settingsToggledCountToday = 0;
+                m.bestClassicScoreToday = 0;
+                m.bestSurvivalTimeToday = 0;
+                m.noDeathClassicToday = false;
+                m._lastAllCompleteDayKey = null;
+            }
+            recheckMissionCompletion(m);
+            const all = getAllRecords();
+            all[`${username}__missions`] = m;
+            saveAllRecords(all);
+            return m;
+        }
+
+        function isYesterday(prev, today) {
+            if (!prev) return false;
+            const a = new Date(prev + 'T00:00:00Z').getTime();
+            const b = new Date(today + 'T00:00:00Z').getTime();
+            return Math.round((b - a) / (1000 * 60 * 60 * 24)) === 1;
+        }
+
+        // ----- Missions page renderer -----
+        function drawMissionsScreen() {
+            drawBackground();
+
+            const m = currentUser
+                ? refreshMissionsForUser(currentUser)
+                : newMissionsRecord();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd84a';
+            ctx.font = 'bold 38px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd84a';
+            ctx.fillText('\u{1f4cb} MISSIONS', canvas.width / 2, 60);
+
+            if (!currentUser) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '20px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('Create an account to track your progress!', canvas.width / 2, 110);
+                const backY = 540, backW = 160, backH = 35;
+                const backX = canvas.width / 2 - backW / 2;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#4af';
+                ctx.fillStyle = '#2a4a7a';
+                ctx.beginPath();
+                ctx.roundRect(backX, backY, backW, backH, 10);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'white';
+                ctx.font = '18px Orbitron, sans-serif';
+                ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 25);
+                menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'missionsBack' }];
+                ctx.textAlign = 'left';
+                ctx.shadowBlur = 0;
+                return;
+            }
+
+            // Date badge
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'black';
+            ctx.font = '13px Orbitron, sans-serif';
+            ctx.fillStyle = '#9cd3ff';
+            const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+            ctx.fillText('\u{1f4c5} ' + dateStr, canvas.width / 2, 92);
+
+            // Streak panel
+            const streakY = 125, streakH = 110, streakW = 360;
+            const streakX = canvas.width / 2 - streakW / 2;
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#ffaa55';
+            const streakGrad = ctx.createLinearGradient(streakX, streakY, streakX, streakY + streakH);
+            streakGrad.addColorStop(0, 'rgba(70, 40, 10, 0.85)');
+            streakGrad.addColorStop(1, 'rgba(35, 18, 5, 0.95)');
+            ctx.fillStyle = streakGrad;
+            ctx.beginPath();
+            ctx.roundRect(streakX, streakY, streakW, streakH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 170, 70, 0.55)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Verical divider between the two streak columns
+            ctx.strokeStyle = 'rgba(255,170,70,0.4)';
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, streakY + 14);
+            ctx.lineTo(canvas.width / 2, streakY + streakH - 14);
+            ctx.stroke();
+
+            const dailyX = streakX + streakW * 0.25;
+            const superX = streakX + streakW * 0.75;
+            ctx.textAlign = 'center';
+
+            ctx.font = 'bold 11px Orbitron, sans-serif';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'black';
+            ctx.fillStyle = '#ffcc88';
+            ctx.fillText('DAILY STREAK', dailyX, streakY + 18);
+            ctx.font = 'bold 38px Arial';
+            ctx.shadowColor = '#ff7300';
+            ctx.shadowBlur = 22;
+            ctx.fillText('\u{1f525}', dailyX, streakY + 60);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 30px Orbitron, sans-serif';
+            ctx.fillStyle = '#ff9933';
+            ctx.fillText(m.streakCount, dailyX, streakY + 95);
+
+            ctx.font = 'bold 11px Orbitron, sans-serif';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'black';
+            ctx.fillStyle = '#ffaaaa';
+            ctx.fillText('SUPER STREAK', superX, streakY + 18);
+            ctx.font = 'bold 38px Arial';
+            ctx.shadowColor = '#8a0303';
+            ctx.shadowBlur = 22;
+            ctx.fillText('\u{1f525}', superX, streakY + 60);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 30px Orbitron, sans-serif';
+            ctx.fillStyle = '#cc4040';
+            ctx.fillText(m.superStreakCount, superX, streakY + 95);
+
+            // Claim button under the daily side
+            const claimW = 130, claimH = 28;
+            const claimX = dailyX - claimW / 2;
+            const claimY = streakY + streakH + 14;
+            const claimedToday = m.lastClaimedDate === m.currentDayKey;
+            ctx.shadowBlur = 12;
+            if (claimedToday) {
+                ctx.shadowColor = 'rgba(120,255,120,0.6)';
+                ctx.fillStyle = '#1a4a2a';
+                ctx.strokeStyle = '#66ee88';
+            } else {
+                ctx.shadowColor = 'rgba(255,140,0,0.75)';
+                ctx.fillStyle = '#5a2a0a';
+                ctx.strokeStyle = '#ff9933';
+            }
+            ctx.beginPath();
+            ctx.roundRect(claimX, claimY, claimW, claimH, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.fillStyle = claimedToday ? '#aaffaa' : '#ffd84a';
+            ctx.fillText(claimedToday ? '\u2713 CLAIMED' : 'CLAIM TODAY', claimX + claimW / 2, claimY + 19);
+
+            // ----- Today's mission cards -----
+            const missionsY = claimY + 60;
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#88aaff';
+            ctx.shadowBlur = 14;
+            ctx.font = 'bold 14px Orbitron, sans-serif';
+            ctx.fillStyle = '#88aaff';
+            ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
+
+            if (m.missionsForDay && m.missionsForDay.length > 0) {
+                const cardW = 440, cardH = 54;
+                const cardX = canvas.width / 2 - cardW / 2;
+                m.missionsForDay.forEach((mission, idx) => {
+                    const y = missionsY + idx * (cardH + 10);
+                    const done = (m.missionsCompleted && m.missionsCompleted[mission.id]) || false;
+
+                    ctx.shadowBlur = 14;
+                    ctx.shadowColor = done ? 'rgba(120,255,120,0.55)' : 'rgba(74,140,255,0.4)';
+                    ctx.fillStyle = done ? 'rgba(30,70,40,0.85)' : 'rgba(15,25,50,0.85)';
+                    ctx.beginPath();
+                    ctx.roundRect(cardX, y, cardW, cardH, 10);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = done ? 'rgba(140,255,140,0.7)' : 'rgba(74,170,255,0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.font = 'bold 28px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = done ? 'rgba(120,255,120,0.7)' : 'rgba(255,255,255,0.18)';
+                    ctx.fillStyle = done ? '#9eff9e' : 'rgba(255,255,255,0.35)';
+                    ctx.fillText(done ? '\u2705' : '\u26d5', cardX + 30, y + 38);
+
+                    ctx.shadowBlur = 0;
+                    ctx.font = 'bold 14px Orbitron, sans-serif';
+                    ctx.textAlign = 'left';
+                    ctx.fillStyle = done ? '#cfffcf' : '#ffffff';
+                    ctx.fillText(mission.label, cardX + 62, y + 23);
+
+                    ctx.font = '11px Orbitron, sans-serif';
+                    ctx.fillStyle = done ? '#a2e6a2' : '#88aaff';
+                    let progressText = '';
+                    if (mission.type === 'classic_score') {
+                        progressText = `Best today: ${m.bestClassicScoreToday} / ${mission.target} \u2b50`;
+                    } else if (mission.type === 'survival_time') {
+                        progressText = `Best today: ${m.bestSurvivalTimeToday}s / ${mission.target}s \u2620`;
+                    } else if (mission.type === 'no_death_run') {
+                        progressText = m.noDeathClassicToday ? 'No-death run complete!' : 'Survive Classic with all 3 lives';
+                    } else if (mission.type === 'visit_settings') {
+                        progressText = m.settingsVisitedToday ? 'Visited Settings today' : 'Open the Settings screen';
+                    } else if (mission.type === 'toggle_setting') {
+                        progressText = `Toggled ${m.settingsToggledCountToday || 0} time(s)`;
+                    } else if (mission.type === 'both_modes') {
+                        const parts = [m.modesPlayedToday.classic ? '\u2b50 Classic \u2713' : '\u2606 Classic',
+                                       m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival'];
+                        progressText = parts.join('   \u00b7   ');
+                    }
+                    ctx.fillText(progressText, cardX + 62, y + 42);
+                });
+            }
+
+            // BACK button + swipe hint
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'black';
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.fillStyle = '#7eaad6';
+            ctx.textAlign = 'center';
+            ctx.fillText('\u2190 swipe / arrow-left / Esc to go back to menu', canvas.width / 2, 530);
+
+            const backY = 560, backW = 160, backH = 35;
+            const backX = canvas.width / 2 - backW / 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a4a7a';
+            ctx.beginPath();
+            ctx.roundRect(backX, backY, backW, backH, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 25);
+            menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'missionsBack' }];
+            if (!claimedToday) {
+                menuButtons.push({ rect: { x: claimX, y: claimY, w: claimW, h: claimH }, action: 'claimStreak' });
+            }
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
         function createStar() {
             return {
                 x: Math.random() * canvas.width,
@@ -924,6 +1369,13 @@
             // Centralised game-over so both classic (star missed) and
             // survival (meteorite hit) paths honour the same record logic.
             flushPlayTime();   // persist this run's time to the account
+            if (currentUser) {
+                if (gameMode === GAME_MODES.CLASSIC) {
+                    recordMissionEvent('finished_classic', score);
+                } else if (gameMode === GAME_MODES.SURVIVAL) {
+                    recordMissionEvent('finished_survival', score);
+                }
+            }
             gameOver = true;
             playGameOverSound();
             if (currentUser) {
@@ -1343,7 +1795,14 @@
                 { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' },
                 { rect: { x: survivalMenuX, y: survivalMenuY, w: survivalMenuW, h: 40 }, action: 'survival' }
             ];
-
+            ctx.save();
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#ffd84a';
+            ctx.font = '12px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd84a';
+            ctx.textAlign = 'right';
+            ctx.fillText('M key or swipe \u2192 Missions', canvas.width - 18, canvas.height - 18);
+            ctx.restore();
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
@@ -2351,6 +2810,9 @@
                 case GAME_STATES.RECORDS:
                     drawRecordsScreen();
                     break;
+                case GAME_STATES.MISSIONS:
+                    drawMissionsScreen();
+                    break;
                 case GAME_STATES.PLAYING:
                     drawBackground();
                     if (gameMode === GAME_MODES.SURVIVAL) {
@@ -2406,6 +2868,21 @@
                     accountInput = currentUser || '';
                     showMobileInput(true);
                     break;
+                case 'missions':
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        navigateToMissionsScreen();
+                    }
+                    break;
+                case 'missionsBack':
+                    navigateFromMissionsScreen();
+                    break;
+                case 'claimStreak':
+                    claimDailyStreak();
+                    break;
                 case 'records':
                     if (!currentUser) {
                         gameState = GAME_STATES.ACCOUNT;
@@ -2430,6 +2907,8 @@
                                 const allRecords = getAllRecords();
                                 delete allRecords[currentUser];
                                 delete allRecords[currentUser + '__survival'];
+                            delete allRecords[currentUser + '__missions'];
+                            delete allRecords[currentUser + '__playTime'];
                                 saveAllRecords(allRecords);
                                 currentUser = newUser;
                                 getUserRecords(currentUser);
@@ -2487,17 +2966,20 @@
                 case 'settings':
                     gameState = GAME_STATES.SETTINGS;
                     showMobileInput(false);
+                    recordMissionEvent('visited_settings');
                     break;
                 case 'toggleMusic':
                     settings.music = !settings.music;
                     saveSettings();
                     playMenuMusic(); // respects new settings.music value
                     playClickSound();
+                    recordMissionEvent('toggled_setting');
                     break;
                 case 'toggleSfx':
                     settings.sfx = !settings.sfx;
                     saveSettings();
                     playClickSound();
+                    recordMissionEvent('toggled_setting');
                     break;
                 case 'settingsBack':
                     gameState = GAME_STATES.MENU;
@@ -2579,6 +3061,23 @@
                 }
             }
 
+            // ----- Missions page keyboard nav -----
+            // From MENU when an account exists: M or ArrowRight opens it.
+            // From MISSIONS: ArrowLeft or Escape goes back. PLAYING has its
+            // own ArrowLeft/ArrowRight handlers in the block above, so
+            // these are only reached when the game is on MENU/MISSIONS.
+            if (gameState === GAME_STATES.MENU && currentUser
+                && (event.key === 'm' || event.key === 'M')) {
+                navigateToMissionsScreen();
+                event.preventDefault();
+            }
+            if (gameState === GAME_STATES.MISSIONS) {
+                if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+                    navigateFromMissionsScreen();
+                    event.preventDefault();
+                }
+            }
+
             if (gameState === GAME_STATES.ACCOUNT) {
                 const inputField = document.getElementById('accountMobileInput');
                 if (event.key === 'Backspace') {
@@ -2612,6 +3111,7 @@
         let canvasTouchActive = false;
         canvas.addEventListener('touchstart', (event) => {
             const c = getGameCoords(event);
+            _swipeBegin(c.x, c.y);
             if (gameState === GAME_STATES.PLAYING) {
                 canvasTouchActive = true;
                 player.targetX = c.x;
@@ -2636,10 +3136,25 @@
             }
         }, { passive: true });
         canvas.addEventListener('touchend', (event) => {
+            const c = getGameCoords(event);
+            _swipeEnd(c.x, c.y);
             if (gameState === GAME_STATES.PLAYING) {
                 canvasTouchActive = false;
             }
         }, { passive: true });
+
+        // Mouse-drag swipe -- desktop parallel to the touch path so
+        // swiping with a mouse works the same as swiping with a finger.
+        // Tracks via the same _swipeBegin/_swipeEnd state declared in
+        // the Missions snippet.
+        canvas.addEventListener('mousedown', (event) => {
+            const c = getGameCoords(event);
+            _swipeBegin(c.x, c.y);
+        });
+        canvas.addEventListener('mouseup', (event) => {
+            const c = getGameCoords(event);
+            _swipeEnd(c.x, c.y);
+        });
 
         if (pauseButton) {
             const handlePausePress = (e) => {
@@ -2698,6 +3213,8 @@
                     const allRecords = getAllRecords();
                     delete allRecords[currentUser];
                     delete allRecords[currentUser + '__survival'];
+                            delete allRecords[currentUser + '__missions'];
+                            delete allRecords[currentUser + '__playTime'];
                     saveAllRecords(allRecords);
 
                     // Rimuovi l'ultimo utente salvato
