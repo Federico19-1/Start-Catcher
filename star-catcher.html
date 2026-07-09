@@ -689,7 +689,7 @@
                 speed: pick.speed,
                 rotation: Math.random() * Math.PI * 2,
                 rotationSpeed: (Math.random() - 0.5) * 0.08,
-                hue: 18 + Math.random() * 20      // reddish-orange rock palette
+                hue: Math.random() * 360          // full spectrum - just like the stars
             };
         }
 
@@ -1455,7 +1455,7 @@
             const ringGrad = ctx.createRadialGradient(0, 0, m.radius * 0.4, 0, 0, m.radius);
             ringGrad.addColorStop(0, `hsl(${m.hue + 15}, 80%, 55%)`);
             ringGrad.addColorStop(0.7, `hsl(${m.hue}, 60%, 30%)`);
-            ringGrad.addColorStop(1, '#1a0a05');
+            ringGrad.addColorStop(1, `hsl(${m.hue + 20}, 45%, 9%)`);
             ctx.fillStyle = ringGrad;
             ctx.beginPath();
             for (let i = 0; i < sides; i++) {
