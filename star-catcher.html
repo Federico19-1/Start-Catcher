@@ -744,36 +744,6 @@
             saveUserMissions(currentUser, m);
         }
 
-        // ----- Swipe gesture state (touch + mouse drag on canvas) -----
-        // Swiping right from the menu enters the Missions page; swiping
-        // left from the Missions page returns to the menu.
-        let swipeStartX = null;
-        let swipeStartY = null;
-        let swipeStartTime = 0;
-        const SWIPE_DISTANCE_THRESHOLD = 70;
-        const SWIPE_TIME_LIMIT_MS = 700;
-
-        function _swipeBegin(x, y) {
-            swipeStartX = x; swipeStartY = y; swipeStartTime = Date.now();
-        }
-
-        function _swipeEnd(x, y) {
-            if (swipeStartX === null) return false;
-            const dx = x - swipeStartX;
-            const dy = y - swipeStartY;
-            const dt = Date.now() - swipeStartTime;
-            swipeStartX = null; swipeStartY = null;
-            if (dt > SWIPE_TIME_LIMIT_MS) return false;
-            if (Math.abs(dx) < SWIPE_DISTANCE_THRESHOLD) return false;
-            if (Math.abs(dx) < Math.abs(dy) * 1.4) return false;
-            if (dx > 0 && gameState === GAME_STATES.MENU && currentUser) {
-                navigateToMissionsScreen(); return true;
-            }
-            if (dx < 0 && gameState === GAME_STATES.MISSIONS) {
-                navigateFromMissionsScreen(); return true;
-            }
-            return false;
-        }
 
         function navigateToMissionsScreen() {
             if (!currentUser) return;
@@ -1066,7 +1036,7 @@
             ctx.font = '11px Orbitron, sans-serif';
             ctx.fillStyle = '#7eaad6';
             ctx.textAlign = 'center';
-            ctx.fillText('\u2190 swipe / arrow-left / Esc to go back to menu', canvas.width / 2, 530);
+            ctx.fillText('\u2190 arrow-left / Esc to go back to menu', canvas.width / 2, 530);
 
             const backY = 560, backW = 160, backH = 35;
             const backX = canvas.width / 2 - backW / 2;
@@ -1795,14 +1765,39 @@
                 { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' },
                 { rect: { x: survivalMenuX, y: survivalMenuY, w: survivalMenuW, h: 40 }, action: 'survival' }
             ];
-            ctx.save();
-            ctx.shadowBlur = 8;
+            // ----- BIG "M KEY" pill -- enters the Missions page -----
+            // No swipe gesture anymore; the pill AND the M keyboard
+            // shortcut are the only two entry points now.
+            const mpW = 220, mpH = 56;
+            const mpX = canvas.width - mpW - 15;
+            const mpY = 15;
+            ctx.shadowBlur = 30;
             ctx.shadowColor = '#ffd84a';
-            ctx.font = '12px Orbitron, sans-serif';
+            const mpGrad = ctx.createLinearGradient(mpX, mpY, mpX, mpY + mpH);
+            mpGrad.addColorStop(0, 'rgba(70, 50, 10, 0.95)');
+            mpGrad.addColorStop(1, 'rgba(35, 22, 5, 0.95)');
+            ctx.fillStyle = mpGrad;
+            ctx.beginPath();
+            ctx.roundRect(mpX, mpY, mpW, mpH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#ffd84a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(mpX, mpY, mpW, mpH, 12);
+            ctx.stroke();
             ctx.fillStyle = '#ffd84a';
-            ctx.textAlign = 'right';
-            ctx.fillText('M key or swipe \u2192 Missions', canvas.width - 18, canvas.height - 18);
-            ctx.restore();
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#ff7300';
+            ctx.shadowBlur = 14;
+            ctx.fillText('M KEY', mpX + mpW / 2, mpY + 26);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 11px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffcc88';
+            ctx.fillText('OPEN MISSIONS', mpX + mpW / 2, mpY + 46);
+            menuButtons.push({ rect: { x: mpX, y: mpY, w: mpW, h: mpH }, action: 'missions' });
+            ctx.textAlign = 'left';
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
         }
@@ -3062,10 +3057,12 @@
             }
 
             // ----- Missions page keyboard nav -----
-            // From MENU when an account exists: M or ArrowRight opens it.
-            // From MISSIONS: ArrowLeft or Escape goes back. PLAYING has its
-            // own ArrowLeft/ArrowRight handlers in the block above, so
-            // these are only reached when the game is on MENU/MISSIONS.
+            // MENU + (account set) + M: open Missions page (also by
+            // clicking the big "M KEY" pill in the top-right).
+            // MISSIONS + ArrowLeft or Esc: back to menu. PLAYING keeps
+            // its own ArrowKey/R handlers in the block above; the
+            // checks below only fire when the gameState is on
+            // MENU/MISSIONS, never during play.
             if (gameState === GAME_STATES.MENU && currentUser
                 && (event.key === 'm' || event.key === 'M')) {
                 navigateToMissionsScreen();
@@ -3111,7 +3108,6 @@
         let canvasTouchActive = false;
         canvas.addEventListener('touchstart', (event) => {
             const c = getGameCoords(event);
-            _swipeBegin(c.x, c.y);
             if (gameState === GAME_STATES.PLAYING) {
                 canvasTouchActive = true;
                 player.targetX = c.x;
@@ -3136,25 +3132,10 @@
             }
         }, { passive: true });
         canvas.addEventListener('touchend', (event) => {
-            const c = getGameCoords(event);
-            _swipeEnd(c.x, c.y);
             if (gameState === GAME_STATES.PLAYING) {
                 canvasTouchActive = false;
             }
         }, { passive: true });
-
-        // Mouse-drag swipe -- desktop parallel to the touch path so
-        // swiping with a mouse works the same as swiping with a finger.
-        // Tracks via the same _swipeBegin/_swipeEnd state declared in
-        // the Missions snippet.
-        canvas.addEventListener('mousedown', (event) => {
-            const c = getGameCoords(event);
-            _swipeBegin(c.x, c.y);
-        });
-        canvas.addEventListener('mouseup', (event) => {
-            const c = getGameCoords(event);
-            _swipeEnd(c.x, c.y);
-        });
 
         if (pauseButton) {
             const handlePausePress = (e) => {
