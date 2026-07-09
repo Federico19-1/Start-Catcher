@@ -21,7 +21,6 @@ new1 = """        let menuButtons = [];
             'Catch them all!',
             'Stardance... or Starcatcher Challenge?.',
             'Three lives, infinite stars!',
-            'Tip: arrow keys also work.',
             'Watch out - those rocks hurt.'
         ];
         const blueCharacter = {
