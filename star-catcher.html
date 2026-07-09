@@ -46,8 +46,9 @@
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-    <button id="pauseButton" aria-label="Game Pause"
-        style="position: absolute; top: 18px; left: 18px; z-index: 20; width: 64px; height: 64px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.9); background: rgba(10, 10, 26, 0.75); color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 900; cursor: pointer; backdrop-filter: blur(10px); box-shadow: 0 0 18px rgba(74, 140, 255, 0.35); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
+    <button id="pauseButton" aria-label="Game Pause" aria-keyshortcuts="P"
+        title="Pause / Resume (press P)"
+        style="position: absolute; top: 24px; left: 24px; z-index: 20; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.95); background: rgba(10, 10, 26, 0.82); color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; cursor: pointer; backdrop-filter: blur(10px); box-shadow: 0 0 26px rgba(74, 140, 255, 0.6), 0 0 6px rgba(74, 140, 255, 0.4); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
 
     <div id="mobileAccountInput"
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
@@ -90,9 +91,16 @@
                 || window.innerWidth <= 768;
         }
         let IS_MOBILE = detectMobile();
-        window.addEventListener('resize', () => { IS_MOBILE = detectMobile(); });
+        window.addEventListener('resize', () => {
+            IS_MOBILE = detectMobile();
+            positionPauseButton();
+        });
         window.addEventListener('orientationchange', () => {
             IS_MOBILE = detectMobile();
+            // Reposition after the orientationchange event finishes —
+            // some browsers fire before the new viewport dimensions are
+            // committed, so a short timeout locks in the correct layout.
+            setTimeout(positionPauseButton, 100);
         });
 
         // Convert a DOM event (mouse OR touch) into canvas-internal pixel
@@ -1153,9 +1161,55 @@
                 pauseButton.style.display = 'flex';
                 pauseButton.textContent = gameState === GAME_STATES.PAUSED ? '▶' : '⏸';
                 pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Resume Game' : 'Pause Game');
+                positionPauseButton();
             } else {
                 pauseButton.style.display = 'none';
             }
+        }
+
+        // Position the pause button JUST OUTSIDE the canvas (the "game
+        // screen"), right next to it with a small gap — exactly what the
+        // user asked for. Tries the left side first (the most natural
+        // ergonomic spot on widescreen), then the right side, then above,
+        // then below — so it works on every viewport without encroaching
+        // on the playing field. Acts as the visible companion to the P/p
+        // keyboard shortcut, performing the same togglePause().
+        function positionPauseButton() {
+            const pauseButton = document.getElementById('pauseButton');
+            if (!pauseButton) return;
+            const rect = canvas.getBoundingClientRect();
+            const btnSize = 72;
+            const gap = 14;
+            const minMargin = 8;
+
+            const leftX = rect.left - btnSize - gap;
+            if (leftX >= minMargin) {
+                pauseButton.style.left = leftX + 'px';
+                pauseButton.style.top = (rect.top + gap) + 'px';
+                return;
+            }
+            const rightX = rect.right + gap;
+            if (rightX + btnSize <= window.innerWidth - minMargin) {
+                pauseButton.style.left = rightX + 'px';
+                pauseButton.style.top = (rect.top + gap) + 'px';
+                return;
+            }
+            const aboveY = rect.top - btnSize - gap;
+            if (aboveY >= minMargin) {
+                pauseButton.style.left = Math.max(minMargin, rect.left) + 'px';
+                pauseButton.style.top = aboveY + 'px';
+                return;
+            }
+            const belowY = rect.bottom + gap;
+            if (belowY + btnSize <= window.innerHeight - minMargin) {
+                pauseButton.style.left = Math.max(minMargin, rect.left) + 'px';
+                pauseButton.style.top = belowY + 'px';
+                return;
+            }
+            // Tiny viewport — no room beside the canvas. Fall back to the
+            // viewport corner so the button stays visible and tappable.
+            pauseButton.style.left = minMargin + 'px';
+            pauseButton.style.top = minMargin + 'px';
         }
 
         function updateRocketEmoji() {
