@@ -145,6 +145,10 @@
         let currentUser = null;
         let accountInput = '';
         let isPaused = false;
+        // Remembers where the user was BEFORE entering SETTINGS so the
+        // 'settingsBack' case can route BACK to PAUSED when SETTINGS was
+        // opened from the pause overlay, and BACK to MENU otherwise.
+        let gameStateBeforeSettings = GAME_STATES.MENU;
         let mobileInputVisible = false;
 
         // Play-time tracking: how long the player spent in the
@@ -2099,52 +2103,94 @@
         }
 
         function drawPauseScreen() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.textAlign = 'center';
             ctx.shadowColor = '#4af';
-            ctx.shadowBlur = 40;
+            ctx.shadowBlur = 50;
 
-            ctx.font = 'bold 70px Orbitron, sans-serif';
+            ctx.font = 'bold 78px Orbitron, sans-serif';
             ctx.fillStyle = '#4a8cff';
-            ctx.fillText('⏸ PAUSED', canvas.width / 2, canvas.height / 2 - 80);
+            ctx.fillText('⏸ PAUSED', canvas.width / 2, 175);
 
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 12;
             ctx.shadowColor = 'black';
-            ctx.font = '24px Orbitron, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillStyle = '#9bcfff';
+            ctx.fillText('Press "P" or tap RESUME to continue', canvas.width / 2, 220);
+
+            // Three-button row: RESUME | SETTINGS | MENU.
+            const btnW = 170;
+            const btnH = 56;
+            const gap = 25;
+            const totalW = btnW * 3 + gap * 2;
+            const btnY = canvas.height / 2 + 30;
+            const rowLeftX = canvas.width / 2 - totalW / 2;
+            const resumeX = rowLeftX;
+            const settingsPauseX = rowLeftX + btnW + gap;
+            const menuPauseX = rowLeftX + (btnW + gap) * 2;
+
+            // ----- RESUME button (green, the canonical "back to game") -----
+            ctx.shadowBlur = 32;
+            ctx.shadowColor = 'rgba(120, 255, 160, 0.7)';
+            ctx.fillStyle = '#1a4a2a';
+            ctx.beginPath();
+            ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(120, 255, 160, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
+            ctx.stroke();
+            ctx.fillStyle = '#cfffcf';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(120, 255, 160, 0.4)';
+            ctx.shadowBlur = 12;
+            ctx.fillText('▶ RESUME', resumeX + btnW / 2, btnY + 36);
+            ctx.shadowBlur = 0;
+
+            // ----- SETTINGS button (blue/grey) -----
+            ctx.shadowBlur = 28;
+            ctx.shadowColor = 'rgba(74, 170, 255, 0.55)';
+            ctx.fillStyle = '#2a2a3a';
+            ctx.beginPath();
+            ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(74, 170, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
+            ctx.stroke();
             ctx.fillStyle = '#88aaff';
-            ctx.fillText('Press "P" to resume', canvas.width / 2, canvas.height / 2 - 20);
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('⚙ SETTINGS', settingsPauseX + btnW / 2, btnY + 35);
 
-            // Pulsante MENU
-            const btnY = canvas.height / 2 + 40;
-            const btnW = 180;
-            const btnH = 50;
-            const menuX = canvas.width / 2 - btnW / 2;
-            const menuCenterX = canvas.width / 2;
-
-            ctx.shadowBlur = 25;
+            // ----- MENU button (existing orange/gold, kept) -----
+            ctx.shadowBlur = 28;
             ctx.shadowColor = '#ff8800';
             ctx.fillStyle = '#6a3a1a';
             ctx.beginPath();
-            ctx.roundRect(menuX, btnY, btnW, btnH, 14);
+            ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.roundRect(menuX, btnY, btnW, btnH, 14);
+            ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
             ctx.stroke();
-
             ctx.fillStyle = '#ffd700';
-            ctx.shadowBlur = 0;
             ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
+            ctx.fillText('🏠 MENU', menuPauseX + btnW / 2, btnY + 35);
 
-            // Imposta i menuButtons per il click
             menuButtons = [
-                { rect: { x: menuX, y: btnY, w: btnW, h: btnH }, action: 'pauseMenu' }
+                { rect: { x: resumeX, y: btnY, w: btnW, h: btnH }, action: 'pauseResume' },
+                { rect: { x: settingsPauseX, y: btnY, w: btnW, h: btnH }, action: 'pauseSettings' },
+                { rect: { x: menuPauseX, y: btnY, w: btnW, h: btnH }, action: 'pauseMenu' }
             ];
 
             ctx.textAlign = 'left';
@@ -2951,6 +2997,15 @@
                     gameState = GAME_STATES.MENU;
                     playMenuMusic();
                     break;
+                case 'pauseResume':
+                    togglePause();
+                    break;
+                case 'pauseSettings':
+                    gameStateBeforeSettings = GAME_STATES.PAUSED;
+                    gameState = GAME_STATES.SETTINGS;
+                    showMobileInput(false);
+                    recordMissionEvent('visited_settings');
+                    break;
                 case 'pauseMenu':
                     flushPlayTime();
                     stopMenuMusic();
@@ -2959,6 +3014,7 @@
                     playMenuMusic();
                     break;
                 case 'settings':
+                    gameStateBeforeSettings = GAME_STATES.MENU;
                     gameState = GAME_STATES.SETTINGS;
                     showMobileInput(false);
                     recordMissionEvent('visited_settings');
@@ -2977,8 +3033,13 @@
                     recordMissionEvent('toggled_setting');
                     break;
                 case 'settingsBack':
-                    gameState = GAME_STATES.MENU;
-                    showMobileInput(false);
+                    if (gameStateBeforeSettings === GAME_STATES.PAUSED) {
+                        gameState = GAME_STATES.PAUSED;
+                    } else {
+                        gameState = GAME_STATES.MENU;
+                        showMobileInput(false);
+                    }
+                    gameStateBeforeSettings = GAME_STATES.MENU;
                     break;
                 default:
                     break;
