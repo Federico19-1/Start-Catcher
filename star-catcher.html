@@ -8,15 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         body {
-            /* position: relative establishes a stable containing block so the
-               absolutely-positioned pause button (just outside the canvas) lines
-               up the same way on every browser — without it, some desktop
-               browsers (notably Safari) treat the button as a flex item and offset
-               it from the centered canvas, pushing it off-screen behind
-               body. Making body the positioned ancestor is the safe cross-browser
-               baseline that lets positionPauseButton() in JS compute viewport-
-               relative coordinates cleanly. */
-            position: relative;
             margin: 0;
             display: flex;
             justify-content: center;
@@ -57,7 +48,16 @@
 
     <button id="pauseButton" aria-label="Game Pause" aria-keyshortcuts="P"
         title="Pause / Resume (press P)"
-        style="position: absolute; top: 24px; left: 24px; z-index: 50; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.95); background: #0a0a1a; color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; cursor: pointer; box-shadow: 0 0 26px rgba(74, 140, 255, 0.6), 0 0 6px rgba(74, 140, 255, 0.4); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
+        style="position: fixed; top: 24px; left: 24px; z-index: 50; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.95); background: #0a0a1a; color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; cursor: pointer; box-shadow: 0 0 26px rgba(74, 140, 255, 0.6), 0 0 6px rgba(74, 140, 255, 0.4); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
+
+    <!-- Small "P" key hint pill that sits BESIDE the pause button so the
+         player sees that the keyboard shortcut exists. Hidden by default
+         (display:none) and shown only during PLAYING / PAUSED via JS. The
+         same gold palette as the menu's "M KEY" pill keeps it on-brand and
+         gives the indicator visual weight without competing with the
+         pause ⏸ icon for attention. -->
+    <span id="pauseKeyHint" aria-hidden="true"
+        style="position: fixed; z-index: 50; top: 24px; left: 24px; display: none; align-items: center; justify-content: center; padding: 0 12px; min-width: 42px; height: 30px; border-radius: 15px; background: linear-gradient(180deg, rgba(70, 50, 10, 0.95), rgba(35, 22, 5, 0.95)); border: 2px solid #ffd84a; color: #ffd84a; font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 900; letter-spacing: 1px; text-shadow: 0 0 8px rgba(255, 216, 74, 0.7); box-shadow: 0 0 14px rgba(255, 216, 74, 0.55); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; user-select: none; white-space: nowrap;">P</span>
 
     <div id="mobileAccountInput"
         style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
@@ -1164,25 +1164,52 @@
 
         function updatePauseButton() {
             const pauseButton = document.getElementById('pauseButton');
+            const hint = document.getElementById('pauseKeyHint');
             if (!pauseButton) return;
 
-            if (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED) {
+            const showable = gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED;
+            if (showable) {
                 pauseButton.style.display = 'flex';
                 pauseButton.textContent = gameState === GAME_STATES.PAUSED ? '▶' : '⏸';
                 pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Resume Game' : 'Pause Game');
+                if (hint) {
+                    // Cancel any in-flight fade-out timeout so a stale
+                    // timer from a previous hide can't undo our re-show on
+                    // rapid state transitions (e.g. PLAYING -> MENU ->
+                    // PLAYING inside the 350 ms fade window).
+                    if (hint._hideTimer) {
+                        clearTimeout(hint._hideTimer);
+                        hint._hideTimer = null;
+                    }
+                    hint.style.display = 'flex';
+                }
                 positionPauseButton();
+                if (hint) hint.style.opacity = '1';
             } else {
                 pauseButton.style.display = 'none';
+                if (hint) {
+                    // Fade the pill out before un-mounting it so it doesn't
+                    // pop in / out abruptly across state transitions.
+                    hint.style.opacity = '0';
+                    if (hint._hideTimer) clearTimeout(hint._hideTimer);
+                    hint._hideTimer = setTimeout(() => {
+                        hint.style.display = 'none';
+                        hint._hideTimer = null;
+                    }, 350);
+                }
             }
         }
 
         // Position the pause button JUST OUTSIDE the canvas (the "game
-        // screen"), right next to it with a small gap — exactly what the
-        // user asked for. Tries the left side first (the most natural
-        // ergonomic spot on widescreen), then the right side, then above,
-        // then below — so it works on every viewport without encroaching
-        // on the playing field. Acts as the visible companion to the P/p
-        // keyboard shortcut, performing the same togglePause().
+        // screen"), right next to it with a small gap. Tries the left side
+        // first (the most natural ergonomic spot on widescreen), then the
+        // right side, then above, then below — so it works on every viewport
+        // without encroaching on the playing field. Acts as the visible
+        // companion to the P/p keyboard shortcut, performing the same
+        // togglePause(). Both elements use position:fixed so the values
+        // returned by canvas.getBoundingClientRect() (viewport coords) are
+        // directly what we set on the inline styles — no body-padding
+        // compensation required.
         function positionPauseButton() {
             const pauseButton = document.getElementById('pauseButton');
             if (!pauseButton) return;
@@ -1191,34 +1218,118 @@
             const gap = 14;
             const minMargin = 8;
 
+            let btnX, btnY;
+
             const leftX = rect.left - btnSize - gap;
             if (leftX >= minMargin) {
-                pauseButton.style.left = leftX + 'px';
-                pauseButton.style.top = (rect.top + gap) + 'px';
-                return;
+                btnX = leftX;
+                btnY = rect.top + gap;
+            } else {
+                const rightX = rect.right + gap;
+                if (rightX + btnSize <= window.innerWidth - minMargin) {
+                    btnX = rightX;
+                    btnY = rect.top + gap;
+                } else {
+                    const aboveY = rect.top - btnSize - gap;
+                    if (aboveY >= minMargin) {
+                        btnX = Math.max(minMargin, rect.left);
+                        btnY = aboveY;
+                    } else {
+                        const belowY = rect.bottom + gap;
+                        if (belowY + btnSize <= window.innerHeight - minMargin) {
+                            btnX = Math.max(minMargin, rect.left);
+                            btnY = belowY;
+                        } else {
+                            btnX = minMargin;
+                            btnY = minMargin;
+                        }
+                    }
+                }
             }
-            const rightX = rect.right + gap;
-            if (rightX + btnSize <= window.innerWidth - minMargin) {
-                pauseButton.style.left = rightX + 'px';
-                pauseButton.style.top = (rect.top + gap) + 'px';
-                return;
+
+            pauseButton.style.left = btnX + 'px';
+            pauseButton.style.top = btnY + 'px';
+            // The P hint pill rides alongside the button — place it
+            // IMMEDIATELY BESIDE the button so the keyboard shortcut is
+            // visually obvious to anyone watching the pause button.
+            positionPauseKeyHint(btnX, btnY, btnSize);
+        }
+
+        // Position the small "P" key hint pill IMMEDIATELY BESIDE the
+        // pause button. The pill always lands on the side AWAY from the
+        // canvas (so the button + pill sandwich the play field from each
+        // side, never overlap it), then falls back to the *other* side,
+        // then below, so the pill stays visible no matter which corner
+        // of the canvas the button is parked against.
+        function positionPauseKeyHint(btnX, btnY, btnSize) {
+            const hint = document.getElementById('pauseKeyHint');
+            if (!hint) return;
+            const hRect = hint.getBoundingClientRect();
+            const hintW = hRect.width || 50;
+            const hintH = hRect.height || 32;
+            const gapBetween = 8;
+            const minMargin = 8;
+            const hintYAligned = btnY + (btnSize - hintH) / 2;
+            const canvasRect = canvas.getBoundingClientRect();
+
+            // Which canvas-side is the button on? "side" matters more than
+            // "side that happens to fit in viewport" — we always prefer the
+            // outside-of-canvas side first so the pill can't overlap play.
+            const onLeftOfCanvas = btnX < canvasRect.left;
+            const onRightOfCanvas = (btnX + btnSize) > canvasRect.right;
+            const setPos = (vx, vy) => {
+                hint.style.left = vx + 'px';
+                hint.style.top = vy + 'px';
+            };
+
+            // Phase 1 — preferred side: AWAY from canvas.
+            if (onLeftOfCanvas) {
+                const hintX = btnX - hintW - gapBetween;
+                if (hintX >= minMargin) { setPos(hintX, hintYAligned); return; }
+            } else if (onRightOfCanvas) {
+                const hintX = btnX + btnSize + gapBetween;
+                if (hintX + hintW <= window.innerWidth - minMargin) {
+                    setPos(hintX, hintYAligned); return;
+                }
+            } else {
+                // Button is above / below canvas — try right then left.
+                const rightX = btnX + btnSize + gapBetween;
+                if (rightX + hintW <= window.innerWidth - minMargin) {
+                    setPos(rightX, hintYAligned); return;
+                }
+                const leftX = btnX - hintW - gapBetween;
+                if (leftX >= minMargin) { setPos(leftX, hintYAligned); return; }
             }
-            const aboveY = rect.top - btnSize - gap;
-            if (aboveY >= minMargin) {
-                pauseButton.style.left = Math.max(minMargin, rect.left) + 'px';
-                pauseButton.style.top = aboveY + 'px';
-                return;
+
+            // Phase 2 — opposite of preferred. Try the canvas-facing side
+            // but BAIL if it would bite the canvas — the canvas gap is
+            // rarely wide enough to fit a 50px pill, so this branch is
+            // almost always dead code and that's fine, it stays as a
+            // defensive fallback for whatever viewport some future player
+            // brings along. NOTE: both checks must pass AND-wise; an OR
+            // would let the viewport check alone approve a placement that
+            // overlaps the canvas.
+            if (onLeftOfCanvas) {
+                const hintX = btnX + btnSize + gapBetween;
+                if (hintX + hintW <= canvasRect.left - 4
+                    && hintX + hintW <= window.innerWidth - minMargin) {
+                    setPos(hintX, hintYAligned); return;
+                }
+            } else if (onRightOfCanvas) {
+                const hintX = btnX - hintW - gapBetween;
+                if (hintX >= canvasRect.right + 4
+                    && hintX >= minMargin) {
+                    setPos(hintX, hintYAligned); return;
+                }
             }
-            const belowY = rect.bottom + gap;
-            if (belowY + btnSize <= window.innerHeight - minMargin) {
-                pauseButton.style.left = Math.max(minMargin, rect.left) + 'px';
-                pauseButton.style.top = belowY + 'px';
-                return;
+
+            // Phase 3 — directly below the button.
+            const hintYBelow = btnY + btnSize + 4;
+            if (hintYBelow + hintH <= window.innerHeight - minMargin) {
+                setPos(btnX, hintYBelow); return;
             }
-            // Tiny viewport — no room beside the canvas. Fall back to the
-            // viewport corner so the button stays visible and tappable.
-            pauseButton.style.left = minMargin + 'px';
-            pauseButton.style.top = minMargin + 'px';
+            // Phase 4 — viewport corner fallback so the pill is never lost.
+            setPos(minMargin, minMargin);
         }
 
         function updateRocketEmoji() {
