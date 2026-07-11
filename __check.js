@@ -1949,11 +1949,11 @@
             ctx.textAlign = 'center';
             ctx.shadowColor = '#ff7300';
             ctx.shadowBlur = 14;
-            ctx.fillText('M KEY', mpX + mpW / 2, mpY + 26);
+            ctx.fillText('MISSIONS and STREAK', mpX + mpW / 2, mpY + 26);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.fillStyle = '#ffcc88';
-            ctx.fillText('OPEN MISSIONS', mpX + mpW / 2, mpY + 46);
+            ctx.fillText('click or press M key', mpX + mpW / 2, mpY + 46);
             menuButtons.push({ rect: { x: mpX, y: mpY, w: mpW, h: mpH }, action: 'missions' });
             ctx.textAlign = 'left';
             ctx.textAlign = 'left';
