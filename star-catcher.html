@@ -2056,9 +2056,12 @@
             // ----- BIG "M KEY" pill -- enters the Missions page -----
             // No swipe gesture anymore; the pill AND the M keyboard
             // shortcut are the only two entry points now.
+            // Centered on the menu's hero column, tucked between the
+            // "Get the stars, beat the record!" subtitle (y=215) and
+            // the account-name label (y=350).
             const mpW = 220, mpH = 56;
-            const mpX = canvas.width - mpW - 15;
-            const mpY = 15;
+            const mpX = canvas.width / 2 - mpW / 2;
+            const mpY = 250;
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#ffd84a';
             const mpGrad = ctx.createLinearGradient(mpX, mpY, mpX, mpY + mpH);
