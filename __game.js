@@ -1,90 +1,4 @@
-<!DOCTYPE html>
-<html lang="it">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Star Catcher - Gioco Spaziale</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #0a0a1a;
-            font-family: 'Orbitron', sans-serif;
-            overflow: hidden;
-            user-select: none;
-            /* Phone-friendly: leave room for the address bar to appear
-               and disappear without re-flowing the canvas. */
-            padding: 8px;
-            box-sizing: border-box;
-        }
-
-        canvas {
-            border: 2px solid #4a4a8a;
-            border-radius: 10px;
-            box-shadow: 0 0 40px rgba(74, 74, 138, 0.5);
-            cursor: pointer;
-            touch-action: none;
-            user-select: none;
-            /* Mobile-friendly: shrink the canvas inside the viewport while
-               keeping the 4:3 aspect ratio of the internal grid.
-               Viewport units (vw/vh) are safer than percentages here
-               because the parent flex item's intrinsic size can play
-               tricks with % sizing in Safari. */
-            max-width: 100vw;
-            max-height: 100vh;
-            object-fit: contain;
-        }
-
-    </style>
-</head>
-
-<body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-
-    <button id="pauseButton" aria-label="Game Pause" aria-keyshortcuts="P"
-        title="Pause / Resume (press P)"
-        style="position: fixed; top: 24px; left: 24px; z-index: 50; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.95); background: #0a0a1a; color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; cursor: pointer; box-shadow: 0 0 26px rgba(74, 140, 255, 0.6), 0 0 6px rgba(74, 140, 255, 0.4); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
-
-    <!-- Small "P" key hint pill that sits BESIDE the pause button so the
-         player sees that the keyboard shortcut exists. Hidden by default
-         (display:none) and shown only during PLAYING / PAUSED via JS. The
-         same gold palette as the menu's "M KEY" pill keeps it on-brand and
-         gives the indicator visual weight without competing with the
-         pause ⏸ icon for attention. -->
-    <span id="pauseKeyHint" aria-hidden="true"
-        style="position: fixed; z-index: 50; top: 24px; left: 24px; display: none; align-items: center; justify-content: center; padding: 0 12px; min-width: 42px; height: 30px; border-radius: 15px; background: linear-gradient(180deg, rgba(70, 50, 10, 0.95), rgba(35, 22, 5, 0.95)); border: 2px solid #ffd84a; color: #ffd84a; font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 900; letter-spacing: 1px; text-shadow: 0 0 8px rgba(255, 216, 74, 0.7); box-shadow: 0 0 14px rgba(255, 216, 74, 0.55); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; user-select: none; white-space: nowrap;">P</span>
-
-    <div id="mobileAccountInput"
-        style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
-        <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 NEW
-            ACCOUNT</div>
-        <input type="text" id="accountMobileInput" maxlength="12" placeholder="Name (max 12 char)"
-            style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
-        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
-            <button id="mobileClearNameBtn"
-                style="background: #5a4a2a; color: #ffdd88; border: none; border-radius: 10px; padding: 12px 20px; font-family: 'Orbitron', sans-serif; font-size: 14px; cursor: pointer;">🗑️
-                Clear Name</button>
-            <button id="mobileConfirmBtn"
-                style="background: #2a6aff; color: white; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✅
-                CONFIRM</button>
-            <button id="mobileCancelBtn"
-                style="background: #3a3a5a; color: #aaa; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✖
-                CANCEL</button>
-        </div>
-        <div style="margin-top: 15px;">
-            <button id="mobileClearAccountBtn"
-                style="background: #5a2a2a; color: #ff8888; border: none; border-radius: 10px; padding: 10px 25px; font-family: 'Orbitron', sans-serif; font-size: 14px; cursor: pointer;">🗑️
-                Clear Account</button>
-        </div>
-    </div>
-
-
-    <script>
         /* ============================================================
            0. SETUP CANVAS AND CONTEXT
         ============================================================ */
@@ -3991,7 +3905,4 @@
 
         resetGame();
         gameLoop();
-    </script>
-</body>
-
-</html>
+    
