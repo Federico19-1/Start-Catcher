@@ -1,0 +1,3 @@
+OK:   add schemaVersion: 2 to let settings
+FAIL: auto-save migration + simplify classicMusic
+ABORTED: did not write because one edit failed
