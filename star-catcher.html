@@ -729,9 +729,29 @@
         // itself happens inside claimSuperStreak() so the button is the
         // single, user-visible path that changes the super-streak count.
         // Bump at most once per day.
-        function maybeAdvanceSuperStreak(username) {
-            if (!username) return;
-            const m = getUserMissions(username);
+        function maybeAdvanceSuperStreak(arg) {
+            // Bug-fix friendly overload: accept either (m) directly OR a
+            // legacy (username) string. The previous single-string version
+            // re-fetched m from localStorage via getUserMissions(), but
+            // recordMissionEvent had not yet saved the just-updated
+            // m.missionsCompleted — so the freshly-parsed copy was stale,
+            // mis-counted done < total, and the SUPER CLAIM! button
+            // stayed LOCKED forever.
+            //
+            // Fix: recordMissionEvent now passes the SAME m object it
+            // already mutated, so the m._lastAllCompleteDayKey write lands
+            // on the reference that the caller's final saveUserMissions()
+            // is about to persist. The legacy (username) path stays in
+            // place for any future caller and self-saves for safety.
+            let m = null;
+            let usernameToSave = null;
+            if (typeof arg === 'string') {
+                m = getUserMissions(arg);
+                usernameToSave = arg;
+            } else if (arg && typeof arg === 'object') {
+                m = arg;
+            }
+            if (!m) return;
             const total = (m.missionsForDay || []).length;
             if (total === 0) return;
             const done = Object.values(m.missionsCompleted || {}).filter(Boolean).length;
@@ -739,7 +759,11 @@
             const today = m.currentDayKey;
             if (m._lastAllCompleteDayKey === today) return;
             m._lastAllCompleteDayKey = today;
-            saveUserMissions(username, m);
+            // Only auto-save in the legacy (username) call-site: the (m)
+            // call-site is always followed by the caller saving its own
+            // m, which would otherwise overwrite our write with the same
+            // data on a fresh parse anyway.
+            if (usernameToSave) saveUserMissions(usernameToSave, m);
         }
 
         // Manually bumps the super-streak count when the user clicks the
@@ -790,7 +814,12 @@
                 m.settingsToggledCountToday = (m.settingsToggledCountToday || 0) + 1;
             }
             recheckMissionCompletion(m);
-            maybeAdvanceSuperStreak(currentUser);
+            // Pass m (not currentUser) so the _lastAllCompleteDayKey write
+            // lands on the same reference our final saveUserMissions()
+            // call below will persist. Using currentUser here re-fetches
+            // from localStorage BEFORE the in-memory mission updates are
+            // saved, which used to skip the unlock step on the third event.
+            maybeAdvanceSuperStreak(m);
             saveUserMissions(currentUser, m);
         }
 
