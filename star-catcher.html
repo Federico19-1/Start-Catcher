@@ -175,11 +175,19 @@
         // Records screen.
         let playingStartedAt = 0;
 
-        // Per-account audio preferences. music = menu background song,
-        // classicMusic = background song during Classic Mode gameplay,
-        // sfx = every other in-game sound effect. The two music flags
-        // are independent — each toggle controls exactly one track.
-        let settings = { music: true, classicMusic: true, sfx: true };
+        // Per-account audio preferences.
+        //   music / classicMusic  — independent on/off toggles for the
+        //                            menu song and the Classic-mode BGM.
+        //   menuVolume / classicVolume — playback level for each track
+        //                                (0.0 .. 1.0 in 0.1 steps).
+        //   sfx                     — every other in-game sound effect.
+        let settings = {
+            music: true,
+            classicMusic: true,
+            sfx: true,
+            menuVolume: 0.3,
+            classicVolume: 0.3
+        };
 
         const player = {
             x: 400,
@@ -307,7 +315,10 @@
             if (!menuAudio) {
                 menuAudio = new Audio('menu-song.mp3');
                 menuAudio.loop = true;
-                menuAudio.volume = 0.3; // Volume ridotto per non far sovrastare i suoni del gioco
+                // Seed from per-account settings so the saved volume
+                // takes effect on the very first play (and on the
+                // boot-path autoplay scheduled by setTimeout below).
+                menuAudio.volume = settings.menuVolume;
             }
         }
 
@@ -349,7 +360,9 @@
             if (!classicAudio) {
                 classicAudio = new Audio('paulyudin-synth-pop-Classic-Mode.mp3');
                 classicAudio.loop = true;
-                classicAudio.volume = 0.3; // Stesso volume della musica del menu
+                // Seed from per-account settings (mirrors initMenuAudio
+                // so each track's saved level applies on first play).
+                classicAudio.volume = settings.classicVolume;
             }
         }
 
@@ -410,6 +423,32 @@
         // playMenuMusic() swallows the rejection; tapping anywhere
         // afterwards re-triggers playback via the in-game hooks.
         setTimeout(playMenuMusic, 300);
+
+        // ----- Volume setters -----
+        // Always round to the nearest 0.1 step + clamp to [0, 1]. The
+        // Audio API rejects anything outside [0, 1] silently, so an
+        // out-of-range persist call could leave the user's music at a
+        // different level than what the slider displays. setMenuVolume()
+        // and setClassicVolume() share clampVolume() so both tracks
+        // behave identically. We lazily init the Audio element on the
+        // first volume change so the user's chosen level survives even
+        // before the song has actually been played. Mission integration:
+        // every change bumps settingsToggledCountToday; the 'toggle_setting'
+        // mission just needs ≥1, so multiple clicks still only count once
+        // toward unlock.
+        function setMenuVolume(v) {
+            settings.menuVolume = clampVolume(v);
+            saveSettings();
+            if (!menuAudio) initMenuAudio();
+            menuAudio.volume = settings.menuVolume;
+        }
+
+        function setClassicVolume(v) {
+            settings.classicVolume = clampVolume(v);
+            saveSettings();
+            if (!classicAudio) initClassicAudio();
+            classicAudio.volume = settings.classicVolume;
+        }
 
         // Suono di raccolta stellina - caricato dal file star-sound.txt
         let starSound = null;
@@ -695,22 +734,41 @@
         }
 
         function loadSettings() {
+            // Defensive defaults that match the let-settings initialiser
+            // above. We return them as a fresh object on every call so
+            // mutation by callers (e.g. toggle handlers) never bleeds
+            // across accounts.
+            const defaults = {
+                music: true,
+                classicMusic: true,
+                sfx: true,
+                menuVolume: 0.3,
+                classicVolume: 0.3
+            };
             try {
                 const raw = localStorage.getItem(settingsStorageKey());
                 if (raw) {
                     const parsed = JSON.parse(raw);
+                    // Migration: accounts created BEFORE the split used
+                    // settings.music to silence BOTH tracks. If the new
+                    // field is missing, inherit the previous music value
+                    // so those users aren't suddenly surprised by Classic
+                    // BGM. Volume fields always default to 0.3 — matches
+                    // the previous hard-coded initMenuAudio/initClassicAudio
+                    // value so legacy accounts hear the same loudness as
+                    // before this feature existed.
                     return {
-                        music: typeof parsed.music === 'boolean' ? parsed.music : true,
-                        // Migration: accounts created BEFORE the split used
-                    // settings.music to silence BOTH tracks. If the new field
-                    // is missing, inherit the previous music value so those
-                    // users aren't suddenly surprised by Classic BGM.
-                    classicMusic: typeof parsed.classicMusic === 'boolean' ? parsed.classicMusic : (typeof parsed.music === 'boolean' ? parsed.music : true),
-                        sfx: typeof parsed.sfx === 'boolean' ? parsed.sfx : true
+                        music: typeof parsed.music === 'boolean' ? parsed.music : defaults.music,
+                        classicMusic: typeof parsed.classicMusic === 'boolean'
+                            ? parsed.classicMusic
+                            : (typeof parsed.music === 'boolean' ? parsed.music : defaults.classicMusic),
+                        sfx: typeof parsed.sfx === 'boolean' ? parsed.sfx : defaults.sfx,
+                        menuVolume: clampVolume(parsed.menuVolume),
+                        classicVolume: clampVolume(parsed.classicVolume)
                     };
                 }
             } catch (e) { /* fall through to defaults */ }
-            return { music: true, classicMusic: true, sfx: true };
+            return defaults;
         }
 
         function saveSettings() {
@@ -3061,6 +3119,114 @@
             ctx.shadowBlur = 0;
         }
 
+        // ----- Volume row (used as a sub-row under MUSIC / CLASSIC MUSIC) -----
+        // Renders "VOLUME" label + −/+ step buttons + filled bar + % readout.
+        // The bar is CONTINUOUS (one rect), not segmented, so it expands/
+        // contracts smoothly with each step. Only the step buttons are
+        // click targets — tapping the bar itself does nothing, matching
+        // the surrounding tap-driven UI. The same gold/orange palette
+        // the BACK button uses ties the row to the panel's accent colour.
+        // With 11 volume levels (0.0 → 1.0 in 0.1 steps) and matching the
+        // existing Orbitron typography, the row reads as a sibling of
+        // drawSettingsRow rather than a foreign widget.
+        function drawVolumeRow(x, y, w, h, level, decAction, incAction) {
+            // "VOLUME" label on the left.
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 3;
+            ctx.fillStyle = '#88ddff';
+            ctx.fillText('VOLUME', x + 6, y + h / 2);
+
+            // − button (28×28 square)
+            const btnSize = 28;
+            const btnY = y + (h - btnSize) / 2;
+            const decBtnX = x + 65;
+
+            // Continuous bar (200×12)
+            const barW = 200;
+            const barH = 12;
+            const barX = decBtnX + btnSize + 12;
+            const barY = y + (h - barH) / 2;
+
+            // + button (28×28 square)
+            const incBtnX = barX + barW + 12;
+
+            // Step button geometry is reused both for rendering and for
+            // registering click targets, so wrap it in a tiny helper.
+            function drawStep(cx, label) {
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = 'rgba(255,170,80,0.55)';
+                ctx.fillStyle = '#3a2a1a';
+                ctx.beginPath();
+                ctx.roundRect(cx, btnY, btnSize, btnSize, 8);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(255,170,80,0.7)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(cx, btnY, btnSize, btnSize, 8);
+                ctx.stroke();
+                ctx.fillStyle = '#ffd84a';
+                ctx.font = 'bold 18px Orbitron, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, cx + btnSize / 2, btnY + btnSize / 2);
+            }
+
+            drawStep(decBtnX, '−');
+            drawStep(incBtnX, '+');
+
+            // Bar background pill
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#0e1a2e';
+            ctx.strokeStyle = 'rgba(74,170,255,0.45)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(barX, barY, barW, barH, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            // Filled portion (clamped to [0, 1] for safety even though
+            // the setter already rounded — defence in depth for cases
+            // like a hand-tampered localStorage value).
+            const safeLevel = Math.min(1, Math.max(0, level));
+            const fillW = Math.round(barW * safeLevel);
+            if (fillW > 0) {
+                const fillGrad = ctx.createLinearGradient(barX, barY, barX + fillW, barY);
+                fillGrad.addColorStop(0, '#ffaa55');
+                fillGrad.addColorStop(1, '#ffd84a');
+                ctx.fillStyle = fillGrad;
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, fillW, barH, 6);
+                ctx.fill();
+            }
+
+            // Numeric readout on the right
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'right';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 3;
+            ctx.fillText(Math.round(safeLevel * 100) + '%', x + w - 6, y + h / 2);
+
+            // Click targets for ±, only. Bar itself is NOT clickable
+            // (tapping it would imply continuous drag, which is out of
+            // scope for "standard buttons").
+            menuButtons.push({
+                rect: { x: decBtnX, y: btnY, w: btnSize, h: btnSize },
+                action: decAction
+            });
+            menuButtons.push({
+                rect: { x: incBtnX, y: btnY, w: btnSize, h: btnSize },
+                action: incAction
+            });
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.shadowBlur = 0;
+        }
+
         function drawSettingsRow(x, y, w, h, title, description, value, action) {
             // Label (left)
             ctx.textAlign = 'left';
@@ -3134,9 +3300,11 @@
             ctx.fillStyle = '#aaa';
             ctx.fillText('Customize your audio', canvas.width / 2, 140);
 
-            // Outer panel (sized for 3 toggle rows: MUSIC, SFX, CLASSIC MUSIC)
+            // Outer panel — sized for 3 toggle rows + 2 volume sub-rows.
+            // Each music track owns its volume directly underneath (the
+            // SFX row stays toggle-only since there is no SFX BGM track).
             const panelW = 480;
-            const panelH = 340;
+            const panelH = 365;
             const panelX = canvas.width / 2 - panelW / 2;
             const panelY = 160;
 
@@ -3153,25 +3321,43 @@
             ctx.roundRect(panelX, panelY, panelW, panelH, 16);
             ctx.stroke();
 
-            // Three toggle rows inside the panel, evenly spaced.
+            // 5 sections inside the panel:
+            //   1) MUSIC toggle              (h=72)
+            //   2) Menu music volume         (h=36)   — sub-row of MUSIC
+            //   3) SFX toggle                (h=72)
+            //   4) CLASSIC MUSIC toggle      (h=72)
+            //   5) Classic music volume      (h=36)   — sub-row of CLASSIC
+            //
+            // Gaps:
+            //   * 5 px between a toggle and its own volume sub-row (close
+            //     visual coupling → "this volume controls THIS toggle").
+            //   * 15 px between SECTION boundaries (SFX ↔ MUSIC, SFX ↔
+            //     CLASSIC) so the volume sub-rows clearly belong to their
+            //     parent toggle instead of looking like standalone rows.
             const padX = 30;
             const innerW = panelW - padX * 2;
             const rowX = panelX + padX;
 
-            drawSettingsRow(rowX, panelY + 20, innerW, 95,
+            drawSettingsRow(rowX, panelY + 15, innerW, 72,
                 '🎵 MUSIC',
                 'Background song in the main menu',
                 settings.music, 'toggleMusic');
 
-            drawSettingsRow(rowX, panelY + 120, innerW, 95,
+            drawVolumeRow(rowX, panelY + 92, innerW, 36,
+                settings.menuVolume, 'menuVolDown', 'menuVolUp');
+
+            drawSettingsRow(rowX, panelY + 143, innerW, 72,
                 '🔊 SFX',
                 'All other sounds during gameplay',
                 settings.sfx, 'toggleSfx');
 
-            drawSettingsRow(rowX, panelY + 220, innerW, 95,
+            drawSettingsRow(rowX, panelY + 230, innerW, 72,
                 '⭐ CLASSIC MUSIC',
                 'Plays during Classic Mode runs',
                 settings.classicMusic, 'toggleClassicMusic');
+
+            drawVolumeRow(rowX, panelY + 307, innerW, 36,
+                settings.classicVolume, 'classicVolDown', 'classicVolUp');
 
             // Per-account note (subtle, below panel)
             ctx.font = '12px Orbitron, sans-serif';
@@ -3183,12 +3369,13 @@
                 canvas.width / 2, panelY + panelH + 25
             );
 
-            // BACK button — sits below the taller panel that now
-            // hosts three toggle rows.
+            // BACK button — sits below the now-taller panel (5 rows
+            // total). Shifted 5 px DOWN from canvas.height-55 to leave
+            // the per-account footer line breathing room above it.
             const btnW = 180;
             const btnH = 45;
             const btnX = canvas.width / 2 - btnW / 2;
-            const btnY = canvas.height - 55;
+            const btnY = canvas.height - 50;
 
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#ff8800';
@@ -3423,6 +3610,34 @@
                     saveSettings();
                     playClickSound();
                     recordMissionEvent('toggled_setting');
+                    break;
+                case 'menuVolDown':
+                    if (settings.menuVolume > 0) {
+                        setMenuVolume(settings.menuVolume - 0.1);
+                        playClickSound();
+                        recordMissionEvent('toggled_setting');
+                    }
+                    break;
+                case 'menuVolUp':
+                    if (settings.menuVolume < 1) {
+                        setMenuVolume(settings.menuVolume + 0.1);
+                        playClickSound();
+                        recordMissionEvent('toggled_setting');
+                    }
+                    break;
+                case 'classicVolDown':
+                    if (settings.classicVolume > 0) {
+                        setClassicVolume(settings.classicVolume - 0.1);
+                        playClickSound();
+                        recordMissionEvent('toggled_setting');
+                    }
+                    break;
+                case 'classicVolUp':
+                    if (settings.classicVolume < 1) {
+                        setClassicVolume(settings.classicVolume + 0.1);
+                        playClickSound();
+                        recordMissionEvent('toggled_setting');
+                    }
                     break;
                 case 'settingsBack':
                     if (gameStateBeforeSettings === GAME_STATES.PAUSED) {
