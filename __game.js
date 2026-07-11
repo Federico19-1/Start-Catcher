@@ -3766,6 +3766,13 @@
             }
         }, { passive: true });
 
+        // Cached at script load so the pointerup listener below can
+        // attach. Without this, the bare `if (pauseButton)` would
+        // hit a ReferenceError because no global pauseButton exists
+        // (the only declarations are function-scoped inside
+        // updatePauseButton / positionPauseButton).
+        const pauseButton = document.getElementById('pauseButton');
+
         if (pauseButton) {
             const handlePausePress = (e) => {
                 e.preventDefault();
