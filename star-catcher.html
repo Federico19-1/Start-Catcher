@@ -752,9 +752,12 @@
             if (!currentUser) return null;
             const m = refreshMissionsForUser(currentUser);
             const today = m.currentDayKey;
-            // Safety: the button is only rendered when all 3 missions are
-            // done, so a stale click (or programmatic invocation) without
-            // that state must do nothing.
+            // Locked-state guard: the button is always rendered under
+            // the SUPER STREAK counter (greyed-out "🔒 LOCKED" until all
+            // 3 daily missions are done), so a click on the locked
+            // version MUST be a no-op here. Once _lastAllCompleteDayKey
+            // matches today, this guard lets the click through to bump
+            // m.superStreakCount and flip superClaimedDate.
             if (m._lastAllCompleteDayKey !== today) return null;
             // Already claimed today — accidental double-click must not
             // inflate the count.
@@ -1018,35 +1021,45 @@
             ctx.fillText(claimedToday ? '\u2713 CLAIMED' : 'CLAIM TODAY', claimX + claimW / 2, claimY + 19);
 
             // ---- Super Streak Button ----
-            // Appears ONLY when every daily challenge for today is done, and
-            // mirrors the daily claim button on the right side of the streak
-            // panel so the two stay visually symmetric. Uses the red/burgundy
-            // super-streak palette so it reads as the harder-earned reward.
+            // Always rendered under the SUPER STREAK counter so the player
+            // sees it the whole day. Three visual states, in priority order:
+            //   1) claimed (green ✓) — already collected today's super bonus
+            //   2) ready     (red glow) — all 3 daily missions are done; clickable
+            //   3) locked    (dim grey) — default; render shows "🔒 LOCKED"
+            // Mirrors the daily claim button on the right side of the streak
+            // panel so the two stay visually symmetric.
             const allMissionsDone = m._lastAllCompleteDayKey === m.currentDayKey;
             const superClaimW = 130;
             const superClaimX = superX - superClaimW / 2;
             const superClaimed = m.superClaimedDate === m.currentDayKey;
-            if (allMissionsDone) {
-                ctx.shadowBlur = 12;
-                if (superClaimed) {
-                    ctx.shadowColor = 'rgba(120,255,120,0.6)';
-                    ctx.fillStyle = '#1a4a2a';
-                    ctx.strokeStyle = '#66ee88';
-                } else {
-                    ctx.shadowColor = 'rgba(204,64,64,0.85)';
-                    ctx.fillStyle = '#5a0a0a';
-                    ctx.strokeStyle = '#ff4040';
-                }
-                ctx.beginPath();
-                ctx.roundRect(superClaimX, claimY, superClaimW, claimH, 10);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.font = 'bold 12px Orbitron, sans-serif';
-                ctx.fillStyle = superClaimed ? '#aaffaa' : '#ffcccc';
-                ctx.fillText(superClaimed ? '\u2713 CLAIMED' : 'SUPER CLAIM!', superClaimX + superClaimW / 2, claimY + 19);
+            const superLabel = superClaimed
+                ? '\u2713 CLAIMED'
+                : (allMissionsDone ? 'SUPER CLAIM!' : '\ud83d\udd12 LOCKED');
+            ctx.shadowBlur = 12;
+            if (superClaimed) {
+                ctx.shadowColor = 'rgba(120,255,120,0.6)';
+                ctx.fillStyle = '#1a4a2a';
+                ctx.strokeStyle = '#66ee88';
+            } else if (allMissionsDone) {
+                ctx.shadowColor = 'rgba(204,64,64,0.85)';
+                ctx.fillStyle = '#5a0a0a';
+                ctx.strokeStyle = '#ff4040';
+            } else {
+                // Locked / disabled: dim grey, no glow, so the player can
+                // tell at a glance that all 3 missions aren't done yet.
+                ctx.shadowColor = 'rgba(0,0,0,0.35)';
+                ctx.fillStyle = '#2a2a3a';
+                ctx.strokeStyle = 'rgba(150,150,150,0.4)';
             }
+            ctx.beginPath();
+            ctx.roundRect(superClaimX, claimY, superClaimW, claimH, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.fillStyle = superClaimed ? '#aaffaa' : (allMissionsDone ? '#ffcccc' : '#777');
+            ctx.fillText(superLabel, superClaimX + superClaimW / 2, claimY + 19);
 
             // ----- Today's mission cards -----
             const missionsY = claimY + 60;
@@ -1134,11 +1147,13 @@
             if (!claimedToday) {
                 menuButtons.push({ rect: { x: claimX, y: claimY, w: claimW, h: claimH }, action: 'claimStreak' });
             }
-            // Super Streak Button is only click-targetable when (a) every
-            // daily challenge is done for today AND (b) the user has not
-            // already claimed the super bonus today — matches the visibility
-            // rule used to render it.
-            if (allMissionsDone && !superClaimed) {
+            // Super Streak Button is ALWAYS click-targetable while today
+            // is not yet claimed (so the locked visual still feels
+            // tappable — clicking is intentionally a no-op inside
+            // claimSuperStreak() until the 3 daily missions are done).
+            // We skip the click target entirely once it's already
+            // claimed for today so it stops accepting input.
+            if (!superClaimed) {
                 menuButtons.push({ rect: { x: superClaimX, y: claimY, w: superClaimW, h: claimH }, action: 'claimSuperStreak' });
             }
 
