@@ -180,13 +180,19 @@
         //                            menu song and the Classic-mode BGM.
         //   menuVolume / classicVolume — playback level for each track
         //                                (0.0 .. 1.0 in 0.1 steps).
+        //                                Default is 0.7 so a fresh
+        //                                account hears the menu + classic
+        //                                BGM at a comfortable level; the
+        //                                +/- steppers dip down to silence
+        //                                (0%) or reach full (100%).
         //   sfx                     — every other in-game sound effect.
         let settings = {
+            schemaVersion: 2,                  // bump when migrations land so loadSettings skips them
             music: true,
             classicMusic: true,
             sfx: true,
-            menuVolume: 0.3,
-            classicVolume: 0.3
+            menuVolume: 0.7,
+            classicVolume: 0.7
         };
 
         const player = {
@@ -436,6 +442,16 @@
         // every change bumps settingsToggledCountToday; the 'toggle_setting'
         // mission just needs ≥1, so multiple clicks still only count once
         // toward unlock.
+        function clampVolume(v) {
+            // Audio API rejects anything outside [0, 1] silently, so
+            // rounding + clamping here keeps in-game and stored values
+            // consistent. Fallback default bumped from 0.3 to 0.7 so
+            // an empty/missing/invalid value lands at a comfortable
+            // listening level rather than the previous barely-audible 30%.
+            if (typeof v !== 'number' || !isFinite(v)) return 0.7;
+            return Math.round(Math.min(1, Math.max(0, v)) * 10) / 10;
+        }
+
         function setMenuVolume(v) {
             settings.menuVolume = clampVolume(v);
             saveSettings();
@@ -738,34 +754,55 @@
             // above. We return them as a fresh object on every call so
             // mutation by callers (e.g. toggle handlers) never bleeds
             // across accounts.
+            // Same defaults as the let-settings initialiser above. 0.7 here
+            // means brand-new visitors (no localStorage yet) hear the
+            // menu + classic BGM at a comfortable level — the previous
+            // 0.3 default was easy to mistake for a broken control since
+            // many devices barely audibly play at 30%.
             const defaults = {
                 music: true,
                 classicMusic: true,
                 sfx: true,
-                menuVolume: 0.3,
-                classicVolume: 0.3
+                menuVolume: 0.7,
+                classicVolume: 0.7
             };
             try {
                 const raw = localStorage.getItem(settingsStorageKey());
                 if (raw) {
                     const parsed = JSON.parse(raw);
-                    // Migration: accounts created BEFORE the split used
-                    // settings.music to silence BOTH tracks. If the new
-                    // field is missing, inherit the previous music value
-                    // so those users aren't suddenly surprised by Classic
-                    // BGM. Volume fields always default to 0.3 — matches
-                    // the previous hard-coded initMenuAudio/initClassicAudio
-                    // value so legacy accounts hear the same loudness as
-                    // before this feature existed.
-                    return {
-                        music: typeof parsed.music === 'boolean' ? parsed.music : defaults.music,
-                        classicMusic: typeof parsed.classicMusic === 'boolean'
-                            ? parsed.classicMusic
-                            : (typeof parsed.music === 'boolean' ? parsed.music : defaults.classicMusic),
+                    // Migration rules:
+                    //   * the music / classicMusic split (old accounts
+                    //     used music to silence BOTH tracks) is filled
+                    //     in on a per-field basis so the legacy value
+                    //     sticks for the few users who relied on it.
+                    //   * before this deploy, every volume defaulted to
+                    //     0.3. If this account pre-dates the bump (i.e.
+                    //     no schemaVersion) AND its stored value matches
+                    //     that legacy 0.3 default, push it to the new
+                    //     default.  Otherwise the user clearly chose
+                    //     this number, so pass it through clampVolume
+                    //     untouched.
+                    //   * schemaVersion is bumped (and included in the
+                    //     return object) so saveSettings persists it;
+                    //     future loads skip the migration branch.
+                    const needsMigration = (parsed.schemaVersion || 0) < 2;
+                    const musicVal = typeof parsed.music === 'boolean' ? parsed.music : defaults.music;
+                    const result = {
+                        schemaVersion: 2,                  // always current after migration runs
+                        music: musicVal,
+                        classicMusic: parsed.classicMusic ?? musicVal,
                         sfx: typeof parsed.sfx === 'boolean' ? parsed.sfx : defaults.sfx,
-                        menuVolume: clampVolume(parsed.menuVolume),
-                        classicVolume: clampVolume(parsed.classicVolume)
+                        menuVolume: (needsMigration && clampVolume(parsed.menuVolume) === 0.3)
+                            ? defaults.menuVolume
+                            : clampVolume(parsed.menuVolume),
+                        classicVolume: (needsMigration && clampVolume(parsed.classicVolume) === 0.3)
+                            ? defaults.classicVolume
+                            : clampVolume(parsed.classicVolume)
                     };
+                    if (needsMigration) {
+                        try { localStorage.setItem(settingsStorageKey(), JSON.stringify(result)); } catch (e) {}
+                    }
+                    return result;
                 }
             } catch (e) { /* fall through to defaults */ }
             return defaults;
