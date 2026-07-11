@@ -38,12 +38,13 @@ A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript**
 
 ```
 star-catcher/
-├── star-catcher.html   # markup, styling, and game logic in a single file
-├── menu-song.mp3       # main menu background music
-└── README.md           # the README.md
+├── star-catcher.html                      # markup, styling, and game logic in a single file
+├── menu-song.mp3                          # main menu background music
+├── paulyudin-synth-pop-Classic-Mode.mp3   # background music while playing Classic mode
+└── README.md                              # the README.md
 ```
 
-> Both audio files must be located in the **same folder** as `star-catcher.html`.
+> Both audio files must be located in the **same folder** as `star-catcher.html`. (The Classic-mode track plays automatically during Classic Mode runs and is controlled by a dedicated **🎵 CLASSIC MUSIC** toggle in Settings, independent from the main-menu 🎵 MUSIC toggle — each one mutes exactly its own song.)
 
 ## 🚀 Running the game
 
@@ -60,6 +61,7 @@ Alternatively, you can simply double-click `star-catcher.html` to open it: the g
 ## 🎧 Credits
 
 - Menu music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
+- Classic-mode music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 
 ## 📄 License
 
@@ -125,8 +127,12 @@ user interacts with the page. Star Catcher handles this automatically:
 
 - The first tap / click / keypress unlocks the Web Audio context.
 - ~1 second later the menu music starts playing.
-- Use **⚙ Settings → 🎵 MUSIC** to mute or resume; the choice is
-  saved per-account.
+- **⚙ Settings** now exposes **three** audio toggles, each saved
+  per-account:
+  - **🎵 MUSIC** — main-menu song
+  - **🎵 CLASSIC MUSIC** — background song during Classic Mode gameplay
+  - **🔊 SFX** — every other in-game sound effect (collect, lose-life,
+    game-over, record, click)
 
 ### Performance notes
 

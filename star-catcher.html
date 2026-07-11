@@ -176,8 +176,10 @@
         let playingStartedAt = 0;
 
         // Per-account audio preferences. music = menu background song,
-        // sfx = every other in-game sound effect.
-        let settings = { music: true, sfx: true };
+        // classicMusic = background song during Classic Mode gameplay,
+        // sfx = every other in-game sound effect. The two music flags
+        // are independent — each toggle controls exactly one track.
+        let settings = { music: true, classicMusic: true, sfx: true };
 
         const player = {
             x: 400,
@@ -330,6 +332,73 @@
             if (menuAudio && !menuAudio.paused) {
                 menuAudio.pause();
                 menuAudio.currentTime = 0;
+            }
+        }
+
+        // ----- Classic-Mode gameplay music -----
+        // Separate Audio element dedicated to the Classic run (the one
+        // where the player catches the stars). Created on demand the
+        // first time we enter a Classic game so the file is only
+        // requested when actually needed — same lazy-load pattern as
+        // initMenuAudio() above. Controlled by its own setting
+        // (settings.classicMusic), independent from the menu track,
+        // so the player can mute each song separately.
+        let classicAudio = null;
+
+        function initClassicAudio() {
+            if (!classicAudio) {
+                classicAudio = new Audio('paulyudin-synth-pop-Classic-Mode.mp3');
+                classicAudio.loop = true;
+                classicAudio.volume = 0.3; // Stesso volume della musica del menu
+            }
+        }
+
+        function playClassicMusic() {
+            if (!settings.classicMusic) {
+                // Classic-Mode music disabled — make sure nothing is
+                // playing. Also rewind so the next play starts from the
+                // top, matching playMenuMusic() behaviour.
+                if (classicAudio && !classicAudio.paused) {
+                    classicAudio.pause();
+                    classicAudio.currentTime = 0;
+                }
+                return;
+            }
+            // Only actually start the song when we're in an active
+            // Classic run. Toggling MUSIC on from the Settings screen
+            // while paused / on the menu is a no-op here — the song
+            // starts naturally the next time the user enters Classic
+            // mode (or unpauses), since playClassicMusic() is wired
+            // into startGame() and togglePause().
+            if (gameMode !== GAME_MODES.CLASSIC) return;
+            if (gameState !== GAME_STATES.PLAYING) return;
+            // .play() automatically resumes from the saved currentTime
+            // after a previous .pause(), so this single call covers
+            // both the very first start AND a resume-after-pause.
+            if (!classicAudio || classicAudio.paused) {
+                initClassicAudio();
+                classicAudio.play().catch(e => console.log('Classic music play failed:', e));
+            }
+        }
+
+        function pauseClassicMusic() {
+            // Pauses only — keeps the playback position so a quick
+            // resume picks up exactly where the listener left off.
+            if (classicAudio && !classicAudio.paused) {
+                classicAudio.pause();
+            }
+        }
+
+        function stopClassicMusic() {
+            // Pauses AND rewinds. Called whenever we leave the Classic
+            // gameplay flow for good (return to menu, account clear,
+            // refresh) so the song doesn't sneak back in on the next
+            // session.
+            if (classicAudio && !classicAudio.paused) {
+                classicAudio.pause();
+            }
+            if (classicAudio) {
+                classicAudio.currentTime = 0;
             }
         }
 
@@ -632,11 +701,16 @@
                     const parsed = JSON.parse(raw);
                     return {
                         music: typeof parsed.music === 'boolean' ? parsed.music : true,
+                        // Migration: accounts created BEFORE the split used
+                    // settings.music to silence BOTH tracks. If the new field
+                    // is missing, inherit the previous music value so those
+                    // users aren't suddenly surprised by Classic BGM.
+                    classicMusic: typeof parsed.classicMusic === 'boolean' ? parsed.classicMusic : (typeof parsed.music === 'boolean' ? parsed.music : true),
                         sfx: typeof parsed.sfx === 'boolean' ? parsed.sfx : true
                     };
                 }
             } catch (e) { /* fall through to defaults */ }
-            return { music: true, sfx: true };
+            return { music: true, classicMusic: true, sfx: true };
         }
 
         function saveSettings() {
@@ -1256,6 +1330,9 @@
             showMobileInput(false);
             gameState = GAME_STATES.PLAYING;
             startPlayTimer();          // begin timing this play session
+            if (gameMode === GAME_MODES.CLASSIC) {
+                playClassicMusic();    // background song for the Classic run (no-op for Survival)
+            }
         }
 
         function togglePause() {
@@ -1263,11 +1340,13 @@
                 flushPlayTime();       // stop the clock while paused
                 gameState = GAME_STATES.PAUSED;
                 isPaused = true;
+                pauseClassicMusic();   // silence the Classic BGM while paused (keeps position)
                 playClickSound();
             } else if (gameState === GAME_STATES.PAUSED) {
                 startPlayTimer();      // resume the clock on unpause
                 gameState = GAME_STATES.PLAYING;
                 isPaused = false;
+                playClassicMusic();    // resume the Classic BGM (no-op for Survival)
                 playClickSound();
             }
         }
@@ -1626,6 +1705,12 @@
         function endGame() {
             // Centralised game-over so both classic (star missed) and
             // survival (meteorite hit) paths honour the same record logic.
+            //
+            // NOTE: intentionally do NOT stop classicAudio here. Letting
+            // the song play through the game-over overlay means a fast
+            // 'playAgain' (R key / tap) re-uses the same playback
+            // position for a seamless restart. The song is stopped in
+            // case 'menu' when the player actually returns to the menu.
             flushPlayTime();   // persist this run's time to the account
             if (currentUser) {
                 if (gameMode === GAME_MODES.CLASSIC) {
@@ -3049,11 +3134,11 @@
             ctx.fillStyle = '#aaa';
             ctx.fillText('Customize your audio', canvas.width / 2, 140);
 
-            // Outer panel
+            // Outer panel (sized for 3 toggle rows: MUSIC, SFX, CLASSIC MUSIC)
             const panelW = 480;
-            const panelH = 250;
+            const panelH = 340;
             const panelX = canvas.width / 2 - panelW / 2;
-            const panelY = 175;
+            const panelY = 160;
 
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#4a8cff';
@@ -3068,20 +3153,25 @@
             ctx.roundRect(panelX, panelY, panelW, panelH, 16);
             ctx.stroke();
 
-            // Two toggle rows inside the panel
+            // Three toggle rows inside the panel, evenly spaced.
             const padX = 30;
             const innerW = panelW - padX * 2;
             const rowX = panelX + padX;
 
-            drawSettingsRow(rowX, panelY + 15, innerW, 100,
+            drawSettingsRow(rowX, panelY + 20, innerW, 95,
                 '🎵 MUSIC',
-                'Background song in the menu',
+                'Background song in the main menu',
                 settings.music, 'toggleMusic');
 
-            drawSettingsRow(rowX, panelY + 125, innerW, 100,
+            drawSettingsRow(rowX, panelY + 120, innerW, 95,
                 '🔊 SFX',
                 'All other sounds during gameplay',
                 settings.sfx, 'toggleSfx');
+
+            drawSettingsRow(rowX, panelY + 220, innerW, 95,
+                '⭐ CLASSIC MUSIC',
+                'Plays during Classic Mode runs',
+                settings.classicMusic, 'toggleClassicMusic');
 
             // Per-account note (subtle, below panel)
             ctx.font = '12px Orbitron, sans-serif';
@@ -3093,11 +3183,12 @@
                 canvas.width / 2, panelY + panelH + 25
             );
 
-            // BACK button
+            // BACK button — sits below the taller panel that now
+            // hosts three toggle rows.
             const btnW = 180;
-            const btnH = 50;
+            const btnH = 45;
             const btnX = canvas.width / 2 - btnW / 2;
-            const btnY = canvas.height - 70;
+            const btnY = canvas.height - 55;
 
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#ff8800';
@@ -3114,7 +3205,9 @@
 
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillText('← BACK', canvas.width / 2, btnY + 34);
+            // btnY + 30 keeps the text at ~67% from the top of the
+            // 45-px button (was ~68% with the original 50-px height).
+            ctx.fillText('← BACK', canvas.width / 2, btnY + 30);
 
             // Preserve the pill hit-rects that drawSettingsRow() pushed
             // earlier in this call, then add the BACK button rect.
@@ -3285,6 +3378,7 @@
                     flushPlayTime();
                     resetGame();
                     gameState = GAME_STATES.MENU;
+                    stopClassicMusic();   // Classic BGM off before menu song takes over
                     playMenuMusic();
                     break;
                 case 'pauseResume':
@@ -3301,6 +3395,7 @@
                     stopMenuMusic();
                     resetGame();
                     gameState = GAME_STATES.MENU;
+                    stopClassicMusic();   // Classic BGM off before menu song takes over
                     playMenuMusic();
                     break;
                 case 'settings':
@@ -3312,7 +3407,14 @@
                 case 'toggleMusic':
                     settings.music = !settings.music;
                     saveSettings();
-                    playMenuMusic(); // respects new settings.music value
+                    playMenuMusic();       // respects new settings.music value
+                    playClickSound();
+                    recordMissionEvent('toggled_setting');
+                    break;
+                case 'toggleClassicMusic':
+                    settings.classicMusic = !settings.classicMusic;
+                    saveSettings();
+                    playClassicMusic();    // respects new settings.classicMusic value (silences or resumes the Classic BGM)
                     playClickSound();
                     recordMissionEvent('toggled_setting');
                     break;
