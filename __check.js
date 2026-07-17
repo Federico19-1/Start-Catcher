@@ -2950,14 +2950,19 @@
                 'All other sounds during gameplay',
                 settings.sfx, 'toggleSfx');
 
-            // Per-account note (subtle, below panel)
+            // Per-account note (subtle, below panel).
+            // Drawn at panelY + panelH + 13 so it sits in the gap below
+            // the panel (~13 px clearance). In this older 2-row panel
+            // (panelH = 250) the gap to the BACK button (y = 530) is
+            // already very large, so this is a safe no-op consistency
+            // nudge that matches the fix applied in star-catcher.html.
             ctx.font = '12px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
             ctx.shadowColor = 'black';
             ctx.fillStyle = '#666';
             ctx.fillText(
                 currentUser ? `Saved for 👤 ${currentUser}` : 'Settings saved locally',
-                canvas.width / 2, panelY + panelH + 25
+                canvas.width / 2, panelY + panelH + 13
             );
 
             // BACK button
