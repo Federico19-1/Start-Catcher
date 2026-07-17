@@ -3442,9 +3442,15 @@
 
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 22px Orbitron, sans-serif';
-            // btnY + 30 keeps the text at ~67% from the top of the
-            // 45-px button (was ~68% with the original 50-px height).
-            ctx.fillText('← BACK', canvas.width / 2, btnY + 30);
+            // Draw the label with textBaseline='middle' so it sits
+            // vertically centred inside the 45-px button regardless
+            // of Orbitron's (slightly taller than average) ascent/
+            // descent — the previous btnY + 30 trick left the cap-top
+            // peeking above the border, so the button visibly "spilled"
+            // its text on the upper edge.
+            ctx.textBaseline = 'middle';
+            ctx.fillText('\u2190 BACK', canvas.width / 2, btnY + btnH / 2);
+            ctx.textBaseline = 'alphabetic';   // restore default for later code
 
             // Preserve the pill hit-rects that drawSettingsRow() pushed
             // earlier in this call, then add the BACK button rect.
