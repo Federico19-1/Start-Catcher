@@ -3318,19 +3318,24 @@
             drawVolumeRow(rowX, panelY + 307, innerW, 36,
                 settings.classicVolume, 'classicVolDown', 'classicVolUp');
 
-            // Per-account note (subtle, below panel)
+            // Per-account note (subtle, between panel and BACK button).
+            // Drawn at panelY + panelH + 13 so it sits in the gap below
+            // the panel (~13 px clearance) and ~17 px above the BACK
+            // button top (btnY = canvas.height - 50 = 550). Without this
+            // nudge the text landed at y = 550 — the same y as the
+            // button — and the button's amber background + glow covered
+            // it up, so the "Saved for ..." line silently disappeared.
             ctx.font = '12px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
             ctx.shadowColor = 'black';
             ctx.fillStyle = '#666';
             ctx.fillText(
                 currentUser ? `Saved for 👤 ${currentUser}` : 'Settings saved locally',
-                canvas.width / 2, panelY + panelH + 25
+                canvas.width / 2, panelY + panelH + 13
             );
 
             // BACK button — sits below the now-taller panel (5 rows
-            // total). Shifted 5 px DOWN from canvas.height-55 to leave
-            // the per-account footer line breathing room above it.
+            // total) and below the per-account footer line above it.
             const btnW = 180;
             const btnH = 45;
             const btnX = canvas.width / 2 - btnW / 2;
