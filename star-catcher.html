@@ -3424,7 +3424,7 @@
             // total) and below the per-account footer line above it.
             const btnW = 180;
             const btnH = 45;
-            const btnX = canvas.width / 2 - btnW / 2 - 30;
+            const btnX = canvas.width / 2 - btnW / 2;
             const btnY = canvas.height - 50;
 
             ctx.shadowBlur = 25;
@@ -3449,7 +3449,7 @@
             // peeking above the border, so the button visibly "spilled"
             // its text on the upper edge.
             ctx.textBaseline = 'middle';
-            ctx.fillText('\u2190 BACK', canvas.width / 2, btnY + btnH / 2);
+            ctx.fillText('\u2190 BACK', canvas.width / 2 - 20, btnY + btnH / 2);
             ctx.textBaseline = 'alphabetic';   // restore default for later code
 
             // Preserve the pill hit-rects that drawSettingsRow() pushed
