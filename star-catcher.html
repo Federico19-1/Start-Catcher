@@ -176,23 +176,31 @@
         let playingStartedAt = 0;
 
         // Per-account audio preferences.
-        //   music / classicMusic  — independent on/off toggles for the
-        //                            menu song and the Classic-mode BGM.
-        //   menuVolume / classicVolume — playback level for each track
-        //                                (0.0 .. 1.0 in 0.1 steps).
-        //                                Default is 0.7 so a fresh
-        //                                account hears the menu + classic
-        //                                BGM at a comfortable level; the
-        //                                +/- steppers dip down to silence
-        //                                (0%) or reach full (100%).
+        //   music / classicMusic / survivalMusic — independent on/off
+        //                            toggles for the menu song, the
+        //                            Classic-mode BGM, and the new
+        //                            Survival-mode BGM (a Pixabay
+        //                            download). Each owns its own audio
+        //                            element so the player can mute any
+        //                            track while leaving the others on.
+        //   menuVolume / classicVolume / survivalVolume — playback level
+        //                                for each of the three music
+        //                                tracks (0.0 .. 1.0 in 0.1 steps).
+        //                                Default is 0.7 so a fresh account
+        //                                hears every track at a
+        //                                comfortable level; the +/−
+        //                                steppers dip down to silence (0%)
+        //                                or reach full (100%).
         //   sfx                     — every other in-game sound effect.
         let settings = {
-            schemaVersion: 2,                  // bump when migrations land so loadSettings skips them
+            schemaVersion: 3,                  // bump when migrations land so loadSettings skips them
             music: true,
             classicMusic: true,
+            survivalMusic: true,
             sfx: true,
             menuVolume: 0.7,
-            classicVolume: 0.7
+            classicVolume: 0.7,
+            survivalVolume: 0.7
         };
 
         const player = {
@@ -421,6 +429,77 @@
             }
         }
 
+        // ----- Survival-Mode gameplay music -----
+        // Separate Audio element for the Survival run (no stars, just
+        // dodging meteorites). Created on demand the first time we
+        // enter a Survival game so the file is only requested when
+        // actually needed — same lazy-load pattern as initClassicAudio()
+        // above. Controlled by its own setting (settings.survivalMusic),
+        // independent from the menu and Classic tracks, so the player
+        // can mute each song separately from the Settings screen.
+        let survivalAudio = null;
+
+        function initSurvivalAudio() {
+            if (!survivalAudio) {
+                survivalAudio = new Audio('desifreemusic-comedy-shock-amp-embarrassment-sudden-realization-music-SurvivalMode.mp3');
+                survivalAudio.loop = true;
+                // Seed from per-account settings (mirrors initClassicAudio
+                // so the saved volume takes effect on the very first play).
+                survivalAudio.volume = settings.survivalVolume;
+            }
+        }
+
+        function playSurvivalMusic() {
+            if (!settings.survivalMusic) {
+                // Survival music disabled — make sure nothing is
+                // playing. Also rewind so the next play starts from
+                // the top, matching playMenuMusic() and playClassicMusic()
+                // behaviour.
+                if (survivalAudio && !survivalAudio.paused) {
+                    survivalAudio.pause();
+                    survivalAudio.currentTime = 0;
+                }
+                return;
+            }
+            // Only actually start the song when we're in an active
+            // Survival run. Toggling SURVIVAL MUSIC on from the Settings
+            // screen while paused / on the menu / in Classic is a no-op
+            // here — the song starts naturally the next time the user
+            // enters Survival mode (or unpauses), since
+            // playSurvivalMusic() is wired into startGame() and
+            // togglePause().
+            if (gameMode !== GAME_MODES.SURVIVAL) return;
+            if (gameState !== GAME_STATES.PLAYING) return;
+            // .play() automatically resumes from the saved currentTime
+            // after a previous .pause(), so this single call covers
+            // both the very first start AND a resume-after-pause.
+            if (!survivalAudio || survivalAudio.paused) {
+                initSurvivalAudio();
+                survivalAudio.play().catch(e => console.log('Survival music play failed:', e));
+            }
+        }
+
+        function pauseSurvivalMusic() {
+            // Pauses only — keeps the playback position so a quick
+            // resume picks up exactly where the listener left off.
+            if (survivalAudio && !survivalAudio.paused) {
+                survivalAudio.pause();
+            }
+        }
+
+        function stopSurvivalMusic() {
+            // Pauses AND rewinds. Called whenever we leave the Survival
+            // gameplay flow for good (return to menu, game over, account
+            // clear, refresh) so the song doesn't sneak back in on the
+            // next session.
+            if (survivalAudio && !survivalAudio.paused) {
+                survivalAudio.pause();
+            }
+            if (survivalAudio) {
+                survivalAudio.currentTime = 0;
+            }
+        }
+
         // Kick off the menu song ~300 ms after the script runs so the
         // player hears it from the very first moment the game opens.
         // 300 ms is short enough to feel instant but long enough for
@@ -464,6 +543,16 @@
             saveSettings();
             if (!classicAudio) initClassicAudio();
             classicAudio.volume = settings.classicVolume;
+        }
+
+        function setSurvivalVolume(v) {
+            // Mirrors setClassicVolume() — same clamp + persist flow so
+            // the +/- stepper behaviour is identical across all three
+            // music tracks.
+            settings.survivalVolume = clampVolume(v);
+            saveSettings();
+            if (!survivalAudio) initSurvivalAudio();
+            survivalAudio.volume = settings.survivalVolume;
         }
 
         // Suono di raccolta stellina - caricato dal file star-sound.txt
@@ -762,9 +851,11 @@
             const defaults = {
                 music: true,
                 classicMusic: true,
+                survivalMusic: true,
                 sfx: true,
                 menuVolume: 0.7,
-                classicVolume: 0.7
+                classicVolume: 0.7,
+                survivalVolume: 0.7
             };
             try {
                 const raw = localStorage.getItem(settingsStorageKey());
@@ -785,19 +876,28 @@
                     //   * schemaVersion is bumped (and included in the
                     //     return object) so saveSettings persists it;
                     //     future loads skip the migration branch.
-                    const needsMigration = (parsed.schemaVersion || 0) < 2;
+                    // Bumped migration threshold from <2 → <3 so accounts
+                    // that saved during the previous deploy (which only
+                    // had music + classicMusic) get the new survivalMusic
+                    // + survivalVolume fields added with the same 0.3→0.7
+                    // bump rule we used for the menu / classic volumes.
+                    const needsMigration = (parsed.schemaVersion || 0) < 3;
                     const musicVal = typeof parsed.music === 'boolean' ? parsed.music : defaults.music;
                     const result = {
-                        schemaVersion: 2,                  // always current after migration runs
+                        schemaVersion: 3,                  // always current after migration runs
                         music: musicVal,
                         classicMusic: parsed.classicMusic ?? musicVal,
+                        survivalMusic: parsed.survivalMusic ?? musicVal,
                         sfx: typeof parsed.sfx === 'boolean' ? parsed.sfx : defaults.sfx,
                         menuVolume: (needsMigration && clampVolume(parsed.menuVolume) === 0.3)
                             ? defaults.menuVolume
                             : clampVolume(parsed.menuVolume),
                         classicVolume: (needsMigration && clampVolume(parsed.classicVolume) === 0.3)
                             ? defaults.classicVolume
-                            : clampVolume(parsed.classicVolume)
+                            : clampVolume(parsed.classicVolume),
+                        survivalVolume: (needsMigration && clampVolume(parsed.survivalVolume) === 0.3)
+                            ? defaults.survivalVolume
+                            : clampVolume(parsed.survivalVolume)
                     };
                     if (needsMigration) {
                         try { localStorage.setItem(settingsStorageKey(), JSON.stringify(result)); } catch (e) {}
@@ -1427,6 +1527,8 @@
             startPlayTimer();          // begin timing this play session
             if (gameMode === GAME_MODES.CLASSIC) {
                 playClassicMusic();    // background song for the Classic run (no-op for Survival)
+            } else if (gameMode === GAME_MODES.SURVIVAL) {
+                playSurvivalMusic();   // background song for the Survival run (no-op for Classic)
             }
         }
 
@@ -1436,12 +1538,14 @@
                 gameState = GAME_STATES.PAUSED;
                 isPaused = true;
                 pauseClassicMusic();   // silence the Classic BGM while paused (keeps position)
+                pauseSurvivalMusic();  // silence the Survival BGM while paused (keeps position)
                 playClickSound();
             } else if (gameState === GAME_STATES.PAUSED) {
                 startPlayTimer();      // resume the clock on unpause
                 gameState = GAME_STATES.PLAYING;
                 isPaused = false;
                 playClassicMusic();    // resume the Classic BGM (no-op for Survival)
+                playSurvivalMusic();   // resume the Survival BGM (no-op for Classic)
                 playClickSound();
             }
         }
@@ -3371,27 +3475,44 @@
 
             ctx.textAlign = 'center';
 
-            // Title
+            // Title moved up (100 → 70) so the panel below has room
+            // for the newly-added SURVIVAL MUSIC section. The matching
+            // subtitle follows; see the panel-sizing block below for
+            // the full layout math.
             ctx.font = 'bold 44px Orbitron, sans-serif';
             ctx.shadowColor = '#4a8cff';
             ctx.shadowBlur = 30;
             ctx.fillStyle = 'white';
-            ctx.fillText('⚙ SETTINGS', canvas.width / 2, 100);
+            ctx.fillText('⚙ SETTINGS', canvas.width / 2, 70);
 
             // Subtitle
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = '15px Orbitron, sans-serif';
             ctx.fillStyle = '#aaa';
-            ctx.fillText('Customize your audio', canvas.width / 2, 140);
+            ctx.fillText('Customize your audio', canvas.width / 2, 98);
 
-            // Outer panel — sized for 3 toggle rows + 2 volume sub-rows.
-            // Each music track owns its volume directly underneath (the
-            // SFX row stays toggle-only since there is no SFX BGM track).
+            // Outer panel — sized for 4 toggle rows + 3 volume sub-rows.
+            // Each music track (menu / classic / survival) owns its own
+            // toggle + +/− stepper directly underneath; the SFX row
+            // stays toggle-only since there is no SFX BGM track.
+            //
+            // Vertical layout (offsets inside the panel, top edge = 0):
+            //   * MUSIC toggle         +15  h=56  (sub gap to Menu vol:   5)
+            //   * Menu volume          +76  h=36  (section gap to SFX:   15)
+            //   * SFX toggle          +127  h=56  (section gap to CLASSIC: 15)
+            //   * CLASSIC MUSIC       +198  h=56  (sub gap to Classic vol: 5)
+            //   * Classic volume      +259  h=36  (section gap to SURVIVAL: 15)
+            //   * SURVIVAL MUSIC      +310  h=56  (sub gap to Survival vol: 5)
+            //   * Survival volume     +371  h=36
+            //   + 22 px bottom padding  → panelH = 429
+            // Toggle row height shrunk 72 → 56 to keep the panel bottom
+            // (panelY 100 + 429 = 529) clear of the BACK button anchored
+            // at canvas.height - 50 (= 550), leaving a 21 px gap.
             const panelW = 480;
-            const panelH = 365;
+            const panelH = 429;
             const panelX = canvas.width / 2 - panelW / 2;
-            const panelY = 160;
+            const panelY = 100;
 
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#4a8cff';
@@ -3406,43 +3527,54 @@
             ctx.roundRect(panelX, panelY, panelW, panelH, 16);
             ctx.stroke();
 
-            // 5 sections inside the panel:
-            //   1) MUSIC toggle              (h=72)
+            // 7 sections inside the panel:
+            //   1) MUSIC toggle              (h=56)
             //   2) Menu music volume         (h=36)   — sub-row of MUSIC
-            //   3) SFX toggle                (h=72)
-            //   4) CLASSIC MUSIC toggle      (h=72)
+            //   3) SFX toggle                (h=56)
+            //   4) CLASSIC MUSIC toggle      (h=56)
             //   5) Classic music volume      (h=36)   — sub-row of CLASSIC
+            //   6) SURVIVAL MUSIC toggle     (h=56)   — added for v3
+            //   7) Survival music volume     (h=36)   — sub-row of SURVIVAL
             //
             // Gaps:
             //   * 5 px between a toggle and its own volume sub-row (close
             //     visual coupling → "this volume controls THIS toggle").
-            //   * 15 px between SECTION boundaries (SFX ↔ MUSIC, SFX ↔
-            //     CLASSIC) so the volume sub-rows clearly belong to their
-            //     parent toggle instead of looking like standalone rows.
+            //   * 15 px between SECTION boundaries (MUSIC ↔ SFX, SFX ↔
+            //     CLASSIC, CLASSIC ↔ SURVIVAL) so the volume sub-rows
+            //     clearly belong to their parent toggle instead of
+            //     looking like standalone rows.
             const padX = 30;
             const innerW = panelW - padX * 2;
             const rowX = panelX + padX;
 
-            drawSettingsRow(rowX, panelY + 15, innerW, 72,
+            drawSettingsRow(rowX, panelY + 15, innerW, 56,
                 '🎵 MUSIC',
                 'Background song in the main menu',
                 settings.music, 'toggleMusic');
 
-            drawVolumeRow(rowX, panelY + 92, innerW, 36,
+            drawVolumeRow(rowX, panelY + 76, innerW, 36,
                 settings.menuVolume, 'menuVolDown', 'menuVolUp');
 
-            drawSettingsRow(rowX, panelY + 143, innerW, 72,
+            drawSettingsRow(rowX, panelY + 127, innerW, 56,
                 '🔊 SFX',
                 'All other sounds during gameplay',
                 settings.sfx, 'toggleSfx');
 
-            drawSettingsRow(rowX, panelY + 230, innerW, 72,
+            drawSettingsRow(rowX, panelY + 198, innerW, 56,
                 '⭐ CLASSIC MUSIC',
                 'Plays during Classic Mode runs',
                 settings.classicMusic, 'toggleClassicMusic');
 
-            drawVolumeRow(rowX, panelY + 307, innerW, 36,
+            drawVolumeRow(rowX, panelY + 259, innerW, 36,
                 settings.classicVolume, 'classicVolDown', 'classicVolUp');
+
+            drawSettingsRow(rowX, panelY + 310, innerW, 56,
+                '💀 SURVIVAL MUSIC',
+                'Plays during Survival Mode runs',
+                settings.survivalMusic, 'toggleSurvivalMusic');
+
+            drawVolumeRow(rowX, panelY + 371, innerW, 36,
+                settings.survivalVolume, 'survivalVolDown', 'survivalVolUp');
 
             // Per-account note (subtle, between panel and BACK button).
             // Drawn at panelY + panelH + 13 so it sits in the gap below
@@ -3662,6 +3794,7 @@
                     resetGame();
                     gameState = GAME_STATES.MENU;
                     stopClassicMusic();   // Classic BGM off before menu song takes over
+                    stopSurvivalMusic();  // Survival BGM off before menu song takes over
                     playMenuMusic();
                     break;
                 case 'pauseResume':
@@ -3679,6 +3812,7 @@
                     resetGame();
                     gameState = GAME_STATES.MENU;
                     stopClassicMusic();   // Classic BGM off before menu song takes over
+                    stopSurvivalMusic();  // Survival BGM off before menu song takes over
                     playMenuMusic();
                     break;
                 case 'settings':
@@ -3733,6 +3867,27 @@
                 case 'classicVolUp':
                     if (settings.classicVolume < 1) {
                         setClassicVolume(settings.classicVolume + 0.1);
+                        playClickSound();
+                        recordMissionEvent('toggled_setting');
+                    }
+                    break;
+                case 'toggleSurvivalMusic':
+                    settings.survivalMusic = !settings.survivalMusic;
+                    saveSettings();
+                    playSurvivalMusic();   // respects new settings.survivalMusic value (silences or resumes the Survival BGM)
+                    playClickSound();
+                    recordMissionEvent('toggled_setting');
+                    break;
+                case 'survivalVolDown':
+                    if (settings.survivalVolume > 0) {
+                        setSurvivalVolume(settings.survivalVolume - 0.1);
+                        playClickSound();
+                        recordMissionEvent('toggled_setting');
+                    }
+                    break;
+                case 'survivalVolUp':
+                    if (settings.survivalVolume < 1) {
+                        setSurvivalVolume(settings.survivalVolume + 0.1);
                         playClickSound();
                         recordMissionEvent('toggled_setting');
                     }
