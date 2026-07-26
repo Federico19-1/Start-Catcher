@@ -1,105 +1,72 @@
-# 🚀 Star Catcher
-A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript** — no external libraries or frameworks. Pilot your ship in Classic Mode to catch the falling stars, or switch to Survival Mode and stay alive as long as possible.
+# Star Catcher
+
+Star Catcher is a small browser arcade game built with HTML5 Canvas and vanilla JavaScript. I kept it in a single HTML file on purpose: it is easy to open, easy to edit, and does not need a framework or a backend.
+
+You can play two different modes. In Classic mode you catch falling stars and try to push your score as high as possible. In Survival mode you dodge meteorites and see how long you can stay alive.
+
 <img width="881" height="640" alt="image" src="https://github.com/user-attachments/assets/e358c3a1-4dc9-4cdd-8ae3-84296ecd969d" />
 
-## ✨ Features
+## What is in the game
 
-- 🎮 **Two game modes** — Classic Mode for star-catching score runs, Survival Mode for meteorite dodging and time-based runs
-- 👤 **Local accounts** — create a player profile saved in the browser, with per-account records and settings
-- 🏆 **High score tracking** — your best Classic and Survival results are saved automatically for each account
-- 🔊 **Hybrid audio system** — procedural Web Audio SFX, three bundled music tracks (menu, Classic, Survival), and a collect-sound fallback that can use `star-sound.txt` if you add it
-- ⏸️ **Dedicated pause button** — in addition to the keyboard shortcut
-- 📱 **Desktop and mobile controls** — mouse on desktop, on-screen touch controls and canvas drag below 768px width
-- 🎨 **Sci-fi UI** — Orbitron font, blue/neon palette, animated menu
+- Classic mode with a combo chain, so consecutive catches matter more than just raw survival.
+- Lucky stars that appear less often and give a bigger reward when you catch them.
+- Survival mode with time-based scoring and a harder dodge pattern.
+- Local accounts saved in the browser, including records, settings, missions, and play time.
+- Daily missions and streaks for a reason to come back tomorrow.
+- Music and sound effects built directly into the project, with separate volume controls.
+- Mouse, touch, and keyboard controls so it works on desktop and mobile.
 
-## 🎮 How to play
+## How to play
 
-- **Classic Mode**: catch the falling stars. Each catch is worth **+1 point**, and every missed star costs one of your **3 lives**.
-- **Survival Mode**: avoid the falling meteorites for as long as you can. Your score is the time you survive in seconds.
-- If a run beats a previous personal record, the game saves it automatically.
+- Classic mode: catch the stars, keep your lives alive, and build a combo.
+- Survival mode: avoid the meteorites as long as you can. Your score is the number of seconds you survive.
+- Lucky stars are worth more and can refill a heart if you are missing one.
+- Scores and settings are stored per account in the browser.
 
-## 🕹️ Controls
+## Controls
 
 | Action | Desktop | Mobile |
 |---|---|---|
-| Move the ship | Mouse click/drag | Drag your finger on the screen |
-| Pause / Resume | **P** key, or the ⏸ button alongside the canvas | ⏸ button alongside the canvas |
-| Restart (after game over) | **R** key | Tap the screen |
+| Move the ship | Mouse move / drag over the canvas | Drag your finger on the canvas |
+| Pause / resume | P key or the pause button | Pause button beside the canvas |
+| Restart after game over | R key | Tap the screen |
+| Open missions | M key from the menu | Missions button in the menu |
 
-## 🛠️ Tech stack
+## Run locally
 
-- **HTML5 Canvas** for game rendering (800×600px)
-- **Vanilla JavaScript** — no external dependencies
-- **Web Audio API** for synthesized sound effects (beeps, notes, arpeggios)
-- **localStorage** for account and high-score persistence, with no server/backend required
-- **Google Fonts (Orbitron)** for the sci-fi typography
-
-## 📁 Project structure
-
-```
-star-catcher/
-├── star-catcher.html                      # markup, styling, and game logic in a single file
-├── menu-song.mp3                          # main menu background music
-├── paulyudin-synth-pop-Classic-Mode.mp3   # background music while playing Classic mode
-├── desifreemusic-comedy-shock-amp-embarrassment-sudden-realization-music-SurvivalMode.mp3
-│                                          # background music while playing Survival mode
-└── README.md                              # project documentation
-```
-
-> All three MP3 files must live in the **same folder** as `star-catcher.html`. If you also want the collect sound to load from a file instead of the built-in fallback, place `star-sound.txt` next to the HTML too. Otherwise, the game synthesizes that sound in-browser.
-
-## 🚀 Running the game
-
-Some browsers block loading local audio files when the HTML is opened directly from disk (`file://`). For the full experience, serve the folder with a small local server:
+The game can be opened directly, but audio works better when the folder is served locally. From the project directory, run:
 
 ```bash
 python3 -m http.server
 ```
 
-Then open [http://localhost:8000/star-catcher.html](http://localhost:8000/star-catcher.html) in your browser.
+Then open `http://localhost:8000/star-catcher.html` in your browser.
 
-You can also double-click `star-catcher.html` to open it directly. The game still runs, but music loading and autoplay behavior may depend on the browser.
+If you double-click the HTML file, the game still runs, but some browsers may block local audio files until the page is served.
 
-## 🎧 Credits
+## Project files
 
-- Menu music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
-- Classic-mode music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
-- Survival-mode music — bundled with the project
+- `star-catcher.html` - markup, CSS, and game logic in one file
+- `menu-song.mp3` - menu music
+- `paulyudin-synth-pop-Classic-Mode.mp3` - Classic mode music
+- `desifreemusic-comedy-shock-amp-embarrassment-sudden-realization-music-SurvivalMode.mp3` - Survival mode music
+- `README.md` - this guide
 
-## 📱 Playing on a phone
+All three MP3 files need to stay in the same folder as `star-catcher.html`. If you also add `star-sound.txt`, the collect sound will use that file; otherwise the game falls back to a generated sound.
 
-Star Catcher is fully playable on phones. Use the on-screen controls, and keep in mind that mobile browsers usually block audio until the first tap or click.
+## Tech
 
-### Mobile controls
+- HTML5 Canvas for rendering
+- Vanilla JavaScript for gameplay and UI
+- Web Audio API for sound effects
+- localStorage for account data, settings, records, and missions
 
-- **Move the ship**: drag your finger on the canvas, or use the big **◀ ▶** buttons that appear below the canvas on screens narrower than 768 px.
-- **Pause / resume**: tap the **⏸** button alongside the canvas.
-- **Restart after game over**: tap anywhere on the canvas (or press **R** if you have a keyboard paired with the phone).
-- **Blue the mascot**: tap him on the menu screen — he'll say a new line each tap so you can read several in a row.
+## Credits
 
-### Audio notes
+- Menu music by PaulYudin on Pixabay
+- Classic mode music by PaulYudin on Pixabay
+- Survival mode music bundled with the project
 
-- The first tap / click / keypress unlocks the Web Audio context.
-- About 1 second later the menu music starts playing.
-- **⚙ Settings** exposes four audio toggles, each saved per account:
-  - **🎵 MUSIC** — main-menu song
-  - **🔊 SFX** — every other in-game sound effect (collect, lose-life, game-over, record, click)
-  - **⭐ CLASSIC MUSIC** — background song during Classic Mode gameplay
-  - **☠ SURVIVAL MUSIC** — background song during Survival Mode gameplay
+## License
 
-### Performance notes
-
-Mobile mode is detected automatically by checking for touch support and viewport width. When the device looks like a phone:
-
-- Background twinkles drop from 100 → 50 stars.
-- Meteorite cap drops from 40 → 25 per frame.
-- Meteorite glow shadows are skipped.
-- Survival-mode red scanlines use a wider stride.
-
-## 📄 License
-
-Distributed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
-
-## 🤝 Contributing
-
-Bug reports, ideas, and pull requests are welcome! Feel free to open an issue in the repository to discuss them.
+No separate license file is included in this workspace yet.
