@@ -9,7 +9,7 @@ A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript**
 - 🏆 **High score tracking** — your best scores are automatically saved for each account
 - 🔊 **Hybrid audio system** — sound effects generated procedurally via the Web Audio API (no assets to download), plus dedicated audio files for the collect sound and background music
 - ⏸️ **Dedicated pause button** — in addition to the keyboard shortcut
-- 📱 **Desktop and mobile controls** — keyboard and mouse on desktop, on-screen touch controls below 768px width
+- 📱 **Desktop and mobile controls** — mouse on desktop, on-screen touch controls and canvas drag below 768px width
 - 🎨 **Sci-fi UI** — Orbitron font, blue/neon palette, animated menu
 
 ## 🎮 How to play
@@ -22,9 +22,11 @@ A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript**
 
 | Action | Desktop | Mobile |
 |---|---|---|
-| Move the ship | **←** **→** arrow keys, or mouse click/drag | Drag your finger on the screen, or use the **◀ ▶** buttons |
+| Move the ship | Mouse click/drag | Drag your finger on the screen, or use the **◀ ▶** buttons |
 | Pause / Resume | **P** key, or the ⏸ button top-right | ⏸ button top-right |
 | Restart (after game over) | **R** key | Tap the screen |
+
+> Note: on desktop, the ship is moved by the mouse or by clicking-and-dragging the cursor across the canvas — the keyboard has no movement controls.
 
 ## 🛠️ Tech stack
 

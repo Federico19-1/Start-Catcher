@@ -28,7 +28,7 @@ This document lists **every button**, **every screen**, and **every mechanic** y
 
 | Action                     | Desktop                                  | Mobile / touch                                                                 |
 |----------------------------|------------------------------------------|--------------------------------------------------------------------------------|
-| Move the ship              | **←** / **→** arrow keys, **mouse**, **mouse drag** | Drag your finger on the canvas, or use the **◀ ▶** touch buttons below the canvas |
+| Move the ship              | **Mouse click** / **mouse drag** on the canvas | Drag your finger on the canvas, or use the **◀ ▶** touch buttons below the canvas |
 | Pause / resume             | **P** key, or the **⏸** button next to the canvas | **⏸** button next to the canvas                                                |
 | Restart after game-over    | **R** key                                | Tap anywhere on the canvas                                                     |
 | Open the Missions page     | **M** key, or the **M KEY** pill on the menu | **M KEY** pill on the menu                                                     |
@@ -97,7 +97,7 @@ The main menu (`gameState: MENU`) renders a single screen with **7 buttons** arr
 - **Always visible** on the menu (decorative, bobbing, blinking).
 - **Hover (desktop only)** → a speech bubble fades in with one of nine rotating lines.
 - **Tap (mobile)** → bubble opens instantly with a new line; auto-closes after a short window.
-- This character does not affect gameplay — it's a friendly companion that lines like "Try the new SURVIVAL mode!" or "Tip: arrow keys also work."
+- This character does not affect gameplay — it's a friendly companion that says lines like "Try the new SURVIVAL mode!"
 
 ### 🚀 Rocket emoji (decorative)
 - Sits beside the **STAR CATCHER** title in the menu.
@@ -257,7 +257,7 @@ Each card has:
 ### ← BACK button (centered, bottom)
 - **Always visible**.
 - **Click** → return to the **Main menu**.
-- Also responds to the **← arrow key** and **Esc**.
+- Also responds to the **Esc** key.
 
 ---
 

@@ -216,11 +216,8 @@
         let lives = 3;
         let gameOver = false;
         let meteoriteHitCooldown = 0; // frames of i-frames after a hit in survival
-        let leftPressed = false;
-        let rightPressed = false;
         let isNewRecord = false;
         let newRecordPosition = -1;
-        const MOVE_SPEED = 5;
         const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
         let inGameRecordShown = false;        // banner visibility flag
         let inGameRecordShownAt = 0;          // ms timestamp when the banner started
@@ -246,12 +243,11 @@
         const BLUE_LINES = [
             'Hi, my name is Blue.',
             'Try the new SURVIVAL mode!',
-            'A project for HackClub.',
+            'A project for Stardance challenge.',
             'Beware the meteorites...',
             'Catch them all!',
-            'Made with love for HackClub.',
+            'Made with love for Stardance HackClub.',
             'Three lives, infinite stars!',
-            'Tip: arrow keys also work.',
             'Watch out - those rocks hurt.'
         ];
         const blueCharacter = {
@@ -964,6 +960,13 @@
             return Math.abs(h);
         }
 
+        function localDayKey(date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         function generateDailyMissions(todayKey) {
             const seed = dailySeedForToday(todayKey);
             const pool = MISSION_POOL.slice();
@@ -1162,7 +1165,7 @@
 
         function refreshMissionsForUser(username) {
             const m = getUserMissions(username);
-            const today = new Date().toISOString().slice(0, 10);
+            const today = localDayKey();
             if (m.currentDayKey !== today) {
                 m.currentDayKey = today;
                 m.missionsForDay = generateDailyMissions(today);
@@ -1185,8 +1188,10 @@
 
         function isYesterday(prev, today) {
             if (!prev) return false;
-            const a = new Date(prev + 'T00:00:00Z').getTime();
-            const b = new Date(today + 'T00:00:00Z').getTime();
+            const aParts = prev.split('-').map(Number);
+            const bParts = today.split('-').map(Number);
+            const a = new Date(aParts[0], aParts[1] - 1, aParts[2]).getTime();
+            const b = new Date(bParts[0], bParts[1] - 1, bParts[2]).getTime();
             return Math.round((b - a) / (1000 * 60 * 60 * 24)) === 1;
         }
 
@@ -1506,8 +1511,6 @@
             player.x = 400;
             player.y = 550;
             player.targetX = 400;
-            leftPressed = false;
-            rightPressed = false;
         }
 
         function startGame(mode) {
@@ -1762,15 +1765,11 @@
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
-            // Movimento con pulsanti premuti (priorità assoluta)
-            if (leftPressed) {
-                player.x -= MOVE_SPEED;
-            } else if (rightPressed) {
-                player.x += MOVE_SPEED;
-            } else {
-                // Altrimenti segue il mouse/touch drag
-                player.x += (player.targetX - player.x) * 0.3;
-            }
+            // Ship follows the cursor / mouse-drag target with smooth
+            // damping. Mouse, touch, and the canvas drag handler (which
+            // updates targetX on move events) are the only ways to
+            // steer — keyboard arrow movement is gone.
+            player.x += (player.targetX - player.x) * 0.3;
 
             if (player.x < player.radius) player.x = player.radius;
             if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
@@ -3953,15 +3952,8 @@
         });
 
         window.addEventListener('keydown', (event) => {
+
             if (gameState === GAME_STATES.PLAYING) {
-                if (event.key === 'ArrowLeft') {
-                    leftPressed = true;
-                    event.preventDefault();
-                }
-                if (event.key === 'ArrowRight') {
-                    rightPressed = true;
-                    event.preventDefault();
-                }
                 if (event.key === 'r' || event.key === 'R') {
                     if (gameOver) {
                         resetGame();
@@ -3980,17 +3972,17 @@
             // ----- Missions page keyboard nav -----
             // MENU + (account set) + M: open Missions page (also by
             // clicking the big "M KEY" pill in the top-right).
-            // MISSIONS + ArrowLeft or Esc: back to menu. PLAYING keeps
-            // its own ArrowKey/R handlers in the block above; the
-            // checks below only fire when the gameState is on
-            // MENU/MISSIONS, never during play.
+            // MISSIONS + Esc: back to menu. PLAYING keeps its own
+            // R-key handler in the block above; the checks below only
+            // fire when the gameState is on MENU/MISSIONS, never
+            // during play.
             if (gameState === GAME_STATES.MENU && currentUser
                 && (event.key === 'm' || event.key === 'M')) {
                 navigateToMissionsScreen();
                 event.preventDefault();
             }
             if (gameState === GAME_STATES.MISSIONS) {
-                if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+                if (event.key === 'Escape') {
                     navigateFromMissionsScreen();
                     event.preventDefault();
                 }
@@ -4012,16 +4004,6 @@
             }
         });
 
-        window.addEventListener('keyup', (event) => {
-            if (event.key === 'ArrowLeft') {
-                leftPressed = false;
-                event.preventDefault();
-            }
-            if (event.key === 'ArrowRight') {
-                rightPressed = false;
-                event.preventDefault();
-            }
-        });
 
         // Touch drag on canvas — drives the ship during gameplay AND
         // the Blue mascot on the menu (since mousemove never fires on
