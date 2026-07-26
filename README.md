@@ -1,6 +1,7 @@
 # 🚀 Star Catcher
 A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript** — no external libraries or frameworks. Pilot your ship in Classic Mode to catch the falling stars, or switch to Survival Mode and stay alive as long as possible.
-<img width="881" height="640" alt="image" src="https://github.com/user-attachments/assets/e358c3a1-4dc9-4cdd-8ae3-84296ecd969d" />
+<img width="881" height="640" alt="PERFECT MENU" src="https://github.com/user-attachments/assets/9d9db6d9-2ebb-4892-b8c4-707625b21a9b" />
+
 
 ## ✨ Features
 
@@ -72,7 +73,7 @@ Star Catcher is fully playable on phones. Use the on-screen controls, and keep i
 
 ### Mobile controls
 
-- **Move the ship**: drag your finger on the canvas, or use the big **◀ ▶** buttons that appear below the canvas on screens narrower than 768 px.
+- **Move the ship**: drag your finger on the canvas.
 - **Pause / resume**: tap the **⏸** button alongside the canvas.
 - **Restart after game over**: tap anywhere on the canvas (or press **R** if you have a keyboard paired with the phone).
 - **Blue the mascot**: tap him on the menu screen — he'll say a new line each tap so you can read several in a row.
