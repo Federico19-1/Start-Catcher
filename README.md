@@ -23,7 +23,7 @@ A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript**
 | Action | Desktop | Mobile |
 |---|---|---|
 | Move the ship | Mouse click/drag | Drag your finger on the screen, or use the **◀ ▶** buttons |
-| Pause / Resume | **P** key, or the ⏸ button top-right | ⏸ button top-right |
+| Pause / Resume | **P** key, or the ⏸ button alongside the canvas | ⏸ button alongside the canvas |
 | Restart (after game over) | **R** key | Tap the screen |
 
 > Note: on desktop, the ship is moved by the mouse or by clicking-and-dragging the cursor across the canvas — the keyboard has no movement controls.
@@ -116,7 +116,7 @@ open that page on the phone.
 - **Move the ship**: drag your finger on the canvas, or use the big
   **◀ ▶** buttons that appear below the canvas on screens narrower
   than 768 px.
-- **Pause / resume**: tap the **⏸** button in the top-left corner.
+- **Pause / resume**: tap the **⏸** button alongside the canvas.
 - **Restart after game over**: tap anywhere on the canvas (or press
   **R** if you have a keyboard paired with the phone).
 - **Blue the mascot**: tap him on the menu screen — he'll say a new
