@@ -1862,12 +1862,13 @@
                 if (meteoriteHitCooldown === 0) {
                     const dx = player.x - m.x;
                     const dy = player.y - m.y;
-                    // Survival uses an almost-minimum capture radius so a
-                    // glancing meteorite won't drain a life. The hit zone
-                    // shrinks to a tiny core near the player's centre:
-                    // meteorites must almost literally land on the ship to
-                    // count. The mode is intentionally easy / enjoyable.
-                    const hitDistance = player.radius * 0.15 + m.radius * 0.30;
+                    // Survival uses a deliberately forgiving capture radius so
+                    // a glancing meteorite won't drain a life. The hit zone
+                    // covers a moderate core around the ship's centre — the
+                    // player must still take care, but a near miss is no
+                    // longer a guaranteed hit. The mode stays gentle while
+                    // feeling less unfair on tight dodges.
+                    const hitDistance = player.radius * 0.20 + m.radius * 0.35;
                     const dist2 = dx * dx + dy * dy;
                     if (dist2 < hitDistance * hitDistance) {
                         lives--;
