@@ -65,7 +65,7 @@ You can also double-click `star-catcher.html` to open it directly. The game stil
 
 - Menu music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 - Classic-mode music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
-- Survival-mode music — bundled with the project
+- Survival-mode music — **DesiFreeMusic**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 
 ## 📱 Playing on a phone
 
