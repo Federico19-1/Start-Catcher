@@ -1239,7 +1239,7 @@
             ctx.shadowColor = 'black';
             ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9cd3ff';
-            const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+            const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             ctx.fillText('\u{1f4c5} ' + dateStr, canvas.width / 2, 92);
 
             // Streak panel
