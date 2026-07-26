@@ -46,6 +46,23 @@
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
+    <div id="testBackupPanel"
+        style="position: fixed; top: 18px; right: 18px; z-index: 60; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 2px solid rgba(74, 140, 255, 0.85); background: rgba(10, 10, 26, 0.92); box-shadow: 0 0 22px rgba(74, 140, 255, 0.35); font-family: 'Orbitron', sans-serif; color: #dbe8ff; max-width: 210px;">
+        <div style="font-size: 11px; letter-spacing: 1px; color: #8fb6ff; text-transform: uppercase;">Test backup</div>
+        <button id="backupRecordsBtn"
+            style="border: none; border-radius: 8px; padding: 8px 10px; background: #2a6aff; color: white; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Esporta backup</button>
+        <button id="restoreRecordsBtn"
+            style="border: none; border-radius: 8px; padding: 8px 10px; background: #3a3a5a; color: #e5e5ff; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Ripristina backup</button>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 10px; color: #aac0ee;">
+            Offset giorno test
+            <input id="debugDayOffsetInput" type="number" min="0" max="7" value="0"
+                style="width: 100%; box-sizing: border-box; border: 1px solid rgba(143, 182, 255, 0.7); border-radius: 6px; padding: 6px 8px; background: #10172a; color: #dbe8ff; font-family: inherit; font-size: 12px;">
+        </label>
+        <button id="applyDebugDayOffsetBtn"
+            style="border: none; border-radius: 8px; padding: 8px 10px; background: #5a2a7a; color: white; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Applica offset</button>
+        <div style="font-size: 10px; line-height: 1.3; color: #aac0ee;">Copia di test: salva o ripristina <span style="word-break: break-all;">starCatcherAllRecords</span> senza DevTools.</div>
+    </div>
+
     <button id="pauseButton" aria-label="Game Pause" aria-keyshortcuts="P"
         title="Pause / Resume (press P)"
         style="position: fixed; top: 24px; left: 24px; z-index: 50; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.95); background: #0a0a1a; color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; cursor: pointer; box-shadow: 0 0 26px rgba(74, 140, 255, 0.6), 0 0 6px rgba(74, 140, 255, 0.4); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
@@ -135,6 +152,27 @@
                 x: (clientX - rect.left) * scaleX,
                 y: (clientY - rect.top) * scaleY
             };
+        }
+
+        const TEST_DAY_OFFSET_KEY = 'starCatcherDebugDayOffset';
+
+        function getTestDayOffset() {
+            const raw = localStorage.getItem(TEST_DAY_OFFSET_KEY);
+            const parsed = Number.parseInt(raw || '0', 10);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+
+        function setTestDayOffset(offset) {
+            const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.min(7, Math.floor(offset))) : 0;
+            localStorage.setItem(TEST_DAY_OFFSET_KEY, String(safeOffset));
+            return safeOffset;
+        }
+
+        function getTestDate(baseDate = new Date()) {
+            const offset = getTestDayOffset();
+            const testDate = new Date(baseDate);
+            testDate.setDate(testDate.getDate() + offset);
+            return testDate;
         }
 
         /* ============================================================
@@ -681,6 +719,38 @@
             localStorage.setItem('starCatcherAllRecords', JSON.stringify(records));
         }
 
+        function downloadTextFile(filename, text) {
+            const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 0);
+        }
+
+        function exportRecordsBackup() {
+            const backup = localStorage.getItem('starCatcherAllRecords') || '{}';
+            const stamp = new Date().toISOString().slice(0, 10);
+            downloadTextFile(`starCatcherAllRecords-backup-${stamp}.json`, backup);
+            alert('Backup esportato. Salva il file scaricato.');
+        }
+
+        function restoreRecordsBackup() {
+            const backupText = prompt('Incolla qui il contenuto salvato di starCatcherAllRecords:');
+            if (!backupText) return;
+
+            try {
+                const parsed = JSON.parse(backupText);
+                localStorage.setItem('starCatcherAllRecords', JSON.stringify(parsed));
+                alert('Backup ripristinato. Ricarica la pagina per vedere i dati aggiornati.');
+            } catch (error) {
+                alert('Il contenuto incollato non è un JSON valido.');
+            }
+        }
+
         function getUserRecords(username) {
             const all = getAllRecords();
             if (!all[username]) {
@@ -960,7 +1030,7 @@
             return Math.abs(h);
         }
 
-        function localDayKey(date = new Date()) {
+        function localDayKey(date = getTestDate()) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
@@ -1239,7 +1309,7 @@
             ctx.shadowColor = 'black';
             ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9cd3ff';
-            const dateStr = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+            const dateStr = getTestDate().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
             ctx.fillText('\u{1f4c5} ' + dateStr, canvas.width / 2, 92);
 
             // Streak panel
@@ -4003,6 +4073,22 @@
                 }
             }
         });
+
+        const backupRecordsBtn = document.getElementById('backupRecordsBtn');
+        const restoreRecordsBtn = document.getElementById('restoreRecordsBtn');
+        const debugDayOffsetInput = document.getElementById('debugDayOffsetInput');
+        const applyDebugDayOffsetBtn = document.getElementById('applyDebugDayOffsetBtn');
+        if (backupRecordsBtn) backupRecordsBtn.addEventListener('click', exportRecordsBackup);
+        if (restoreRecordsBtn) restoreRecordsBtn.addEventListener('click', restoreRecordsBackup);
+        if (debugDayOffsetInput) debugDayOffsetInput.value = String(getTestDayOffset());
+        if (applyDebugDayOffsetBtn && debugDayOffsetInput) {
+            applyDebugDayOffsetBtn.addEventListener('click', () => {
+                const nextOffset = setTestDayOffset(Number.parseInt(debugDayOffsetInput.value || '0', 10));
+                debugDayOffsetInput.value = String(nextOffset);
+                if (currentUser) refreshMissionsForUser(currentUser);
+                draw();
+            });
+        }
 
 
         // Touch drag on canvas — drives the ship during gameplay AND
