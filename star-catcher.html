@@ -1893,11 +1893,13 @@
             // expands, every layer fades). Called every frame so bursts
             // finish cleanly even when no new meteorite spawns.
 
-            // Safety cap so a long survival run can't accumulate thousands
-            // of meteorites and tank the framerate. Tighter on mobile.
-            const meteorCap = IS_MOBILE ? 25 : 40;
-            if (meteorites.length > meteorCap) {
-                meteorites.splice(0, meteorites.length - meteorCap);
+            // Cleanup only meteorites that have fully left the screen.
+            // Do not cull on-screen meteorites just because the array is large.
+            for (let i = meteorites.length - 1; i >= 0; i--) {
+                const m = meteorites[i];
+                if (m.y > canvas.height + m.radius * 2) {
+                    meteorites.splice(i, 1);
+                }
             }
         }
 
