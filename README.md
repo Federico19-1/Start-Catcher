@@ -59,38 +59,6 @@ Download the repo and run the game in the folder
 - Classic-mode music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 - Survival-mode music — **DesiFreeMusic**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 
-## 📱 Playing on a phone
-
-Star Catcher is fully playable on phones. Use the on-screen controls, and keep in mind that mobile browsers usually block audio until the first tap or click.
-
-### Mobile controls
-
-- **Move the ship**: drag your finger on the canvas.
-- **Pause / resume**: tap the **⏸** button alongside the canvas.
-- **Restart after game over**: tap anywhere on the button "RESTART" (or press **R** if you have a keyboard paired with the phone).
-- **Blue the mascot**: tap him on the menu screen — he'll say a new line each tap so you can read several in a row.
-
-### Audio notes
-
-- The first tap / click / keypress unlocks the Web Audio context.
-- About 1 second later the menu music starts playing.
-- **⚙ Settings** exposes four audio toggles, each saved per account:
-  - **🎵 MUSIC** — main-menu song
-  - **🔊 SFX** — every other in-game sound effect (collect, lose-life, game-over, record, click)
-  - **⭐ CLASSIC MUSIC** — background song during Classic Mode gameplay
-  - **☠ SURVIVAL MUSIC** — background song during Survival Mode gameplay
-
-### Performance notes
-
-Mobile mode is detected automatically by checking for touch support and viewport width. When the device looks like a phone:
-
-- Background twinkles drop from 100 → 50 stars.
-- Meteorite cap drops from 40 → 25 per frame.
-- Meteorite glow shadows are skipped.
-- Survival-mode red scanlines use a wider stride.
-
-I STRONGLY RECOMMEND TO PLAY THE GAME ON PC
-
 ## 📄 License
 
 Distributed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
