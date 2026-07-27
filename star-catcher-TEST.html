@@ -235,6 +235,13 @@
          gives the indicator visual weight without competing with the
          pause ⏸ icon for attention. -->
     <span id="pauseKeyHint" class="key-hint" aria-hidden="true">P</span>
+    <!-- S key hint pill — stacked directly below the P pill by the
+         modified positionPauseKeyHint function so the player sees
+         that the keyboard shortcut exists. Hidden by default
+         (display:none) and shown only during PLAYING / PAUSED via
+         JS, mirroring the P pill exactly. Same gold palette so it
+         reads as its sibling rather than a separate widget. -->
+    <span id="saveKeyHint" class="key-hint" aria-hidden="true">S</span>
 
     <div id="mobileAccountInput" class="account-card">
         <div class="account-card__title">👤 NEW ACCOUNT</div>
@@ -2021,6 +2028,10 @@ function startGame(mode) {
                 pauseButton.style.display = 'flex';
                 pauseButton.textContent = gameState === GAME_STATES.PAUSED ? '▶' : '⏸';
                 pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Resume Game' : 'Pause Game');
+                // Pin the S-pill reference once per call so the
+                // display / opacity bookkeeping for both pills is in
+                // lock-step with the P-pill's lifecycle.
+                const sHint = document.getElementById('saveKeyHint');
                 if (hint) {
                     // Cancel any in-flight fade-out timeout so a stale
                     // timer from a previous hide can't undo our re-show on
@@ -2032,10 +2043,23 @@ function startGame(mode) {
                     }
                     hint.style.display = 'flex';
                 }
+                if (sHint) {
+                    // Same hideTimer bookkeeping as the P pill so
+                    // a stale pending-hide from a prior state can't
+                    // undo the re-show on rapid PLAYING → MENU →
+                    // PLAYING transitions inside the 350 ms fade.
+                    if (sHint._hideTimer) {
+                        clearTimeout(sHint._hideTimer);
+                        sHint._hideTimer = null;
+                    }
+                    sHint.style.display = 'flex';
+                }
                 positionPauseButton();
                 if (hint) hint.style.opacity = '1';
+                if (sHint) sHint.style.opacity = '1';
             } else {
                 pauseButton.style.display = 'none';
+                const sHint = document.getElementById('saveKeyHint');
                 if (hint) {
                     // Fade the pill out before un-mounting it so it doesn't
                     // pop in / out abruptly across state transitions.
@@ -2044,6 +2068,17 @@ function startGame(mode) {
                     hint._hideTimer = setTimeout(() => {
                         hint.style.display = 'none';
                         hint._hideTimer = null;
+                    }, 350);
+                }
+                if (sHint) {
+                    // Mirror the P-pill fade-out so the S pill stays
+                    // in lock-step visually (same 350 ms fade, same
+                    // un-mount after the timer fires).
+                    sHint.style.opacity = '0';
+                    if (sHint._hideTimer) clearTimeout(sHint._hideTimer);
+                    sHint._hideTimer = setTimeout(() => {
+                        sHint.style.display = 'none';
+                        sHint._hideTimer = null;
                     }, 350);
                 }
             }
@@ -2129,6 +2164,17 @@ function startGame(mode) {
             const setPos = (vx, vy) => {
                 hint.style.left = vx + 'px';
                 hint.style.top = vy + 'px';
+                // Stack the S pill directly below the P pill at the
+                // same horizontal x, separated by an 8 px gap. This
+                // single setPos hook drives ALL four fallback cases
+                // (left, right, above, below the canvas) so the S
+                // pill follows the P pill through every P-positioning
+                // branch without a separate position function.
+                const sHint = document.getElementById('saveKeyHint');
+                if (sHint) {
+                    sHint.style.left = vx + 'px';
+                    sHint.style.top = (vy + hintH + 8) + 'px';
+                }
             };
 
             // Phase 1 — preferred side: AWAY from canvas.
@@ -3699,10 +3745,59 @@ function endGame() {
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillText('🏠 MENU', menuPauseX + btnW / 2, btnY + 35);
 
+            // ----- SAVE button (second row, centred below the
+            // RESUME/SETTINGS/MENU row). Width bumped to 220 so the
+            // 'menuSaveBtnText' string ("💾 SAVE" / "✓ SAVED") has
+            // room to render without truncation. Distinct gold/teal
+            // accent palette — uses the project's --accent-alt teal
+            // (#49d7c8) for the frame so it reads as a meta / data
+            // action rather than a gameplay action like Resume.
+            const saveBtnW = 220;
+            const saveBtnH = 56;
+            const saveBtnGap = 22;
+            // Sit 22 px below the row's bottom edge so the SAVE row
+            // reads as a distinct second band rather than glued to
+            // the first one. Visually symmetric with the
+            // MISSION-row-on-pause-overlay spacing used elsewhere.
+            const saveBtnY = btnY + btnH + saveBtnGap;
+            const saveBtnX = canvas.width / 2 - saveBtnW / 2;
+            // Revert the cached text after the 1.5 s flash window
+            // expires so subsequent frames render "💾 SAVE" again
+            // without needing a separate rAF-driven timer (the
+            // draw call already runs every frame, so this is free).
+            if (menuSaveBtnFlashUntil !== 0 && Date.now() > menuSaveBtnFlashUntil) {
+                menuSaveBtnText = '\ud83d\udcbe SAVE';
+                menuSaveBtnFlashUntil = 0;
+            }
+            // Use teal accent — different from the green Resume
+            // (action), blue Settings (config), and gold Menu
+            // (navigation) so the player's eye reads SAVE as its
+            // own band rather than a fourth colour of the same row.
+            ctx.shadowBlur = 28;
+            ctx.shadowColor = 'rgba(73, 215, 200, 0.55)';
+            ctx.fillStyle = '#1a3a3a';
+            ctx.beginPath();
+            ctx.roundRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(73, 215, 200, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12);
+            ctx.stroke();
+            ctx.fillStyle = '#aff5ec';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(73, 215, 200, 0.4)';
+            ctx.shadowBlur = 12;
+            ctx.fillText(menuSaveBtnText, saveBtnX + saveBtnW / 2, saveBtnY + 36);
+            ctx.shadowBlur = 0;
+
             menuButtons = [
                 { rect: { x: resumeX, y: btnY, w: btnW, h: btnH }, action: 'pauseResume' },
                 { rect: { x: settingsPauseX, y: btnY, w: btnW, h: btnH }, action: 'pauseSettings' },
-                { rect: { x: menuPauseX, y: btnY, w: btnW, h: btnH }, action: 'pauseMenu' }
+                { rect: { x: menuPauseX, y: btnY, w: btnW, h: btnH }, action: 'pauseMenu' },
+                { rect: { x: saveBtnX, y: saveBtnY, w: saveBtnW, h: saveBtnH }, action: 'pauseSave' }
             ];
 
             ctx.textAlign = 'left';
@@ -4929,6 +5024,14 @@ function endGame() {
                 case 'pauseResume':
                     togglePause();
                     break;
+                case 'pauseSave':
+                    // Triggers the text-flash path inside
+                    // saveCurrentRun (button reads "✓ SAVED" for 1.5 s
+                    // then reverts). Pressing S has the same effect.
+                    // The pause overlay stays open so the player can
+                    // see the flash and then choose RESUME / MENU.
+                    saveCurrentRun(true /* fromMenuButton */);
+                    break;
                 case 'pauseSettings':
                     gameStateBeforeSettings = GAME_STATES.PAUSED;
                     gameState = GAME_STATES.SETTINGS;
@@ -5105,6 +5208,108 @@ function endGame() {
             }
         });
 
+        // ----- Save-game state + helper functions -----
+        // Both the S/s hotkey and the pause-menu SAVE button go
+        // through saveCurrentRun() — the boolean argument picks
+        // which visual feedback path fires:
+        //   * false (hotkey) → the S pill in the HUD briefly lights
+        //                      up at full opacity for 1.5 s.
+        //   * true  (button) → the pause-menu button text changes
+        //                      from "💾 SAVE" to "✓ SAVED" for 1.5 s,
+        //                      then reverts, so the player still gets
+        //                      confirmation even though the pause
+        //                      overlay already covers the HUD pills.
+        let menuSaveBtnText = '\ud83d\udcbe SAVE';
+        let menuSaveBtnFlashUntil = 0;
+
+        // Pulse the S pill in the HUD at full opacity for 1.5 s,
+        // then fade it back to whatever opacity it had before (0
+        // while idle, 1 while the pause overlay is up — the
+        // function does NOT touch display state, only the toast
+        // flash is layered on top).
+        function flashSavePill() {
+            const sHint = document.getElementById('saveKeyHint');
+            if (!sHint) return;
+            // Bright snap-in so the pulse reads as "something
+            // happened" rather than as a normal show transition.
+            sHint.style.transition = 'opacity 0.18s ease';
+            sHint.style.opacity = '1';
+            if (sHint._saveFlashTimer) clearTimeout(sHint._saveFlashTimer);
+            sHint._saveFlashTimer = setTimeout(() => {
+                // Restore the default fade the .key-hint CSS class
+                // provides (0.28 s ease) so the next show / hide
+                // cycles in lock-step with the P pill.
+                sHint.style.opacity = '';
+                sHint.style.transition = '';
+            }, 1500);
+        }
+
+        // Snapshot the current in-flight run to localStorage under
+        // the per-account __save bucket so a future Resume feature
+        // (out of scope today) can re-launch the same mode at the
+        // same score / lives / hp / survival-start-time. The
+        // function is intentionally cheap and idempotent — repeated
+        // presses just overwrite the previous snapshot.
+        function saveCurrentRun(fromMenuButton) {
+            // Silent no-op for logged-out users: progress belongs to
+            // an account, and a __default key would conflict with
+            // anyone who later logs in with that same default key.
+            if (!currentUser) return;
+            // gameOver=true means the run has just ended — the
+            // records bucket already holds the just-completed score,
+            // and resuming a dead run would let the player dodge a
+            // death by saving mid-damage-frame then reloading.
+            if (gameOver) return;
+            try {
+                const all = getAllRecords();
+                // Survival absolute Date.now() so resume can copy
+                // the value verbatim into survivalStartTime without
+                // a discontinuity in the per-second score tick —
+                // the same Date.now()-arithmetic the run uses while
+                // playing will continue to work after resume.
+                const survivalStartAbs = (gameMode === GAME_MODES.SURVIVAL
+                    && survivalStartTime > 0)
+                    ? survivalStartTime
+                    : (gameMode === GAME_MODES.SURVIVAL ? Date.now() : 0);
+                const battleElapsed = gameMode === GAME_MODES.BATTLE
+                    ? (typeof battleElapsedMs === 'number' ? battleElapsedMs : 0)
+                    : 0;
+                all[`${currentUser}__save`] = {
+                    savedAt: Date.now(),
+                    mode: gameMode,
+                    score: score,
+                    lives: lives,
+                    hp: hp,
+                    battleElapsedMs: battleElapsed,
+                    survivalStartTime: survivalStartAbs
+                };
+                saveAllRecords(all);
+                // Audio-feedback rationale: PLAY + MENU paths can have
+                // the SAME minimum baseline confirmation so neither
+                // path feels silent. The hotkey gets only
+                // playClickSound() — a small tactile tick that won't
+                // startle the player who's playing actively — while
+                // the in-pause-menu button additionally layers
+                // playRecordSound(), the 4-note celebratory chord,
+                // because the player isn't actively playing at that
+                // moment and a stronger cue helps confirm the save.
+                // Both paths still flash their respective UI element
+                // (pill or button text) so audio + visual never miss.
+                playClickSound();
+                if (fromMenuButton) {
+                    menuSaveBtnText = '\u2713 SAVED';
+                    menuSaveBtnFlashUntil = Date.now() + 1500;
+                    playRecordSound();
+                } else {
+                    flashSavePill();
+                }
+            } catch (e) {
+                // localStorage quota / disabled storage: best-effort.
+                // The audio cue is INSIDE the try so a quota error
+                // also skips the click-sound false-positive.
+            }
+        }
+
         window.addEventListener('keydown', (event) => {
 
             if (gameState === GAME_STATES.PLAYING) {
@@ -5121,6 +5326,22 @@ function endGame() {
                     togglePause();
                     event.preventDefault();
                 }
+            }
+
+            // ----- Save-game hotkey (S / s) -----
+            // Same state gate as the P hotkey (PLAYING or PAUSED) plus
+            // an extra !gameOver guard so saving after death doesn't
+            // dodge the just-rolled game-over screen. saveCurrentRun()
+            // itself is a no-op when currentUser is null, so logged-out
+            // users pressing S get a silent skip plus the in-game
+            // audio still fires (the playRecordSound() inside the
+            // function is guarded behind currentUser, so truly
+            // logged-out users get nothing — by design).
+            if ((event.key === 's' || event.key === 'S')
+                && (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED)
+                && !gameOver) {
+                saveCurrentRun(false /* fromMenuButton */);
+                event.preventDefault();
             }
 
             // ----- Missions page keyboard nav -----
