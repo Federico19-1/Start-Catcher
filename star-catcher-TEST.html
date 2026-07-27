@@ -350,6 +350,14 @@
         const GAME_STATES = {
             MENU: 'menu',
             ACCOUNT: 'account',
+            // 'difficulty' sits BETWEEN MENU and PLAYING / BATTLE: when
+            // the player taps the Battle button on the menu they
+            // briefly land here to pick Easy / Normal / Hard before the
+            // run actually starts. drawDifficultyScreen() handles the
+            // 3-card UI + the menuButtons entries; handleMenuAction's
+            // `pickDifficulty_*` cases route through startGame() with
+            // the chosen difficulty set on `battleDifficulty`.
+            DIFFICULTY: 'difficulty',
             PLAYING: 'playing',
             PAUSED: 'paused',
             SETTINGS: 'settings',
@@ -464,6 +472,14 @@
         let score = 0;
         let lives = 3;
         let hp = 100;
+        // Battle-Mode difficulty selection. Defaults to 'easy' so
+        // drawing this state on a fresh page load keeps the original
+        // Battle cadence identical to before this picker existed.
+        // Normal + Hard scale the enemy-spawn cadence tighter and add
+        // rare fast-moving meteorites; Hard is currently a 1:1 mirror
+        // of Normal so the existing UI/state wiring is in place before
+        // the future Hard-only rules are spec'd in.
+        let battleDifficulty = 'easy';
         // Battle-mode spawn pacing knobs. Tuned for a 60fps game but the
         // one-line cooldown math scales OK on mobile because the
         // requestAnimationFrame-driven logic below treats it as elapsed
@@ -2798,8 +2814,18 @@ function startGame(mode) {
                 battleEnemies.push(createEnemy());
                 // Re-arm: starts at 180, ticks down toward 60 as the
                 // player has been alive longer. Linear ease.
+                // Battle-Mode difficulty scaling: Normal/Hard halves
+                // the spawn-cooldown range so enemies appear MUCH
+                // faster AND more frequently than in Easy. Easy keeps
+                // the 60..180 frame range untouched so old saves line
+                // up identically with the previous build.
                 const t = Math.min(1, battleElapsedMs / 60000);
-                battleSpawnCooldown = Math.round(180 - t * 120);
+                if (battleDifficulty === 'easy') {
+                    battleSpawnCooldown = Math.round(180 - t * 120);
+                } else {
+                    // Normal + Hard: 30..90 frame range (≈ 0.5x Easy).
+                    battleSpawnCooldown = Math.round(90 - t * 60);
+                }
             }
 
             // Enemies advance to anchorY then hover / fire.
@@ -2926,6 +2952,58 @@ function startGame(mode) {
             // If we die by some other path (e.g. manual menu back), the
             // endGame call above is the canonical state change; the
             // game-over overlay will pick up from `gameOver`.
+
+            // ----- Battle-Mode meteorites (Normal + Hard only) -----
+            // Normal/Hard Battle runs add rare fast meteorites on top
+            // of the normal enemy stream so the player has to dodge
+            // TWO threat types at once. Easy skips this block entirely.
+            //   * Spawn cadence: 0.5% per frame ≈ one meteorite every
+            //     200 frames (~3.3 s at 60 fps) — well below enemy
+            //     spawn rate so meteorites feel like SURPRISE hazards.
+            //   * Speed: m.speed *= 2 — explicitly "much faster than
+            //     Survival" per spec. createMeteorite() seeds a base
+            //     speed of roughly 3-5 px/frame; doubling makes them
+            //     6-10 px/frame which is hard to dodge but still gives
+            //     half-a-second of visual warning.
+            //   * Collision: uses the same Survival collision maths
+            //     (player.radius * 0.20 + m.radius * 0.35) and the
+            //     shared meteoriteHitCooldown i-frame window so a
+            //     meteorite never double-fires.
+            if (battleDifficulty !== 'easy') {
+                if (Math.random() < 0.005) {
+                    const m = createMeteorite();
+                    m.speed *= 2;
+                    meteorites.push(m);
+                }
+                for (let i = meteorites.length - 1; i >= 0; i--) {
+                    const m = meteorites[i];
+                    m.y += m.speed;
+                    m.rotation += m.rotationSpeed;
+                    if (m.y > canvas.height + m.radius * 2) {
+                        meteorites.splice(i, 1);
+                        continue;
+                    }
+                    if (meteoriteHitCooldown === 0) {
+                        const dx = player.x - m.x;
+                        const dy = player.y - m.y;
+                        const hitDistance = player.radius * 0.20 + m.radius * 0.35;
+                        const dist2 = dx * dx + dy * dy;
+                        if (dist2 < hitDistance * hitDistance) {
+                            hp = Math.max(0, hp - 15);
+                            playLoseLifeSound();
+                            // Match the Battle enemy-bullet i-frame
+                            // (36 frames / ~0.6 s at 60 fps). Meteorites
+                            // would otherwise give the player a longer
+                            // recovery window than bullets, which feels
+                            // backwards since the speed-doubled meteors
+                            // are the harder threat.
+                            meteoriteHitCooldown = 36;
+                            meteorites.splice(i, 1);
+                            if (hp <= 0) endGame();
+                        }
+                    }
+                }
+            }
         }
 
         function createEnemy() {
@@ -5191,6 +5269,139 @@ function endGame() {
                 case GAME_STATES.MISSIONS:
                     drawMissionsScreen();
                     break;
+                case GAME_STATES.DIFFICULTY: {
+                    // Three rectangular cards laid out side-by-side on
+                    // the main row, with a smaller BACK button centred
+                    // below. Each card uses a colour that telegraphs
+                    // its difficulty: green=EASY, orange=NORMAL,
+                    // red=HARD (matching the project's existing palette
+                    // for Resume / Survival / Battle-danger reds).
+                    menuButtons = [];
+                    ctx.textAlign = 'center';
+                    // Header
+                    ctx.shadowColor = '#ff9f43';
+                    ctx.shadowBlur = 24;
+                    ctx.fillStyle = '#ffd56a';
+                    ctx.font = 'bold 44px Orbitron, sans-serif';
+                    ctx.fillText('⚔ CHOOSE BATTLE DIFFICULTY', canvas.width / 2, 130);
+                    ctx.shadowBlur = 0;
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.fillStyle = '#9bcfff';
+                    ctx.fillText('Easy keeps the original cadence  \u2022  Normal speeds up enemies + adds rare fast meteorites  \u2022  Hard (placeholder) mirrors Normal', canvas.width / 2, 168);
+                    // Card geometry
+                    const cardW = 220;
+                    const cardH = 220;
+                    const cardGap = 24;
+                    const rowW = cardW * 3 + cardGap * 2;
+                    const cardsY = 215;
+                    const cardsLeftX = canvas.width / 2 - rowW / 2;
+                    const easyX   = cardsLeftX;
+                    const normalX = cardsLeftX + cardW + cardGap;
+                    const hardX   = cardsLeftX + (cardW + cardGap) * 2;
+                    // --- Easy card (green) ---
+                    ctx.shadowBlur = 28;
+                    ctx.shadowColor = 'rgba(120, 255, 160, 0.55)';
+                    ctx.fillStyle = '#1a4a2a';
+                    ctx.beginPath();
+                    ctx.roundRect(easyX, cardsY, cardW, cardH, 14);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = 'rgba(120, 255, 160, 0.8)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.roundRect(easyX, cardsY, cardW, cardH, 14);
+                    ctx.stroke();
+                    ctx.fillStyle = '#cfffcf';
+                    ctx.font = 'bold 30px Orbitron, sans-serif';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('EASY', easyX + cardW / 2, cardsY + 50);
+                    ctx.font = '13px Orbitron, sans-serif';
+                    ctx.fillStyle = '#aaffaa';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText('Original enemy', easyX + cardW / 2, cardsY + 100);
+                    ctx.fillText('cadence. Best', easyX + cardW / 2, cardsY + 119);
+                    ctx.fillText('place to start.', easyX + cardW / 2, cardsY + 138);
+                    // --- Normal card (orange) ---
+                    ctx.shadowBlur = 28;
+                    ctx.shadowColor = 'rgba(255, 170, 60, 0.65)';
+                    ctx.fillStyle = '#6a3a1a';
+                    ctx.beginPath();
+                    ctx.roundRect(normalX, cardsY, cardW, cardH, 14);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = 'rgba(255, 170, 60, 0.85)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.roundRect(normalX, cardsY, cardW, cardH, 14);
+                    ctx.stroke();
+                    ctx.fillStyle = '#ffd56a';
+                    ctx.font = 'bold 30px Orbitron, sans-serif';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('NORMAL', normalX + cardW / 2, cardsY + 50);
+                    ctx.font = '13px Orbitron, sans-serif';
+                    ctx.fillStyle = '#ffe1a8';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText('Enemies 2x faster.', normalX + cardW / 2, cardsY + 100);
+                    ctx.fillText('Rare fast meteors', normalX + cardW / 2, cardsY + 119);
+                    ctx.fillText('also appear.', normalX + cardW / 2, cardsY + 138);
+                    // --- Hard card (red, mirrors Normal for now) ---
+                    ctx.shadowBlur = 28;
+                    ctx.shadowColor = 'rgba(255, 100, 100, 0.7)';
+                    ctx.fillStyle = '#5a1a1a';
+                    ctx.beginPath();
+                    ctx.roundRect(hardX, cardsY, cardW, cardH, 14);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = 'rgba(255, 100, 100, 0.85)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.roundRect(hardX, cardsY, cardW, cardH, 14);
+                    ctx.stroke();
+                    ctx.fillStyle = '#ff8a8a';
+                    ctx.font = 'bold 30px Orbitron, sans-serif';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('HARD', hardX + cardW / 2, cardsY + 50);
+                    // Regular 13 px throughout the Hard subtitle (Easy /
+                    // Normal cards use a single 13 px weight so a bold
+                    // prefix would look like a one-off glitch rather
+                    // than a deliberate accent).
+                    ctx.font = '13px Orbitron, sans-serif';
+                    ctx.fillStyle = '#ffaaaa';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText('(Normal for now \u2014', hardX + cardW / 2, cardsY + 100);
+                    ctx.font = '13px Orbitron, sans-serif';
+                    ctx.fillText('Hard-only rules', hardX + cardW / 2, cardsY + 119);
+                    ctx.fillText('coming later)', hardX + cardW / 2, cardsY + 138);
+                    ctx.textBaseline = 'alphabetic';
+                    // Click targets
+                    menuButtons.push({ rect: { x: easyX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy'   });
+                    menuButtons.push({ rect: { x: normalX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_normal' });
+                    menuButtons.push({ rect: { x: hardX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_hard'   });
+                    // BACK button below the row
+                    const backW = 180;
+                    const backH = 50;
+                    const backX = canvas.width / 2 - backW / 2;
+                    const backY = cardsY + cardH + 32;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = 'rgba(255, 255, 255, 0.25)';
+                    ctx.fillStyle = 'rgba(60, 64, 80, 0.92)';
+                    ctx.beginPath();
+                    ctx.roundRect(backX, backY, backW, backH, 10);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.roundRect(backX, backY, backW, backH, 10);
+                    ctx.stroke();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 18px Orbitron, sans-serif';
+                    ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 31);
+                    menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'difficultyBack' });
+                    ctx.textAlign = 'left';
+                    ctx.shadowBlur = 0;
+                    break;
+                }
                 case GAME_STATES.PLAYING:
                     drawBackground();
                     if (gameMode === GAME_MODES.SURVIVAL) {
@@ -5204,6 +5415,7 @@ function endGame() {
                         // the player vessel underneath so dodging is
                         // visible. Ordering is bottom → top.
                         drawEnemies();
+                        drawMeteorites();        // Normal/Hard Battle spawns rare meteorites — must render them or they'd be invisible damage sources
                         drawPlayerBullets();
                         drawEnemyBullets();
                     } else {
@@ -5257,8 +5469,35 @@ function endGame() {
                         accountInput = '';
                         showMobileInput(true);
                     } else {
-                        startGame(GAME_MODES.BATTLE);
+                        // Route through the difficulty picker so the
+                        // player chooses Easy / Normal / Hard before
+                        // the BGM kicks in. Resetting battleDifficulty
+                        // each visit means a player isn't silently
+                        // dropped into Normal or Hard after opting in
+                        // once — the next menu-tap always starts fresh.
+                        battleDifficulty = 'easy';
+                        gameState = GAME_STATES.DIFFICULTY;
                     }
+                    break;
+                case 'pickDifficulty_easy':
+                    battleDifficulty = 'easy';
+                    startGame(GAME_MODES.BATTLE);
+                    break;
+                case 'pickDifficulty_normal':
+                    battleDifficulty = 'normal';
+                    startGame(GAME_MODES.BATTLE);
+                    break;
+                case 'pickDifficulty_hard':
+                    // Hard is currently a 1:1 mirror of Normal —
+                    // future rules will diverge here.
+                    battleDifficulty = 'hard';
+                    startGame(GAME_MODES.BATTLE);
+                    break;
+                case 'difficultyBack':
+                    // User changed their mind; drop back to the main
+                    // menu without touching battleDifficulty (which is
+                    // already reset on the next menu-tap-to-battle).
+                    gameState = GAME_STATES.MENU;
                     break;
                 case 'account':
                     gameState = GAME_STATES.ACCOUNT;
