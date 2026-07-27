@@ -1,0 +1,86 @@
+            ctx.textAlign = 'left';
+            ctx.fillText('🎮 GAME CONTROLS', rowX, panelY + 425);
+            ctx.restore();
+
+            drawSettingsRow(rowX, panelY + 440, innerW, 56,
+                '🖱 FREE MOVEMENT (Survival)',
+                'Ship follows the cursor exactly — no smoothing, full screen.',
+                settings.survivalFreeMovement, 'toggleSurvivalFreeMovement');
+
+            ctx.restore();  // End of scroll-clip + translate group
+            ctx.restore();  // End of outer panelCtx.save() wrapper
+
+            // ----- 🎮 GAME CONTROLS section ----------------------------------
+            // Visual separator between audio controls and gameplay-affecting
+            // controls. Same amber/teal accent used in the Settings panel
+            // border so the new section reads as a natural continuation
+            // instead of a foreign block. ctx.save()/ctx.restore() scopes
+            // the small 'fillStyle' / 'shadowBlur' we briefly change so
+            // the existing SOUNDS rows above (and the per-account note
+            // below) keep their original colours.
+            ctx.save();
+            ctx.fillStyle = 'rgba(73, 215, 200, 0.9)';   // teal accent – pairs
+            ctx.shadowColor = 'rgba(73, 215, 200, 0.6)';  // with the panel glow
+            ctx.shadowBlur = 6;
+            ctx.font = 'bold 14px Orbitron, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('🎮 GAME CONTROLS', rowX, panelY + 425);
+            ctx.restore();
+
+            // Free-movement toggle. Same drawSettingsRow helper as the
+            // SOUNDS rows so the pill geometry / ON-OFF colours are
+            // perfectly consistent — only the title/description differ
+            // to make it obvious that this affects MOVEMENT not audio.
+            drawSettingsRow(rowX, panelY + 440, innerW, 56,
+                '🖱 FREE MOVEMENT (Survival)',
+                'Ship follows the cursor exactly — no smoothing, full screen.',
+                settings.survivalFreeMovement, 'toggleSurvivalFreeMovement');
+
+            // Per-account note — moved INSIDE the panel (panelY + 12)
+            // after the scroll rework. The original formula
+            // (panelY + panelH + 13 = 562) put the text under the BACK
+            // button at y=550+, making the "Saved for ..." line silent;
+            // drawing it at the top edge of the panel keeps it visible
+            // REGARDLESS of how far the user has scrolled because the
+            // TRANSLATE is applied below AFTER this text is drawn.
+            ctx.font = '12px Orbitron, sans-serif';
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'black';
+            ctx.fillStyle = '#666';
+            ctx.fillText(
+                currentUser ? `Saved for 👤 ${currentUser}` : 'Settings saved locally',
+                canvas.width / 2, panelY + panelH + 13
+            );
+
+            // BACK button — sits below the now-taller panel (5 rows
+            // total) and below the per-account footer line above it.
+            const btnW = 180;
+            const btnH = 45;
+            const btnX = canvas.width / 2 - btnW / 2;
+            const btnY = canvas.height - 50;
+
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ff8800';
+            ctx.fillStyle = '#6a3a1a';
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 14);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(btnX, btnY, btnW, btnH, 14);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            // Draw the label with textBaseline='middle' so it sits
+            // vertically centred inside the 45-px button regardless
+            // of Orbitron's (slightly taller than average) ascent/
+            // descent — the previous btnY + 30 trick left the cap-top
+            // peeking above the border, so the button visibly "spilled"
+            // its text on the upper edge.
+            ctx.textBaseline = 'middle';
+            ctx.fillText('\u2190 BACK', canvas.width / 2 - 50, btnY + btnH / 2);
+            ctx.textBaseline = 'alphabetic';   // restore default for later code
+

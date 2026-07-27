@@ -1,0 +1,151 @@
+4420:            // Knob (decorative, positioned left or right)
+4421:            ctx.shadowBlur = 8;
+4422:            ctx.shadowColor = value ? '#aaffaa' : '#cccccc';
+4423:            ctx.fillStyle = value ? '#ddffdd' : '#dddddd';
+4424:            ctx.beginPath();
+4425:            ctx.arc(value ? pillX + pillW - 22 : pillX + 22, pillY + pillH / 2, 13, 0, Math.PI * 2);
+4426:            ctx.fill();
+4427:
+4428:            // The whole pill is the click target
+4429:            menuButtons.push({
+4430:                rect: { x: pillX, y: pillY, w: pillW, h: pillH },
+4431:                action: action
+4432:            });
+4433:
+4434:            ctx.textAlign = 'center';
+4435:            ctx.shadowBlur = 0;
+4436:        }
+4437:
+4438:        function drawSettingsScreen() {
+4439:            drawBackground();
+4440:
+4441:            // Reset menuButtons at the start so stale entries from the
+4442:            // previous screen (MENU, MISSIONS, RECORDS, PAUSED, GAMEOVER...)
+4443:            // cannot intercept clicks meant for the toggle pills / steppers
+4444:            // / BACK button. Without this, stale entries from the previous
+4445:            // screen could overlap a Settings control and fire the wrong
+4446:            // action on the first click.
+4447:            menuButtons = [];
+4448:
+4449:            ctx.textAlign = 'center';
+4450:
+4451:            // Title moved up (100 → 70) so the panel below has room
+4452:            // for the newly-added SURVIVAL MUSIC section. The matching
+4453:            // subtitle follows; see the panel-sizing block below for
+4454:            // the full layout math.
+4455:            ctx.font = 'bold 44px Orbitron, sans-serif';
+4456:            ctx.shadowColor = '#4a8cff';
+4457:            ctx.shadowBlur = 30;
+4458:            ctx.fillStyle = 'white';
+4459:            ctx.fillText('⚙ SETTINGS', canvas.width / 2, 70);
+4460:
+4461:            // Subtitle
+4462:            ctx.shadowBlur = 10;
+4463:            ctx.shadowColor = 'black';
+4464:            ctx.font = '15px Orbitron, sans-serif';
+4465:            ctx.fillStyle = '#aaa';
+4466:            ctx.fillText('Customize your audio', canvas.width / 2, 98);
+4467:
+4468:            // Outer panel — sized for 4 toggle rows + 3 volume sub-rows.
+4469:            // Each music track (menu / classic / survival) owns its own
+4470:            // toggle + +/− stepper directly underneath; the SFX row
+4471:            // stays toggle-only since there is no SFX BGM track.
+4472:            //
+4473:            // Vertical layout (offsets inside the panel, top edge = 0):
+4474:            //   * MUSIC toggle         +15  h=56  (sub gap to Menu vol:   5)
+4475:            //   * Menu volume          +76  h=36  (section gap to SFX:   15)
+4476:            //   * SFX toggle          +127  h=56  (section gap to CLASSIC: 15)
+4477:            //   * CLASSIC MUSIC       +198  h=56  (sub gap to Classic vol: 5)
+4478:            //   * Classic volume      +259  h=36  (section gap to SURVIVAL: 15)
+4479:            //   * SURVIVAL MUSIC      +310  h=56  (sub gap to Survival vol: 5)
+4480:            //   * Survival volume     +371  h=36
+4481:            //   + 22 px bottom padding  → panelH = 429
+4482:            // Toggle row height shrunk 72 → 56 to keep the panel bottom
+4483:            // (panelY 100 + 429 = 529) clear of the BACK button anchored
+4484:            // at canvas.height - 50 (= 550), leaving a 21 px gap.
+4485:            const panelW = 480;
+4486:            // Trimmed back 497 → 449 (Mar 2026 follow-up). TOP reason: the
+4487:            // previous 497 pushed the panel's bottom edge to y=588,
+4488:            // overlapping the BACK button rendered at canvas.height-50
+4489:            // (=550, spanning 550..595) and partly covering the new
+4490:            // toggle's ON/OFF pill. 449 lets the panel stop at y=549,
+4491:            // giving a 1 px clearance to the BACK button. The new
+4492:            // GAME CONTROLS section + Free-Movement toggle now live
+4493:            // in the SCROLLED region of the panel: visible by default
+4494:            // when the user scrolls all the way down (scrollY = ~61).
+4495:            const panelH = 449;
+4496:            const panelX = canvas.width / 2 - panelW / 2;
+4497:            const panelY = 100;
+4498:
+4499:            // Clamp scrollY each frame BEFORE drawing so a stale value
+4500:            // from a previous taller-content build never pushes rows
+4501:            // off the top of the panel. scrollY is in panel-local px.
+4502:            const scrollRange = Math.max(0, SETTINGS_CONTENT_H - panelH);
+4503:            if (settingsScrollY < 0) settingsScrollY = 0;
+4504:            if (settingsScrollY > scrollRange) settingsScrollY = scrollRange;
+4505:
+4506:            ctx.shadowBlur = 25;
+4507:            ctx.shadowColor = '#4a8cff';
+4508:            ctx.fillStyle = 'rgba(15, 25, 50, 0.85)';
+4509:            ctx.beginPath();
+4510:            ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+4511:            ctx.fill();
+4512:            ctx.shadowBlur = 0;
+4513:            ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
+4514:            ctx.lineWidth = 2;
+4515:            ctx.beginPath();
+4516:            ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+4517:            ctx.stroke();
+4518:
+4519:            // 7 audio sections + 1 new GAME CONTROLS section inside the
+4520:            // panel (positioned at panelY + 425 sub-header, panelY + 440
+4521:            // toggle). With SETTINGS_CONTENT_H = 510 the content is
+4522:            // taller than panelH = 449, so we CLIP the panel rect AND
+4523:            // translate up by scrollY before drawing the rows that
+4524:            // follow. The per-account note is drawn BEFORE the clip so
+4525:            // it never scrolls off-screen at the top.
+4526:            ctx.save();
+4527:            // Per-account note (always visible at the very top of the
+4528:            // panel) — see comment above on why it sits inside now.
+4529:            ctx.font = '11px Orbitron, sans-serif';
+4530:            ctx.textAlign = 'left';
+4531:            ctx.fillStyle = currentUser
+4532:                ? 'rgba(73, 215, 200, 0.85)'
+4533:                : 'rgba(255, 255, 255, 0.5)';
+4534:            ctx.fillText(
+4535:                currentUser
+4536:                    ? '✓ Saved for ' + currentUser
+4537:                    : 'Settings saved locally (no account)',
+4538:                panelX + 18, panelY + 14
+4539:            );
+4540:            ctx.restore();
+4541:
+4542:            ctx.save();
+4543:            // Clip to the panel INNER rect so a row that overflows the
+4544:            // bottom is hidden (instead of leaking over the BACK button).
+4545:            // We use a plain rect — roundRect would clip along the curve
+4546:            // which our quad rows can't follow anyway.
+4547:            ctx.beginPath();
+4548:            ctx.rect(panelX, panelY, panelW, panelH);
+4549:            ctx.clip();
+4550:            // Scroll content up by settingsScrollY.  All row draws below
+4551:            // share the same translate, but keyboard + mouse hit-tests
+4552:            // (via menuButtons.push) use un-translated coords (which is
+4553:            // what we want — the toggle hit-rect matches the visible row
+4554:            // after the translate).
+4555:            ctx.translate(0, -settingsScrollY);
+4556:
+4557:            const padX = 30;
+4558:            const innerW = panelW - padX * 2;
+4559:            const rowX = panelX + padX;
+4560:
+4561:            drawSettingsRow(rowX, panelY + 15, innerW, 56,
+4562:                '🎵 MUSIC',
+4563:                'Background song in the main menu',
+4564:                settings.music, 'toggleMusic');
+4565:
+4566:            drawVolumeRow(rowX, panelY + 76, innerW, 36,
+4567:                settings.menuVolume, 'menuVolDown', 'menuVolUp');
+4568:
+4569:            drawSettingsRow(rowX, panelY + 127, innerW, 56,
+4570:                '🔊 SFX',

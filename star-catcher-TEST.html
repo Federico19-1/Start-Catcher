@@ -269,6 +269,28 @@
             e.preventDefault();
         });
 
+        // ===== Settings-panel wheel scroll ===========================
+        // Mouse-wheel / trackpad vertical scroll acts ONLY while the
+        // SETTINGS screen is up; in every other state the event is a
+        // no-op so the existing targetX-write in mousemove keeps the
+        // ship steering untouched. deltaY is sign-only-amplified by a
+        // fixed step (~120 px) so a single physical wheel notch jumps
+        // roughly one row instead of micro-scrolling by line height.
+        // preventDefault stops the browser from intercepting it for
+        // page-scroll on touch devices that emulate wheel events.
+        canvas.addEventListener('wheel', (e) => {
+            if (gameState !== GAME_STATES.SETTINGS) return;
+            const step = 120;
+            const next = settingsScrollY + Math.sign(e.deltaY) * step;
+            // Use SETTINGS_SCROLL_MAX (module-level) instead of the
+            // local `scrollRange` declared inside drawSettingsScreen,
+            // otherwise the reference would throw a ReferenceError
+            // when the wheel handler fires before that function has
+            // ever been called.
+            settingsScrollY = Math.max(0, Math.min(next, SETTINGS_SCROLL_MAX));
+            e.preventDefault();
+        }, { passive: false });
+
         // Detect a touch-first device or narrow viewport — used to dial
         // back background / overlay work on phones. Re-evaluated on
         // resize and orientationchange so a tablet that narrows after
@@ -389,6 +411,36 @@
         // somewhere up at, say, y=120).
         let mouseX = 400;
         let mouseY = 550;
+
+        // ----- Settings-panel scroll state -----
+        // The Settings screen hosts two categories (SOUNDS CONTROLS +
+        // GAME CONTROLS) which together are taller than a single on-
+        // canvas panel can show without colliding with the BACK button
+        // at canvas.height - 50. Rather than overflow the canvas, we
+        // scroll vertically: settingsScrollY is the translate offset,
+        // clamped each frame to [0, SETTINGS_CONTENT_H - panelH] so
+        // the user cannot scroll past the end of the content.
+        let settingsScrollY = 0;
+        // Logical (un-clipped) content height for the Settings panel:
+        //   15 (top padding to first row) + existing audio rows + new
+        //   GAME CONTROLS sub-header + new Free-Movement toggle +
+        //   bottom padding.  With panelH = 449 this gives a 61 px
+        //   scroll range, just enough to reveal the new toggle.
+        const SETTINGS_CONTENT_H = 510;
+        // Max scroll = content_height - visible_panel_height. Declared
+        // MODULE-level (instead of inside drawSettingsScreen) so the
+        // top-level wheel event listener can reference it directly
+        // without dispatching through drawSettingsScreen first. The
+        // 449 is the post-fix Settings panelH; if that constant ever
+        // changes, update BOTH this AND the panelH declaration.
+        const SETTINGS_SCROLL_MAX = SETTINGS_CONTENT_H - 449;
+        // Drag-scroll state for the scroll-thumb on the right edge
+        // of the panel. The mousedown on the thumb flips this true
+        // and records the starting mouse y; mousemove updates scrollY
+        // until mouseup clears it.
+        let isSettingsScrollDrag = false;
+        let settingsScrollDragAnchorY = 0;
+        let settingsScrollAnchorOffset = 0;
 
         let stars = [];
         let meteorites = [];
@@ -4460,17 +4512,25 @@ function endGame() {
             // (panelY 100 + 429 = 529) clear of the BACK button anchored
             // at canvas.height - 50 (= 550), leaving a 21 px gap.
             const panelW = 480;
-            // Bumped 429 → 497 (Mar 2026) to fit the new 🎮 GAME
-            // CONTROLS section at the bottom of the panel. The extra
-            // 68 px hosts the section header label + a single
-            // drawSettingsRow for the Free-Movement toggle WITHOUT
-            // disturbing the seven existing SOUNDS rows — those still
-            // use the original panelY + 15/76/127/198/259/310/371
-            // anchors so the audio UI is byte-for-byte identical to
-            // before this feature was added.
-            const panelH = 497;
+            // Trimmed back 497 → 449 (Mar 2026 follow-up). TOP reason: the
+            // previous 497 pushed the panel's bottom edge to y=588,
+            // overlapping the BACK button rendered at canvas.height-50
+            // (=550, spanning 550..595) and partly covering the new
+            // toggle's ON/OFF pill. 449 lets the panel stop at y=549,
+            // giving a 1 px clearance to the BACK button. The new
+            // GAME CONTROLS section + Free-Movement toggle now live
+            // in the SCROLLED region of the panel: visible by default
+            // when the user scrolls all the way down (scrollY = ~61).
+            const panelH = 449;
             const panelX = canvas.width / 2 - panelW / 2;
             const panelY = 100;
+
+            // Clamp scrollY each frame BEFORE drawing so a stale value
+            // from a previous taller-content build never pushes rows
+            // off the top of the panel. scrollY is in panel-local px.
+            const scrollRange = Math.max(0, SETTINGS_CONTENT_H - panelH);
+            if (settingsScrollY < 0) settingsScrollY = 0;
+            if (settingsScrollY > scrollRange) settingsScrollY = scrollRange;
 
             ctx.shadowBlur = 25;
             ctx.shadowColor = '#4a8cff';
@@ -4485,22 +4545,44 @@ function endGame() {
             ctx.roundRect(panelX, panelY, panelW, panelH, 16);
             ctx.stroke();
 
-            // 7 sections inside the panel:
-            //   1) MUSIC toggle              (h=56)
-            //   2) Menu music volume         (h=36)   — sub-row of MUSIC
-            //   3) SFX toggle                (h=56)
-            //   4) CLASSIC MUSIC toggle      (h=56)
-            //   5) Classic music volume      (h=36)   — sub-row of CLASSIC
-            //   6) SURVIVAL MUSIC toggle     (h=56)   — added for v3
-            //   7) Survival music volume     (h=36)   — sub-row of SURVIVAL
-            //
-            // Gaps:
-            //   * 5 px between a toggle and its own volume sub-row (close
-            //     visual coupling → "this volume controls THIS toggle").
-            //   * 15 px between SECTION boundaries (MUSIC ↔ SFX, SFX ↔
-            //     CLASSIC, CLASSIC ↔ SURVIVAL) so the volume sub-rows
-            //     clearly belong to their parent toggle instead of
-            //     looking like standalone rows.
+            // 7 audio sections + 1 new GAME CONTROLS section inside the
+            // panel (positioned at panelY + 425 sub-header, panelY + 440
+            // toggle). With SETTINGS_CONTENT_H = 510 the content is
+            // taller than panelH = 449, so we CLIP the panel rect AND
+            // translate up by scrollY before drawing the rows that
+            // follow. The per-account note is drawn BEFORE the clip so
+            // it never scrolls off-screen at the top.
+            ctx.save();
+            // Per-account note (always visible at the very top of the
+            // panel) — see comment above on why it sits inside now.
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = currentUser
+                ? 'rgba(73, 215, 200, 0.85)'
+                : 'rgba(255, 255, 255, 0.5)';
+            ctx.fillText(
+                currentUser
+                    ? '✓ Saved for ' + currentUser
+                    : 'Settings saved locally (no account)',
+                panelX + 18, panelY + 14
+            );
+            ctx.restore();
+
+            ctx.save();
+            // Clip to the panel INNER rect so a row that overflows the
+            // bottom is hidden (instead of leaking over the BACK button).
+            // We use a plain rect — roundRect would clip along the curve
+            // which our quad rows can't follow anyway.
+            ctx.beginPath();
+            ctx.rect(panelX, panelY, panelW, panelH);
+            ctx.clip();
+            // Scroll content up by settingsScrollY.  All row draws below
+            // share the same translate, but keyboard + mouse hit-tests
+            // (via menuButtons.push) use un-translated coords (which is
+            // what we want — the toggle hit-rect matches the visible row
+            // after the translate).
+            ctx.translate(0, -settingsScrollY);
+
             const padX = 30;
             const innerW = panelW - padX * 2;
             const rowX = panelX + padX;
@@ -4531,50 +4613,88 @@ function endGame() {
                 'Plays during Survival Mode runs',
                 settings.survivalMusic, 'toggleSurvivalMusic');
 
-            drawVolumeRow(rowX, panelY + 371, innerW, 36,
-                settings.survivalVolume, 'survivalVolDown', 'survivalVolUp');
-
-            // ----- 🎮 GAME CONTROLS section ----------------------------------
-            // Visual separator between audio controls and gameplay-affecting
-            // controls. Same amber/teal accent used in the Settings panel
-            // border so the new section reads as a natural continuation
-            // instead of a foreign block. ctx.save()/ctx.restore() scopes
-            // the small 'fillStyle' / 'shadowBlur' we briefly change so
-            // the existing SOUNDS rows above (and the per-account note
-            // below) keep their original colours.
+            // ----- 🎮 GAME CONTROLS section (closes with ctx.restore below) -
+            // Visually separate from the SOUNDS controls above so the new
+            // gameplay-affecting toggle is clearly its own category.
             ctx.save();
-            ctx.fillStyle = 'rgba(73, 215, 200, 0.9)';   // teal accent – pairs
-            ctx.shadowColor = 'rgba(73, 215, 200, 0.6)';  // with the panel glow
+            ctx.fillStyle = 'rgba(73, 215, 200, 0.9)';
+            ctx.shadowColor = 'rgba(73, 215, 200, 0.6)';
             ctx.shadowBlur = 6;
             ctx.font = 'bold 14px Orbitron, sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText('🎮 GAME CONTROLS', rowX, panelY + 425);
             ctx.restore();
 
-            // Free-movement toggle. Same drawSettingsRow helper as the
-            // SOUNDS rows so the pill geometry / ON-OFF colours are
-            // perfectly consistent — only the title/description differ
-            // to make it obvious that this affects MOVEMENT not audio.
             drawSettingsRow(rowX, panelY + 440, innerW, 56,
                 '🖱 FREE MOVEMENT (Survival)',
                 'Ship follows the cursor exactly — no smoothing, full screen.',
                 settings.survivalFreeMovement, 'toggleSurvivalFreeMovement');
 
-            // Per-account note (subtle, between panel and BACK button).
-            // Drawn at panelY + panelH + 13 so it sits in the gap below
-            // the panel (~13 px clearance) and ~17 px above the BACK
-            // button top (btnY = canvas.height - 50 = 550). Without this
-            // nudge the text landed at y = 550 — the same y as the
-            // button — and the button's amber background + glow covered
-            // it up, so the "Saved for ..." line silently disappeared.
-            ctx.font = '12px Orbitron, sans-serif';
-            ctx.shadowBlur = 4;
-            ctx.shadowColor = 'black';
-            ctx.fillStyle = '#666';
-            ctx.fillText(
-                currentUser ? `Saved for 👤 ${currentUser}` : 'Settings saved locally',
-                canvas.width / 2, panelY + panelH + 13
+            ctx.restore();  // End of scroll-clip + translate group
+
+            // ----- Side scroll bar (right edge of the panel) -------------
+            // Drawn AFTER the scroll-clip ctx.restore so the thumb sits
+            // on top of the clipped content rather than being scrolled
+            // with it. Only meaningful when the logical content height
+            // (SETTINGS_CONTENT_H = 510) is taller than the visible
+            // panelH (449); when there is no overflow the thumb fills
+            // the entire track.
+            const sbTrackX = panelX + panelW - 12;
+            const sbTrackY = panelY + 12;
+            const sbTrackH = panelH - 24;
+            const sbThumbH = Math.max(
+                28,
+                sbTrackH * (panelH / SETTINGS_CONTENT_H)
             );
+            const sbThumbY = sbTrackY
+                + (scrollRange > 0
+                    ? (sbTrackH - sbThumbH) * (settingsScrollY / scrollRange)
+                    : 0);
+
+            // Subtle track — a narrow vertical strip on the right edge
+            // of the panel, low-opacity white so it blends with the
+            // dark teal panel glow rather than competing with the rows.
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+            ctx.fillRect(sbTrackX, sbTrackY, 4, sbTrackH);
+
+            // Thumb — teal pill in the same accent as the GAME
+            // CONTROLS section header so the scrollbar reads as part
+            // of the panel chrome, not foreign UI. Glows brighter
+            // while the user is actively dragging it; in this MVP
+            // we DO NOT implement drag-from-thumb (wheel scrolling
+            // is the only scroll input), so the brighter state is
+            // reserved as a hook for future keyboard-scroll arrows.
+            ctx.save();
+            const thumbActive = isSettingsScrollDrag;
+            ctx.shadowColor = thumbActive
+                ? 'rgba(73, 215, 200, 0.85)'
+                : 'rgba(73, 215, 200, 0.45)';
+            ctx.shadowBlur = thumbActive ? 10 : 6;
+            ctx.fillStyle = thumbActive
+                ? 'rgba(73, 215, 200, 1.0)'
+                : 'rgba(73, 215, 200, 0.7)';
+            ctx.beginPath();
+            ctx.roundRect(sbTrackX - 2, sbThumbY, 8, sbThumbH, 4);
+            ctx.fill();
+            ctx.restore();
+
+            // ----- "Scrolled away from top" hint -------------------------
+            // The per-account note lives inside the wrap (so it scrolls
+            // with the content), which means once the user scrolls down
+            // the original "Saved for ..." line disappears above the
+            // panel edge. Re-print a SHORTER version next to the thumb
+            // tip when scrollY > 4 so they still get visual confirmation
+            // that their settings persist for this account.
+            if (settingsScrollY > 4 && currentUser) {
+                ctx.save();
+                ctx.font = '10px Orbitron, sans-serif';
+                ctx.shadowColor = 'rgba(73, 215, 200, 0.7)';
+                ctx.shadowBlur = 4;
+                ctx.fillStyle = 'rgba(73, 215, 200, 0.95)';
+                ctx.textAlign = 'right';
+                ctx.fillText('\u2713 Saved', panelX + panelW - 22, sbThumbY - 4);
+                ctx.restore();
+            }
 
             // BACK button — sits below the now-taller panel (5 rows
             // total) and below the per-account footer line above it.
@@ -4919,6 +5039,14 @@ function endGame() {
                         showMobileInput(false);
                     }
                     gameStateBeforeSettings = GAME_STATES.MENU;
+                    // Reset the Settings-panel scroll position so the
+                    // user always re-enters the screen at the top and
+                    // sees the SOUNDS controls without scrolling back
+                    // up first; also clear any in-flight thumb-drag
+                    // flag so a stuck drag doesn't keep modulating
+                    // scrollY on subsequent visits.
+                    settingsScrollY = 0;
+                    isSettingsScrollDrag = false;
                     break;
                 default:
                     break;
@@ -5058,6 +5186,14 @@ function endGame() {
             if (gameState === GAME_STATES.PLAYING && canvasTouchActive) {
                 const c = getGameCoords(event);
                 player.targetX = c.x;
+                // Touch machines that fire on touch want player.targetX
+                // anyway, but the new Survival free-movement branch in
+                // update() reads mouseX/mouseY directly. Mirroring here
+                // keeps mobile touch players on equal footing with the
+                // desktop mousemove path so toggling Free Movement ON
+                // works the same on a phone as on a mouse.
+                mouseX = c.x;
+                mouseY = c.y;
             }
         }, { passive: true });
         canvas.addEventListener('touchend', (event) => {
