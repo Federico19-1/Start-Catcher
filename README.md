@@ -1,6 +1,7 @@
 # 🚀 Star Catcher
-A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript** — no external libraries or frameworks. Pilot your ship in Classic Mode to catch the falling stars, or switch to Survival Mode and stay alive as long as possible.
-<img width="881" height="640" alt="image" src="https://github.com/user-attachments/assets/e358c3a1-4dc9-4cdd-8ae3-84296ecd969d" />
+A small space arcade game built with **HTML5 Canvas** and **JavaScript** — no external libraries. Pilot your ship in Classic Mode to catch the falling stars, or switch to Survival Mode and stay alive as long as possible.
+<img width="881" height="640" alt="PERFECT MENU" src="https://github.com/user-attachments/assets/9d9db6d9-2ebb-4892-b8c4-707625b21a9b" />
+
 
 ## ✨ Features
 
@@ -9,17 +10,16 @@ A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript**
 - 🏆 **High score tracking** — your best Classic and Survival results are saved automatically for each account
 - 🔊 **Hybrid audio system** — procedural Web Audio SFX, three bundled music tracks (menu, Classic, Survival), and a collect-sound fallback that can use `star-sound.txt` if you add it
 - ⏸️ **Dedicated pause button** — in addition to the keyboard shortcut
-- 📱 **Desktop and mobile controls** — mouse on desktop, on-screen touch controls and canvas drag below 768px width
+- 📱 **Desktop and mobile controls** — mouse on desktop, on-screen touch controls 
 - 🎨 **Sci-fi UI** — Orbitron font, blue/neon palette, animated menu
 
 ## 🎮 How to play
 
-- Classic mode: catch the stars, keep your lives alive, and build a combo.
-- Survival mode: avoid the meteorites as long as you can. Your score is the number of seconds you survive.
-- Lucky stars are worth more and can refill a heart if you are missing one.
-- Scores and settings are stored per account in the browser.
+- **Classic Mode**: catch the falling stars. Each catch is worth **+1 point**, and every missed star costs one of your **3 lives**.
+- **Survival Mode**: avoid the falling meteorites for as long as you can. Your score is the time you survive in seconds.
+- If a run beats a previous personal record, the game saves it automatically.
 
-## Controls
+## 🕹️ Controls
 
 | Action | Desktop | Mobile |
 |---|---|---|
@@ -41,8 +41,8 @@ A small space arcade game built with **HTML5 Canvas** and **vanilla JavaScript**
 star-catcher/
 ├── star-catcher.html                      # markup, styling, and game logic in a single file
 ├── menu-song.mp3                          # main menu background music
-├── paulyudin-synth-pop-Classic-Mode.mp3   # background music while playing Classic mode
-├── desifreemusic-comedy-shock-amp-embarrassment-sudden-realization-music-SurvivalMode.mp3
+├── paulyudin-synth-pop-Classic-Mode.mp3   # classic mode soundtrack
+├── desifreemusic...-SurvivalMode.mp3      # survival soundtrack
 │                                          # background music while playing Survival mode
 └── README.md                              # project documentation
 ```
@@ -51,21 +51,13 @@ star-catcher/
 
 ## 🚀 Running the game
 
-Some browsers block loading local audio files when the HTML is opened directly from disk (`file://`). For the full experience, serve the folder with a small local server:
-
-```bash
-python3 -m http.server
-```
-
-Then open [http://localhost:8000/star-catcher.html](http://localhost:8000/star-catcher.html) in your browser.
-
-You can also double-click `star-catcher.html` to open it directly. The game still runs, but music loading and autoplay behavior may depend on the browser.
+Download the repo and run the game in the folder
 
 ## 🎧 Credits
 
 - Menu music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 - Classic-mode music — **PaulYudin**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
-- Survival-mode music — bundled with the project
+- Survival-mode music — **DesiFreeMusic**, from [Pixabay](https://pixabay.com/) (Pixabay Content License, free to use)
 
 ## 📱 Playing on a phone
 
@@ -73,9 +65,9 @@ Star Catcher is fully playable on phones. Use the on-screen controls, and keep i
 
 ### Mobile controls
 
-- **Move the ship**: drag your finger on the canvas, or use the big **◀ ▶** buttons that appear below the canvas on screens narrower than 768 px.
+- **Move the ship**: drag your finger on the canvas.
 - **Pause / resume**: tap the **⏸** button alongside the canvas.
-- **Restart after game over**: tap anywhere on the canvas (or press **R** if you have a keyboard paired with the phone).
+- **Restart after game over**: tap anywhere on the button "RESTART" (or press **R** if you have a keyboard paired with the phone).
 - **Blue the mascot**: tap him on the menu screen — he'll say a new line each tap so you can read several in a row.
 
 ### Audio notes
@@ -96,6 +88,8 @@ Mobile mode is detected automatically by checking for touch support and viewport
 - Meteorite cap drops from 40 → 25 per frame.
 - Meteorite glow shadows are skipped.
 - Survival-mode red scanlines use a wider stride.
+
+I STRONGLY RECOMMEND TO PLAY THE GAME ON PC
 
 ## 📄 License
 
