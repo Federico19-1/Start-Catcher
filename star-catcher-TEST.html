@@ -3281,6 +3281,107 @@ function endGame() {
             ctx.restore();
         }
 
+        // ====== Battle mode renderers ======
+        // These three renderers are only invoked when gameMode === BATTLE
+        // (see the GAME_STATES.PLAYING switch in the draw() loop below).
+        // They were added together with updateBattle() / createEnemy()
+        // / fireBullet() but were forgotten at integration time — the
+        // update loop was mutating battleEnemies / playerBullets /
+        // enemyBullets while nothing drew them, leaving the canvas empty
+        // during a Battle run.
+
+        function drawEnemies() {
+            for (const e of battleEnemies) {
+                ctx.save();
+                ctx.translate(e.x, e.y);
+                // HP bar: rendered ABOVE the enemy sprite so the player
+                // can read it without having to overlay onto the ship
+                // art. Colour-matches the player HP bar so the eye
+                // learns one colour → fraction mapping.
+                const hpRatio = Math.max(0, e.hp / 100);
+                const barW = 52;
+                const barX = -barW / 2;
+                const barY = -42;
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(barX, barY, barW, 4);
+                let barColor;
+                if (hpRatio > 0.5) barColor = '#3ec46d';
+                else if (hpRatio > 0.25) barColor = '#ffaa33';
+                else barColor = '#ff4060';
+                ctx.fillStyle = barColor;
+                ctx.fillRect(barX, barY, barW * hpRatio, 4);
+
+                // Body — angular red silhouette. While the pre-fire
+                // telegraph flash is active (flashTimer > 0) we swap
+                // red → white for a clearly visible "DODGE!" cue.
+                const isTelegraph = e.flashTimer > 0;
+                ctx.shadowBlur = isTelegraph ? 26 : 18;
+                ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff3030';
+                ctx.fillStyle = isTelegraph ? '#ffffff' : '#a01818';
+                ctx.beginPath();
+                ctx.moveTo(0, -22);
+                ctx.lineTo(20, 4);
+                ctx.lineTo(14, 18);
+                ctx.lineTo(-14, 18);
+                ctx.lineTo(-20, 4);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = isTelegraph ? '#ffffff' : '#ff5050';
+                ctx.lineWidth = isTelegraph ? 2 : 1.5;
+                ctx.stroke();
+
+                // Cockpit — inner ellipse with a glow that intensifies
+                // during telegraph so the cursor knows the shot is
+                // about to leave the bay.
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff8888';
+                ctx.fillStyle = isTelegraph ? '#ffffff' : '#ff8866';
+                ctx.beginPath();
+                ctx.ellipse(0, -2, 6, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function drawPlayerBullets() {
+            // Blue ray bolts. Two stacked rects: a wider, dimmer
+            // outer glow + a narrower bright white core. Travels
+            // straight up (set in updateBattle).
+            for (const b of playerBullets) {
+                ctx.save();
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#4af';
+                ctx.fillStyle = '#4af';
+                ctx.fillRect(b.x - 5, b.y - 8, 10, 16);
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(b.x - 2, b.y - 6, 4, 12);
+                ctx.restore();
+            }
+        }
+
+        function drawEnemyBullets() {
+            // Red ray bolts. Same dual-shape recipe as the player
+            // bullets for visual parity, but inverted palette. The
+            // outer soft halo helps the player distinguish friend vs
+            // foe at a glance.
+            for (const b of enemyBullets) {
+                ctx.save();
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#ff3030';
+                ctx.fillStyle = '#ff3030';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 9, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 8;
+                ctx.fillStyle = '#ffe7b3';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
         function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle   = gameMode === GAME_MODES.BATTLE;
@@ -3503,8 +3604,16 @@ function endGame() {
 
         function drawGameOver() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
+            // Battle Mode needs the same per-mode flag here as in drawGameUI():
+            // the header ternary below branches on it to render
+            // '💥 BATTLE OVER' instead of the survival / classic text.
+            // Without this declaration the ternary throws a
+            // ReferenceError the moment a Battle run ends.
+            const isBattle = gameMode === GAME_MODES.BATTLE;
             const highScore = currentUser
-                ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
+                ? (isSurvival
+                    ? getMaxSurvivalScore(currentUser)
+                    : (isBattle ? getMaxBattleScore(currentUser) : getMaxScore(currentUser)))
                 : 0;
 
             ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
@@ -4379,6 +4488,15 @@ function endGame() {
                     if (gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
                         drawSurvivalOverlay();   // red filter on top of bg+rocks+ship
+                    } else if (gameMode === GAME_MODES.BATTLE) {
+                        // Battle mode owns its own scene: red enemy
+                        // ships with HP bars, blue ray bullets, red
+                        // ray bullets. Shared drawShip() still draws
+                        // the player vessel underneath so dodging is
+                        // visible. Ordering is bottom → top.
+                        drawEnemies();
+                        drawPlayerBullets();
+                        drawEnemyBullets();
                     } else {
                         drawFallingStars();
                     }
