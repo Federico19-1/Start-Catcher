@@ -1,0 +1,303 @@
+        function drawRecordsScreen() {
+            drawBackground();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd700';
+            ctx.font = 'bold 38px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('🏆 RECORDS', canvas.width / 2, 60);
+
+            if (!currentUser) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '20px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('Create an account to see your records!', canvas.width / 2, 110);
+            } else {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.font = '15px Orbitron, sans-serif';
+                ctx.fillStyle = '#66dd88';
+                ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 92);
+
+                const classicRecords = getUserRecords(currentUser).filter(r => r > 0);
+                const survivalRecords = getSurvivalRecords(currentUser).filter(r => r > 0);
+
+                // Two side-by-side columns so the player can compare their
+                // classic and survival bests at a glance. Sized so a
+                // "How much time did you play" band can live beneath.
+                // ----- Three-column records grid -----
+                // Classic | Survival | Battle side-by-side. The three
+                // cards are narrower (235 px each) than the old 2-col
+                // layout (350 px) so the Battle column can fit on the
+                // 800 px canvas without clipping. We keep leftColX /
+                // rightColX as backwards-compat aliases for any
+                // downstream references inside the body so we only
+                // touch one block here.
+                const colW = 235;
+                const colY = 110;
+                const colH = 290;
+                const colGap = 18;
+                const col1X = 30;
+                const col2X = col1X + colW + colGap;
+                const col3X = col2X + colW + colGap;
+                const leftColX = col1X;
+                const rightColX = col2X;
+
+                // Classic column
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ffd700';
+                ctx.fillStyle = 'rgba(74, 140, 255, 0.10)';
+                ctx.beginPath();
+                ctx.roundRect(leftColX, colY, colW, colH, 12);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(leftColX, colY, colW, colH, 12);
+                ctx.stroke();
+
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.fillStyle = '#88aaff';
+                ctx.shadowColor = '#4af';
+                ctx.shadowBlur = 15;
+                ctx.fillText('⭐ CLASSIC', leftColX + colW / 2, colY + 30);
+
+                ctx.font = '14px Orbitron, sans-serif';
+                ctx.shadowBlur = 4;
+                ctx.fillStyle = '#aac8ff';
+                ctx.fillText('Stars caught', leftColX + colW / 2, colY + 50);
+
+                ctx.shadowBlur = 4;
+                ctx.textAlign = 'left';
+                const classicStartY = colY + 85;
+                if (classicRecords.length === 0) {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No records yet', leftColX + colW / 2, classicStartY + 10);
+                } else {
+                    for (let i = 0; i < Math.min(5, classicRecords.length); i++) {
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+                        const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#aac8ff';
+                        ctx.fillStyle = color;
+                        ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowColor = 'black';
+                        ctx.fillText(medal + '  ' + classicRecords[i] + ' pts', leftColX + 25, classicStartY + i * 38);
+                    }
+                }
+
+                // Survival column
+                ctx.textAlign = 'center';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#ff6b6b';
+                ctx.fillStyle = 'rgba(180, 20, 20, 0.12)';
+                ctx.beginPath();
+                ctx.roundRect(rightColX, colY, colW, colH, 12);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 90, 90, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(rightColX, colY, colW, colH, 12);
+                ctx.stroke();
+
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.fillStyle = '#ff8888';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 15;
+                ctx.fillText('☠ SURVIVAL', rightColX + colW / 2, colY + 30);
+
+                ctx.font = '14px Orbitron, sans-serif';
+                ctx.shadowBlur = 4;
+                ctx.fillStyle = '#ffb0b0';
+                ctx.fillText('Time survived', rightColX + colW / 2, colY + 50);
+
+                ctx.textAlign = 'left';
+                const survivalStartY = colY + 85;
+                if (survivalRecords.length === 0) {
+                    ctx.fillStyle = '#666';
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No records yet', rightColX + colW / 2, survivalStartY + 10);
+                } else {
+                    for (let i = 0; i < Math.min(5, survivalRecords.length); i++) {
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+                        const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ffb0b0';
+                        ctx.fillStyle = color;
+                        ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowColor = 'black';
+                        ctx.fillText(medal + '  ' + survivalRecords[i] + 's', rightColX + 25, survivalStartY + i * 38);
+                    }
+                }
+            }
+
+            // ----- Battle column (right side of the new 3-column grid) -----
+            // Mirrors the Survival column rendering exactly but reads
+            // from the `${user}__battle` bucket via getBattleRecords
+            // and uses a warm orange palette ('🎯 BATTLE', 'Enemies killed',
+            // '#ff8a3d' borders) to distinguish it from the two cold-toned
+            // siblings. Records are rendered as 'N kills' instead of 'Ns'.
+            ctx.save();
+            const battleRecords = currentUser ? getBattleRecords(currentUser) : [];
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#ff8a3d';
+            ctx.fillStyle = 'rgba(74, 26, 10, 0.40)';
+            ctx.beginPath();
+            ctx.roundRect(col3X, colY, colW, colH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 138, 61, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(col3X, colY, colW, colH, 12);
+            ctx.stroke();
+            // Header
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd2a8';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#ff8a3d';
+            ctx.fillText('🎯 BATTLE', col3X + colW / 2, colY + 32);
+            ctx.shadowBlur = 0;
+            ctx.font = '13px Orbitron, sans-serif';
+            ctx.fillStyle = '#9aa6b2';
+            ctx.fillText('Enemies killed', col3X + colW / 2, colY + 52);
+            // Body
+            const hasBattle = battleRecords.some(r => r > 0);
+            if (!hasBattle) {
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd2a8';
+                ctx.fillText('No records yet', col3X + colW / 2, colY + 110);
+            } else {
+                ctx.font = '15px Orbitron, sans-serif';
+                battleRecords.slice(0, 5).forEach((record, idx) => {
+                    if (record <= 0) return;
+                    let label, color, weight = 'normal';
+                    if (idx === 0)      { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    else                { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
+                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
+                    ctx.fillStyle = color;
+                    ctx.fillText(label + ' kills', col3X + colW / 2, colY + 90 + idx * 28);
+                });
+            }
+            ctx.textAlign = 'left';
+            ctx.restore();
+
+            // ----- "How much time did you play" card -----
+            // Sits beneath the two record columns; the value is the
+            // per-account cumulative ms spent in the PLAYING state,
+            // formatted nicely. Always rendered (zero value still
+            // shows "0s" so the screen never feels broken on a
+            // brand-new account).
+            const cardX = 75;
+            const cardY = 425;
+            const cardW = canvas.width - cardX * 2;
+            const cardH = 90;
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#66e0ff';
+            const cardGrad = ctx.createLinearGradient(cardX, cardY, cardX, cardY + cardH);
+            cardGrad.addColorStop(0, 'rgba(20, 50, 80, 0.85)');
+            cardGrad.addColorStop(1, 'rgba(10, 25, 50, 0.95)');
+            ctx.fillStyle = cardGrad;
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, 14);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(102, 224, 255, 0.55)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, 14);
+            ctx.stroke();
+
+            // Header label (left)
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            ctx.fillStyle = '#9cd3ff';
+            ctx.fillText('⏱  HOW MUCH TIME DID YOU PLAY', cardX + 22, cardY + 26);
+
+            // Friendly description
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.fillStyle = '#7eaad6';
+            ctx.shadowBlur = 3;
+            ctx.fillText('Active gameplay across this account', cardX + 22, cardY + 46);
+
+            // Big value (right-aligned)
+            const playMs = currentUser ? getPlayTime(currentUser) : 0;
+            const playText = formatPlayTime(playMs);
+            ctx.textAlign = 'right';
+            ctx.font = 'bold 30px Orbitron, sans-serif';
+            ctx.shadowColor = '#66e0ff';
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(playText, cardX + cardW - 22, cardY + 60);
+            ctx.shadowBlur = 0;
+
+            // Lightweight sub-label under the value
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.fillStyle = '#7eaad6';
+            ctx.shadowBlur = 3;
+            ctx.fillText('h   m   s', cardX + cardW - 22, cardY + 78);
+
+            const backY = 540;
+            const backW = 160;
+            const backH = 35;
+            const backX = canvas.width / 2 - backW / 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#2a4a7a';
+            ctx.beginPath();
+            ctx.roundRect(backX, backY, backW, backH, 10);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'white';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('← BACK', canvas.width / 2, backY + 25);
+
+            menuButtons = [
+                { rect: { x: backX, y: backY, w: backW, h: backH }, action: 'back' }
+            ];
+
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        // ----- Volume row (used as a sub-row under MUSIC / CLASSIC MUSIC) -----
+        // Renders "VOLUME" label + −/+ step buttons + filled bar + % readout.
+        // The bar is CONTINUOUS (one rect), not segmented, so it expands/
+        // contracts smoothly with each step. Only the step buttons are
+        // click targets — tapping the bar itself does nothing, matching
+        // the surrounding tap-driven UI. The same gold/orange palette
+        // the BACK button uses ties the row to the panel's accent colour.
+        // With 11 volume levels (0.0 → 1.0 in 0.1 steps) and matching the
+        // existing Orbitron typography, the row reads as a sibling of
+        // drawSettingsRow rather than a foreign widget.
+        function drawVolumeRow(x, y, w, h, level, decAction, incAction) {
+            // "VOLUME" label on the left.
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 3;
+            ctx.fillStyle = '#88ddff';
+            ctx.fillText('VOLUME', x + 6, y + h / 2);
+
+            // − button (28×28 square)
+            const btnSize = 28;
+            const btnY = y + (h - btnSize) / 2;
+            const decBtnX = x + 65;
+
+            // Continuous bar (200×12)
+            const barW = 200;
+            const barH = 12;
+            const barX = decBtnX + btnSize + 12;
+            const barY = y + (h - barH) / 2;
+
+            // + button (28×28 square)
