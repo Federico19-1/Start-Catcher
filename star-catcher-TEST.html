@@ -3493,130 +3493,42 @@ function endGame() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle   = gameMode === GAME_MODES.BATTLE;
             // ----- Battle HUD overlay -----
-            // The Battle health bar was relocated from a 6 px-tall full-
-            // width strip pinned to the TOP edge of the canvas to a
-            // 22 px-tall, 680 px-wide rounded-rect widget anchored to the
-            // BOTTOM of the canvas (slightly inset from both sides so the
-            // bottom-right FIRE-button DOM overlay stays clear of the
-            // bar visually). The new bar is taller AND wider as a visual
-            // unit (chunky round-frame instead of a thin strip), framed
-            // with the project's accent-alt teal border so it reads as a
-            // discrete widget rather than a thin line, and renders:
-            //   1) 10 segmented cells that fill left-to-right as HP
-            //      recovers, color-coded green / amber / red by ratio
-            //      (thresholds preserved from the previous bar so muscle
-            //      memory carries between modes),
-            //   2) a heart-icon prefix label on the left edge of the
-            //      frame and the numeric "X/100" suffix on the right
-            //      (the old top-right "❤ X/100" text is gone — same
-            //      info now lives on the bar itself),
-            //   3) a pulsing red drop-shadow glow when HP drops below
-            //      25% so the player gets a clear urgency cue without
-            //      having to read the number,
-            //   4) the existing top-left "🛡 KILLS: N" readout, kept at
-            //      its original position so the kill counter isn't
-            //      displaced by the bar move.
+            // Two visual elements render BEFORE anything else:
+            //   1) a 6 px-tall health strip across the very top edge
+            //      of the canvas, color-coded green/yellow/red so the
+            //      player can read their remaining HP at a glance.
+            //   2) a compact "KILLS / BEST" readout on the top so the
+            //      player can compare their current run to their
+            //      personal record without opening the Records screen.
             if (isBattle) {
                 const hpMax = 100;
                 const ratio = Math.max(0, hp) / hpMax;
-                // Bottom-anchored geometry: barY is computed from the
-                // canvas height instead of hard-coded, so the widget
-                // follows the canvas if its CSS sizing ever changes.
-                // Width 560 + height 24 yields a "more distinct" widget
-                // than the prior 800×6 strip (4× taller, framed, with
-                // 10 segmented cells + heart prefix + pulsing urgency
-                // glow — see comments further down).  The horizontal
-                // width is intentionally NARROWER than the prior strip
-                // because the bottom-right FIRE-button DOM overlay
-                // (≈ x≥700 on a 800 px canvas) covers the right edge;
-                // keeping barW ≤ 560 guarantees the segmented cells on
-                // the right side remain readable in front of the button.
-                // The player's sprite at y=550±100 partially overlaps
-                // the bar's bottom edge at y=560..584 — that stacking
-                // is intentional (HUD-on-sprite convention) and the
-                // frame's 0.92 alpha still lets the ship show through.
-                const barH = 24;
-                const barW = 560;
-                const barX = (canvas.width - barW) / 2;            // = 120 for an 800 px canvas
-                const barY = canvas.height - barH - 16;            // = 560 for the default 600 px canvas
-                // Color band preserved from the prior bar so a returning
-                // player reads the same semantic at a glance.
+                const barX = 0;
+                const barW = canvas.width;
+                const barY = 0;
+                const barH = 6;
+                ctx.fillStyle = 'rgba(0,0,0,0.72)';
+                ctx.fillRect(barX, barY, barW, barH);
+                const fillW = Math.max(0, barW * ratio);
                 let hpColor;
-                if (ratio > 0.5)      hpColor = '#3ec46d';
+                if (ratio > 0.5) hpColor = '#3ec46d';
                 else if (ratio > 0.25) hpColor = '#ffaa33';
-                else                   hpColor = '#ff6b6b';
-                // Low-HP pulsing shadow: the sin() term oscillates the
-                // glow radius between ~8 and ~24 px at ~12 Hz so it
-                // reads as an urgent warning without strobing too fast.
-                const lowHp = ratio > 0 && ratio <= 0.25;
-                ctx.shadowBlur = lowHp ? 16 + Math.sin(Date.now() / 130) * 8 : 0;
-                ctx.shadowColor = '#ff6b6b';
-                // 1) Outer dark frame so the cells inside always read,
-                //    regardless of background parallax.
-                ctx.fillStyle = 'rgba(7, 10, 16, 0.92)';
-                ctx.beginPath();
-                ctx.roundRect(barX, barY, barW, barH, 10);
-                ctx.fill();
-                // 2) 10 segmented cells. The 14 px gutters on each side
-                //    reserve space for the ❤ prefix and X/100 suffix so
-                //    labels never overlap a cell.
-                const segments = 10;
-                const segGap = 3;
-                const segW = (barW - 28 - segGap * (segments - 1)) / segments;
-                const segStartX = barX + 14;
-                const segTopY = barY + 4;
-                const segBotY = barY + barH - 4;
-                const segH = segBotY - segTopY;
-                for (let i = 0; i < segments; i++) {
-                    const sLeft = segStartX + i * (segW + segGap);
-                    const sFilled = ratio * segments > i + 0.0001;
-                    ctx.fillStyle = sFilled ? hpColor : 'rgba(255,255,255,0.10)';
-                    ctx.beginPath();
-                    ctx.roundRect(sLeft, segTopY, segW, segH, 4);
-                    ctx.fill();
-                }
-                // 3) Border — teal accent normally, switches to red on
-                //    low HP so the entire frame, not just the cells,
-                //    signals danger.
-                ctx.strokeStyle = lowHp ? '#ff6b6b' : '#49d7c8';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.roundRect(barX, barY, barW, barH, 10);
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-                // 4) Heart prefix on the left gutter so the bar is
-                //    self-describing (no need to glance at the top of
-                //    the screen to read it). The numeric "X/100" suffix
-                //    is intentionally OMITTED — it used to sit on the
-                //    right end of the bar, but the bottom-right FIRE-
-                //    button DOM overlay lives at approx x≥700 covering
-                //    the entire right edge of the bar at this width.
-                //    The 10 segmented cells already convey the ratio at
-                //    a glance (3 cells of 10 = 30 % HP) so the suffix
-                //    is redundant. If the FIRE button ever moves, the
-                //    suffix can be reinstated by re-adding the two
-                //    measureText/fillText lines below.
-                ctx.font = 'bold 16px Orbitron, sans-serif';
-                ctx.textBaseline = 'middle';
+                else hpColor = '#ff6b6b';
                 ctx.fillStyle = hpColor;
-                // Color-emoji heart (U+2764 U+FE0F) — the FE0F variation
-                // selector forces U+2764 to render as the colourful
-                // emoji glyph (matching the 🛡 emoji in the KILLS
-                // readout + the inline heart used in record readouts)
-                // instead of falling back to the flat BMP dingbat.
-                // Centred exactly on barY + barH / 2 — with textBaseline
-                // 'middle' the +1 micro-shift would be an arbitrary
-                // 1-px nudge, so it's omitted.
-                ctx.fillText('\u2764\ufe0f', barX + 8, barY + barH / 2);
-                ctx.textBaseline = 'alphabetic';
-                // 5) Top-left KILLS readout — kept at its original
-                //    position so the player's eye-line for kill count
-                //    doesn't shift when the bar moves to the bottom.
+                ctx.fillRect(barX, barY, fillW, barH);
+                // KILLS + HP readouts in the same conditional block so
+                // the HUD has a single source of truth for "is this a
+                // battle HUD" — avoids the prior nested if(isBattle)
+                // that split the bar render from the readout render.
                 ctx.shadowBlur = 14;
                 ctx.shadowColor = '#ff6b6b';
                 ctx.fillStyle = '#ff6b6b';
                 ctx.font = 'bold 16px Orbitron, sans-serif';
                 ctx.fillText(`🛡 KILLS: ${score}`, 20, 26);
+                const hpText = `❤ ${hp}/100`;
+                const hpTextWidth = ctx.measureText(hpText).width;
+                ctx.fillStyle = hpColor;
+                ctx.fillText(hpText, canvas.width - hpTextWidth - 20, 26);
                 ctx.shadowBlur = 0;
             }
             const highScore = currentUser
@@ -4580,7 +4492,7 @@ function endGame() {
             ctx.shadowColor = 'black';
             ctx.font = '15px Orbitron, sans-serif';
             ctx.fillStyle = '#aaa';
-            ctx.fillText('Customize your audio', canvas.width / 2, 98);
+            ctx.fillText('Customize your settings', canvas.width / 2, 98);
 
             // Outer panel — sized for 4 toggle rows + 3 volume sub-rows.
             // Each music track (menu / classic / survival) owns its own
