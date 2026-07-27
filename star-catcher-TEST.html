@@ -355,14 +355,19 @@
         let playingStartedAt = 0;
 
         let settings = {
-            schemaVersion: 3,                  // bump when migrations land so loadSettings skips them
+            schemaVersion: 4,                  // bump when migrations land so loadSettings skips them
             music: true,
             classicMusic: true,
             survivalMusic: true,
             sfx: true,
             menuVolume: 0.7,
             classicVolume: 0.7,
-            survivalVolume: 0.7
+            survivalVolume: 0.7,
+            // Survival mode: when true the player follows the mouse cursor
+            // EXACTLY (no smoothing) and can roam anywhere on screen —
+            // affects player.x AND player.y. Defaults to false so the
+            // original bottom-strip dodging behaviour stays the default.
+            survivalFreeMovement: false
         };
 
         const player = {
@@ -375,6 +380,15 @@
             // losing all their hearts in 2 seconds).
             hp: 100
         };
+
+        // Raw mouse/touch coordinates in canvas pixels. The mousemove
+        // handler updates these on every event regardless of gameState,
+        // so update() can read them in the very first frame after
+        // entering Survival-with-free-movement (when the player model
+        // still sits at its default y=550 but the cursor already lives
+        // somewhere up at, say, y=120).
+        let mouseX = 400;
+        let mouseY = 550;
 
         let stars = [];
         let meteorites = [];
@@ -1166,7 +1180,12 @@
                 sfx: true,
                 menuVolume: 0.7,
                 classicVolume: 0.7,
-                survivalVolume: 0.7
+                survivalVolume: 0.7,
+                // Mirror of the let-settings initialiser: brand-new
+                // visitors (no localStorage yet) get free movement in
+                // Survival OFF so they experience the same classic game
+                // flow as before this option existed.
+                survivalFreeMovement: false
             };
             try {
                 const raw = localStorage.getItem(settingsStorageKey());
@@ -1192,10 +1211,13 @@
                     // had music + classicMusic) get the new survivalMusic
                     // + survivalVolume fields added with the same 0.3→0.7
                     // bump rule we used for the menu / classic volumes.
-                    const needsMigration = (parsed.schemaVersion || 0) < 3;
+                    // Bumped again <3 → <4 so accounts created before the
+                    // free-movement toggle was added get survivalFreeMovement
+                    // backfilled as false (preserves the legacy feel).
+                    const needsMigration = (parsed.schemaVersion || 0) < 4;
                     const musicVal = typeof parsed.music === 'boolean' ? parsed.music : defaults.music;
                     const result = {
-                        schemaVersion: 3,                  // always current after migration runs
+                        schemaVersion: 4,                  // always current after migration runs
                         music: musicVal,
                         classicMusic: parsed.classicMusic ?? musicVal,
                         survivalMusic: parsed.survivalMusic ?? musicVal,
@@ -1208,7 +1230,14 @@
                             : clampVolume(parsed.classicVolume),
                         survivalVolume: (needsMigration && clampVolume(parsed.survivalVolume) === 0.3)
                             ? defaults.survivalVolume
-                            : clampVolume(parsed.survivalVolume)
+                            : clampVolume(parsed.survivalVolume),
+                        // Free movement is a NEW gameplay-affecting flag —
+                        // never inherited from the old `music` umbrella so
+                        // legacy accounts that kept music on don't suddenly
+                        // find the ship glued to the cursor on first load.
+                        survivalFreeMovement: typeof parsed.survivalFreeMovement === 'boolean'
+                            ? parsed.survivalFreeMovement
+                            : defaults.survivalFreeMovement
                     };
                     if (needsMigration) {
                         try { localStorage.setItem(settingsStorageKey(), JSON.stringify(result)); } catch (e) {}
@@ -2142,14 +2171,40 @@ function startGame(mode) {
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
-            // Ship follows the cursor / mouse-drag target with smooth
-            // damping. Mouse, touch, and the canvas drag handler (which
-            // updates targetX on move events) are the only ways to
-            // steer — keyboard arrow movement is gone.
-            player.x += (player.targetX - player.x) * 0.3;
-
-            if (player.x < player.radius) player.x = player.radius;
-            if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+            // Movement has two branches:
+            //
+            //   (A) Survival-mode free movement (toggle ON) — the ship
+            //       tracks the cursor EXACTLY and is allowed anywhere on
+            //       canvas. Reads mouseX/mouseY globals that the
+            //       mousemove handler keeps fresh. No smoothing, full
+            //       vertical freedom, same radius-inward clamping as
+            //       the smoothed branch so the ship never clips past
+            //       the canvas edges.
+            //
+            //   (B) Default smoothed horizontal damping toward
+            //       player.targetX — same behaviour as before, applies
+            //       to Classic + Battle + Survival-when-toggle-OFF.
+            //
+            // Mouse, touch, and the canvas drag handler (which updates
+            // targetX on move events) are the only ways to steer —
+            // keyboard arrow movement is gone.
+            if (gameMode === GAME_MODES.SURVIVAL
+                && settings.survivalFreeMovement) {
+                // Snap directly to the cursor (no targetX smoothing,
+                // full vertical freedom). Clamp the same way the
+                // smoothed branch does so the ship never half-straddles
+                // the canvas edge no matter which way the cursor is.
+                player.x = mouseX;
+                player.y = mouseY;
+                if (player.x < player.radius) player.x = player.radius;
+                if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+                if (player.y < player.radius) player.y = player.radius;
+                if (player.y > canvas.height - player.radius) player.y = canvas.height - player.radius;
+            } else {
+                player.x += (player.targetX - player.x) * 0.3;
+                if (player.x < player.radius) player.x = player.radius;
+                if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+            }
 
             if (gameMode === GAME_MODES.CLASSIC) {
                 // Classic: stars fall; catching them gives points, missing
@@ -4405,7 +4460,15 @@ function endGame() {
             // (panelY 100 + 429 = 529) clear of the BACK button anchored
             // at canvas.height - 50 (= 550), leaving a 21 px gap.
             const panelW = 480;
-            const panelH = 429;
+            // Bumped 429 → 497 (Mar 2026) to fit the new 🎮 GAME
+            // CONTROLS section at the bottom of the panel. The extra
+            // 68 px hosts the section header label + a single
+            // drawSettingsRow for the Free-Movement toggle WITHOUT
+            // disturbing the seven existing SOUNDS rows — those still
+            // use the original panelY + 15/76/127/198/259/310/371
+            // anchors so the audio UI is byte-for-byte identical to
+            // before this feature was added.
+            const panelH = 497;
             const panelX = canvas.width / 2 - panelW / 2;
             const panelY = 100;
 
@@ -4470,6 +4533,32 @@ function endGame() {
 
             drawVolumeRow(rowX, panelY + 371, innerW, 36,
                 settings.survivalVolume, 'survivalVolDown', 'survivalVolUp');
+
+            // ----- 🎮 GAME CONTROLS section ----------------------------------
+            // Visual separator between audio controls and gameplay-affecting
+            // controls. Same amber/teal accent used in the Settings panel
+            // border so the new section reads as a natural continuation
+            // instead of a foreign block. ctx.save()/ctx.restore() scopes
+            // the small 'fillStyle' / 'shadowBlur' we briefly change so
+            // the existing SOUNDS rows above (and the per-account note
+            // below) keep their original colours.
+            ctx.save();
+            ctx.fillStyle = 'rgba(73, 215, 200, 0.9)';   // teal accent – pairs
+            ctx.shadowColor = 'rgba(73, 215, 200, 0.6)';  // with the panel glow
+            ctx.shadowBlur = 6;
+            ctx.font = 'bold 14px Orbitron, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText('🎮 GAME CONTROLS', rowX, panelY + 425);
+            ctx.restore();
+
+            // Free-movement toggle. Same drawSettingsRow helper as the
+            // SOUNDS rows so the pill geometry / ON-OFF colours are
+            // perfectly consistent — only the title/description differ
+            // to make it obvious that this affects MOVEMENT not audio.
+            drawSettingsRow(rowX, panelY + 440, innerW, 56,
+                '🖱 FREE MOVEMENT (Survival)',
+                'Ship follows the cursor exactly — no smoothing, full screen.',
+                settings.survivalFreeMovement, 'toggleSurvivalFreeMovement');
 
             // Per-account note (subtle, between panel and BACK button).
             // Drawn at panelY + panelH + 13 so it sits in the gap below
@@ -4798,6 +4887,16 @@ function endGame() {
                     playClickSound();
                     recordMissionEvent('toggled_setting');
                     break;
+                case 'toggleSurvivalFreeMovement':
+                    // Flips the new GAME CONTROLS toggle: when ON, the
+                    // Survival-mode ship tracks the cursor EXACTLY (no
+                    // smoothing) and roams anywhere on canvas. No audio
+                    // side-effect — this is purely a movement setting.
+                    settings.survivalFreeMovement = !settings.survivalFreeMovement;
+                    saveSettings();
+                    playClickSound();
+                    recordMissionEvent('toggled_setting');
+                    break;
                 case 'survivalVolDown':
                     if (settings.survivalVolume > 0) {
                         setSurvivalVolume(settings.survivalVolume - 0.1);
@@ -4843,6 +4942,12 @@ function endGame() {
 
         canvas.addEventListener('mousemove', (event) => {
             const c = getGameCoords(event);
+            // Mirror the latest cursor position into the module-level
+            // mouseX/mouseY globals so update() can read them in any
+            // gameState. This is shared with touch events because
+            // getGameCoords() already handles touches/touch-changed.
+            mouseX = c.x;
+            mouseY = c.y;
             const wasHovering = blueCharacter.isHovering;
             if (gameState === GAME_STATES.MENU) {
                 if (!rocketEmoji.isEscaping) {
