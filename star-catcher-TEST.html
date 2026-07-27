@@ -3719,17 +3719,10 @@ function endGame() {
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
             ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL' : '🏆 TOP 10', leftColX, top5Y);
-            // ----- Battle mode best-score inline badge -----
-            // Surfaces the player's top Battle run right next to the
-            // existing TOP 10 header so the new mode is visible even
-            // though the full 3-column grid hasn't been integrated yet.
-            // TODO: replace with a real Battle column once the records
-            // grid layout is refactored to 3 columns of ~240 px.
-            const battleBest = currentUser ? getMaxBattleScore(currentUser) : 0;
-            ctx.shadowBlur = 0;
-            ctx.font = 'bold 12px Orbitron, sans-serif';
-            ctx.fillStyle = battleBest > 0 ? '#ff8a3d' : '#9aa6b2';
-            ctx.fillText(`⚔ BATTLE BEST: ${battleBest} ${battleBest === 1 ? 'kill' : 'kills'}`, leftColX, top5Y + 22);
+            // (Previously a '⚔ BATTLE BEST' inline badge sat here as
+            // a placeholder for the third column. It has been replaced
+            // by the dedicated Battle column on drawRecordsScreen —
+            // search for `col3X` to find the new layout.)
 
             if (currentUser) {
                 const records = isSurvival
@@ -3951,11 +3944,23 @@ function endGame() {
                 // Two side-by-side columns so the player can compare their
                 // classic and survival bests at a glance. Sized so a
                 // "How much time did you play" band can live beneath.
-                const colW = 350;
-                const colY = 120;
+                // ----- Three-column records grid -----
+                // Classic | Survival | Battle side-by-side. The three
+                // cards are narrower (235 px each) than the old 2-col
+                // layout (350 px) so the Battle column can fit on the
+                // 800 px canvas without clipping. We keep leftColX /
+                // rightColX as backwards-compat aliases for any
+                // downstream references inside the body so we only
+                // touch one block here.
+                const colW = 235;
+                const colY = 110;
                 const colH = 290;
-                const leftColX = canvas.width / 2 - colW - 15;
-                const rightColX = canvas.width / 2 + 15;
+                const colGap = 18;
+                const col1X = 30;
+                const col2X = col1X + colW + colGap;
+                const col3X = col2X + colW + colGap;
+                const leftColX = col1X;
+                const rightColX = col2X;
 
                 // Classic column
                 ctx.shadowBlur = 12;
@@ -4045,6 +4050,60 @@ function endGame() {
                     }
                 }
             }
+
+            // ----- Battle column (right side of the new 3-column grid) -----
+            // Mirrors the Survival column rendering exactly but reads
+            // from the `${user}__battle` bucket via getBattleRecords
+            // and uses a warm orange palette ('🎯 BATTLE', 'Enemies killed',
+            // '#ff8a3d' borders) to distinguish it from the two cold-toned
+            // siblings. Records are rendered as 'N kills' instead of 'Ns'.
+            ctx.save();
+            const battleRecords = currentUser ? getBattleRecords(currentUser) : [];
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#ff8a3d';
+            ctx.fillStyle = 'rgba(74, 26, 10, 0.40)';
+            ctx.beginPath();
+            ctx.roundRect(col3X, colY, colW, colH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 138, 61, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(col3X, colY, colW, colH, 12);
+            ctx.stroke();
+            // Header
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd2a8';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#ff8a3d';
+            ctx.fillText('🎯 BATTLE', col3X + colW / 2, colY + 32);
+            ctx.shadowBlur = 0;
+            ctx.font = '13px Orbitron, sans-serif';
+            ctx.fillStyle = '#9aa6b2';
+            ctx.fillText('Enemies killed', col3X + colW / 2, colY + 52);
+            // Body
+            const hasBattle = battleRecords.some(r => r > 0);
+            if (!hasBattle) {
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd2a8';
+                ctx.fillText('No records yet', col3X + colW / 2, colY + 110);
+            } else {
+                ctx.font = '15px Orbitron, sans-serif';
+                battleRecords.slice(0, 5).forEach((record, idx) => {
+                    if (record <= 0) return;
+                    let label, color, weight = 'normal';
+                    if (idx === 0)      { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    else                { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
+                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
+                    ctx.fillStyle = color;
+                    ctx.fillText(label + ' kills', col3X + colW / 2, colY + 90 + idx * 28);
+                });
+            }
+            ctx.textAlign = 'left';
+            ctx.restore();
 
             // ----- "How much time did you play" card -----
             // Sits beneath the two record columns; the value is the
