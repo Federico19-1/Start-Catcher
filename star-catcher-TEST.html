@@ -3658,6 +3658,15 @@ function endGame() {
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80);
+
+            // Saved-overlay render LAST so it sits ON TOP of the
+            // Battle HP bar and the rest of the HUD overlay — the
+            // centred ✓ Saved toast is the single screen-spanning
+            // confirmation the player can't miss even if attention
+            // was elsewhere at the moment of save. drawSavedOverlay()
+            // short-circuits itself when savedOverlayUntil has
+            // expired, so the call costs nothing in steady state.
+            drawSavedOverlay();
         }
 
         function drawPauseScreen() {
@@ -3799,6 +3808,13 @@ function endGame() {
                 { rect: { x: menuPauseX, y: btnY, w: btnW, h: btnH }, action: 'pauseMenu' },
                 { rect: { x: saveBtnX, y: saveBtnY, w: saveBtnW, h: saveBtnH }, action: 'pauseSave' }
             ];
+
+            // Saved-overlay render LAST so it sits ON TOP of the
+            // pause backdrop and the SAVE-button itself — the player
+            // gets immediate visible feedback the moment they tap
+            // SAVE, even while paused. drawSavedOverlay() handles its
+            // own fade-out + short-circuit when inactive.
+            drawSavedOverlay();
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
@@ -5222,6 +5238,49 @@ function endGame() {
         let menuSaveBtnText = '\ud83d\udcbe SAVE';
         let menuSaveBtnFlashUntil = 0;
 
+        // ----- Centered "Saved" overlay state -----
+        // Time-bounded slot for the big centered ✓ Saved confirmation
+        // that fires after every successful save — whether the trigger
+        // is the S/s hotkey or the pause-menu SAVE button. This
+        // serves as the screen-spanning confirmation the user can NOT
+        // miss even when attention was elsewhere at the moment of
+        // save. The 2.0 s window is split 0..1.5 s at full alpha,
+        // 1.5..2.0 s linear fade-out, so it doesn't pop out abruptly
+        // at expiry. Set in saveCurrentRun() after the localStorage
+        // + records writes; drawn in drawSavedOverlay() called at the
+        // END of drawGameUI() (so it sits on top of the Battle HP bar
+        // and HUD overlay during game play) AND drawPauseScreen()
+        // (so it sits on top of the pause backdrop when saved from
+        // the pause overlay).
+        let savedOverlayUntil = 0;
+
+        // Render the centred ✓ Saved confirmation. Single source of
+        // truth for the overlay's appearance so PLAYING and PAUSED
+        // states always agree on font, colour, position, and fade-out
+        // curve. ctx.save() / ctx.restore() wrap the draw so the rest
+        // of the frame's ctx state (font, shadow, baseline, alpha)
+        // isn't polluted by this overlay.
+        function drawSavedOverlay() {
+            const now = Date.now();
+            if (now >= savedOverlayUntil) return;
+            const remain = savedOverlayUntil - now;
+            const alpha = remain > 500 ? 1 : (remain / 500);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Light-green (#aaffaa) + matching green glow — same
+            // palette family as the green Resume button / green
+            // "success" cues elsewhere in the project — so the toast
+            // reads as the "saved / safe / continue" family.
+            ctx.shadowColor = '#aaffaa';
+            ctx.shadowBlur = 40;
+            ctx.fillStyle = '#aaffaa';
+            ctx.font = 'bold 64px Orbitron, sans-serif';
+            ctx.fillText('\u2713 Saved', canvas.width / 2, canvas.height / 2);
+            ctx.restore();
+        }
+
         // Pulse the S pill in the HUD at full opacity for 1.5 s,
         // then fade it back to whatever opacity it had before (0
         // while idle, 1 while the pause overlay is up — the
@@ -5303,6 +5362,32 @@ function endGame() {
                 } else {
                     flashSavePill();
                 }
+                // ----- Persist score to per-mode records -----
+                // The previous iteration saved only to the
+                // ${user}__save bucket (snapshot for a future Resume
+                // feature). The player expects Save to ALSO show up
+                // in the RECORDS screen for the matching mode, so the
+                // current run's score is additionally pushed into the
+                // per-mode top-10 via the same helper gameOver uses.
+                // addScoreToUser / addSurvivalScoreToUser /
+                // addBattleScoreToUser silently no-op on score <= 0
+                // (e.g. saving before catching anything), so a
+                // 0-score save doesn't bloat the records bucket.
+                if (score > 0) {
+                    if (gameMode === GAME_MODES.CLASSIC) {
+                        addScoreToUser(currentUser, score);
+                    } else if (gameMode === GAME_MODES.SURVIVAL) {
+                        addSurvivalScoreToUser(currentUser, score);
+                    } else if (gameMode === GAME_MODES.BATTLE) {
+                        addBattleScoreToUser(currentUser, score);
+                    }
+                }
+                // ----- Trigger the screen-spanning overlay -----
+                // 2.0 s window so the player has time to read the
+                // toast even if their eyes were elsewhere at the
+                // moment of save. drawSavedOverlay() handles the fade
+                // out automatically — no separate timer needed here.
+                savedOverlayUntil = Date.now() + 2000;
             } catch (e) {
                 // localStorage quota / disabled storage: best-effort.
                 // The audio cue is INSIDE the try so a quota error
