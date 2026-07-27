@@ -218,7 +218,6 @@
             color: #ffb0b0;
             border-color: rgba(255, 120, 120, 0.22);
         }
-
     </style>
 </head>
 
@@ -248,12 +247,14 @@
         <input type="text" id="accountMobileInput" maxlength="12" placeholder="Name (max 12 char)"
             class="account-card__input">
         <div class="account-card__actions">
-            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost">🗑️ Clear Name</button>
+            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost">🗑️ Clear
+                Name</button>
             <button id="mobileConfirmBtn" class="account-card__button account-card__button--primary">✅ CONFIRM</button>
             <button id="mobileCancelBtn" class="account-card__button account-card__button--secondary">✖ CANCEL</button>
         </div>
         <div style="margin-top: 15px;">
-            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger">🗑️ Clear Account</button>
+            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger">🗑️ Clear
+                Account</button>
         </div>
     </div>
 
@@ -503,8 +504,8 @@
         const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
         const SURVIVAL_MONSTER_RESPAWN_MIN_MS = 14000; // 14-22 s randomised respawn
         const SURVIVAL_MONSTER_RESPAWN_MAX_MS = 22000;
-        const MONSTER_WARP_IN_MS  = 800;                // alpha ease-in
-        const MONSTER_ACTIVE_MS   = 3500;               // total beam-on window
+        const MONSTER_WARP_IN_MS = 800;                // alpha ease-in
+        const MONSTER_ACTIVE_MS = 3500;               // total beam-on window
         const MONSTER_FADE_OUT_MS = 800;                // alpha ease-out
         const MONSTER_BEAM_ONSET_MS = 700;              // beam fires 0.7 s into "active" so the player can read the monster first
         const monster = {
@@ -1364,7 +1365,7 @@
                             : defaults.survivalFreeMovement
                     };
                     if (needsMigration) {
-                        try { localStorage.setItem(settingsStorageKey(), JSON.stringify(result)); } catch (e) {}
+                        try { localStorage.setItem(settingsStorageKey(), JSON.stringify(result)); } catch (e) { }
                     }
                     return result;
                 }
@@ -1405,17 +1406,17 @@
         // and a red/burgundy auto-bumped "super streak" earned by
         // completing all of today's 3 missions.
         const MISSION_POOL = [
-            { id: 'catch5',     label: 'Catch 1000 stars in Classic',       target: 5,  type: 'classic_score' },
-            { id: 'catch10',    label: 'Catch 100 stars in Classic',      target: 10, type: 'classic_score' },
-            { id: 'catch15',    label: 'Catch 550 stars in Classic',      target: 15, type: 'classic_score' },
-            { id: 'survive20',  label: 'Survive 20s in Survival',         target: 20, type: 'survival_time' },
-            { id: 'survive30',  label: 'Survive 30s in Survival',         target: 30, type: 'survival_time' },
-            { id: 'survive45',  label: 'Survive 45s in Survival',         target: 45, type: 'survival_time' },
-            { id: 'battle_kill_5',  label: 'Destroy 5 enemies in Battle', target: 5,  type: 'battle_kills' },
+            { id: 'catch5', label: 'Catch 1000 stars in Classic', target: 5, type: 'classic_score' },
+            { id: 'catch10', label: 'Catch 100 stars in Classic', target: 10, type: 'classic_score' },
+            { id: 'catch15', label: 'Catch 550 stars in Classic', target: 15, type: 'classic_score' },
+            { id: 'survive20', label: 'Survive 20s in Survival', target: 20, type: 'survival_time' },
+            { id: 'survive30', label: 'Survive 30s in Survival', target: 30, type: 'survival_time' },
+            { id: 'survive45', label: 'Survive 45s in Survival', target: 45, type: 'survival_time' },
+            { id: 'battle_kill_5', label: 'Destroy 5 enemies in Battle', target: 5, type: 'battle_kills' },
             { id: 'battle_kill_15', label: 'Destroy 15 enemies in Battle', target: 15, type: 'battle_kills' },
-            { id: 'visit_set',  label: 'Visit Settings today',           type: 'visit_settings' },
-            { id: 'toggle_set', label: 'Toggle a setting today',         type: 'toggle_setting' },
-            { id: 'both_modes', label: 'Play both Classic + Survival',   type: 'both_modes' },
+            { id: 'visit_set', label: 'Visit Settings today', type: 'visit_settings' },
+            { id: 'toggle_set', label: 'Toggle a setting today', type: 'toggle_setting' },
+            { id: 'both_modes', label: 'Play both Classic + Survival', type: 'both_modes' },
             { id: 'all_modes', label: 'Play Battle Classic  and Survival modes today', type: 'all_modes' }
         ];
 
@@ -1638,14 +1639,14 @@
             for (const mission of m.missionsForDay) {
                 let done = false;
                 switch (mission.type) {
-                    case 'classic_score':          done = m.bestClassicScoreToday >= mission.target; break;
-                    case 'survival_time':          done = m.bestSurvivalTimeToday >= mission.target; break;
-                    case 'no_death_run':           done = m.noDeathClassicToday; break;
-                    case 'battle_kills':           done = m.bestBattleKillsToday >= mission.target; break;
-                    case 'battle_no_damage_run':   done = !!(m.noDamageBattleToday && m.bestBattleKillsToday >= 1); break;
-                    case 'visit_settings':         done = m.settingsVisitedToday; break;
-                    case 'toggle_setting':         done = (m.settingsToggledCountToday || 0) >= 1; break;
-                    case 'both_modes':             done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
+                    case 'classic_score': done = m.bestClassicScoreToday >= mission.target; break;
+                    case 'survival_time': done = m.bestSurvivalTimeToday >= mission.target; break;
+                    case 'no_death_run': done = m.noDeathClassicToday; break;
+                    case 'battle_kills': done = m.bestBattleKillsToday >= mission.target; break;
+                    case 'battle_no_damage_run': done = !!(m.noDamageBattleToday && m.bestBattleKillsToday >= 1); break;
+                    case 'visit_settings': done = m.settingsVisitedToday; break;
+                    case 'toggle_setting': done = (m.settingsToggledCountToday || 0) >= 1; break;
+                    case 'both_modes': done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
                 }
                 m.missionsCompleted[mission.id] = done;
             }
@@ -1909,7 +1910,7 @@
                         progressText = `Toggled ${m.settingsToggledCountToday || 0} time(s)`;
                     } else if (mission.type === 'both_modes') {
                         const parts = [m.modesPlayedToday.classic ? '\u2b50 Classic \u2713' : '\u2606 Classic',
-                                       m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival'];
+                        m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival'];
                         progressText = parts.join('   \u00b7   ');
                     }
                     ctx.fillText(progressText, cardX + 62, y + 42);
@@ -2044,35 +2045,35 @@
             player.targetX = 400;
         }
 
-function startGame(mode) {
-    if (typeof mode === 'string') {
-        gameMode = mode;
-    }
-    if (!currentUser) {
-        showMobileInput(false);
-        gameState = GAME_STATES.ACCOUNT;
-        accountInput = '';
-        return;
-    }
-    stopMenuMusic();
-    resetGame();
-    showMobileInput(false);
-    gameState = GAME_STATES.PLAYING;
-    startPlayTimer();          // begin timing this play session
-    if (gameMode === GAME_MODES.CLASSIC) {
-        playClassicMusic();    // background song for the Classic run (no-op for Survival)
-    } else if (gameMode === GAME_MODES.SURVIVAL) {
-        playSurvivalMusic();   // background song for the Survival run (no-op for Classic)
-    } else if (gameMode === GAME_MODES.BATTLE) {
-        // Battle ships take the field under SFX alone — the user opted
-        // to add a dedicated track later, so this branch is explicitly a
-        // no-op. We still set gameMode via the inner branch above so
-        // any pre-existing track for the previously-active mode stops
-        // before play (Classic / Survival have already done so via
-        // stopMenuMusic + resetGame clearing internal audio counters).
-        lastFireTimeMs = 0;
-    }
-}
+        function startGame(mode) {
+            if (typeof mode === 'string') {
+                gameMode = mode;
+            }
+            if (!currentUser) {
+                showMobileInput(false);
+                gameState = GAME_STATES.ACCOUNT;
+                accountInput = '';
+                return;
+            }
+            stopMenuMusic();
+            resetGame();
+            showMobileInput(false);
+            gameState = GAME_STATES.PLAYING;
+            startPlayTimer();          // begin timing this play session
+            if (gameMode === GAME_MODES.CLASSIC) {
+                playClassicMusic();    // background song for the Classic run (no-op for Survival)
+            } else if (gameMode === GAME_MODES.SURVIVAL) {
+                playSurvivalMusic();   // background song for the Survival run (no-op for Classic)
+            } else if (gameMode === GAME_MODES.BATTLE) {
+                // Battle ships take the field under SFX alone — the user opted
+                // to add a dedicated track later, so this branch is explicitly a
+                // no-op. We still set gameMode via the inner branch above so
+                // any pre-existing track for the previously-active mode stops
+                // before play (Classic / Survival have already done so via
+                // stopMenuMusic + resetGame clearing internal audio counters).
+                lastFireTimeMs = 0;
+            }
+        }
 
         function togglePause() {
             if (gameState === GAME_STATES.PLAYING && !gameOver) {
@@ -3037,59 +3038,59 @@ function startGame(mode) {
             playShootSound();
         }
 
-function endGame() {
-    // Centralised game-over so classic (star missed), survival
-    // (meteorite hit) and battle (HP ≤ 0) paths honour the same
-    // record logic.
-    //
-    // NOTE: intentionally do NOT stop classicAudio here. Letting
-    // the song play through the game-over overlay means a fast
-    // 'playAgain' (R key / tap) re-uses the same playback
-    // position for a seamless restart. The song is stopped in
-    // case 'menu' when the player actually returns to the menu.
-    flushPlayTime();   // persist this run's time to the account
-    if (currentUser) {
-        // Snapshot the Battle HP state BEFORE recording the mission
-        // event so the `battle_no_damage` mission can read a
-        // consistent value (noDamageBattleToday was already set the
-        // first time hp dropped below 100; if a finished Battle
-        // survived with hp === 100, noDamageBattleToday stayed
-        // true and the daily mission flips to ✅ below).
-        if (gameMode === GAME_MODES.CLASSIC) {
-            recordMissionEvent('finished_classic', score);
-        } else if (gameMode === GAME_MODES.SURVIVAL) {
-            recordMissionEvent('finished_survival', score);
-        } else if (gameMode === GAME_MODES.BATTLE) {
-            recordMissionEvent('finished_battle', score);
+        function endGame() {
+            // Centralised game-over so classic (star missed), survival
+            // (meteorite hit) and battle (HP ≤ 0) paths honour the same
+            // record logic.
+            //
+            // NOTE: intentionally do NOT stop classicAudio here. Letting
+            // the song play through the game-over overlay means a fast
+            // 'playAgain' (R key / tap) re-uses the same playback
+            // position for a seamless restart. The song is stopped in
+            // case 'menu' when the player actually returns to the menu.
+            flushPlayTime();   // persist this run's time to the account
+            if (currentUser) {
+                // Snapshot the Battle HP state BEFORE recording the mission
+                // event so the `battle_no_damage` mission can read a
+                // consistent value (noDamageBattleToday was already set the
+                // first time hp dropped below 100; if a finished Battle
+                // survived with hp === 100, noDamageBattleToday stayed
+                // true and the daily mission flips to ✅ below).
+                if (gameMode === GAME_MODES.CLASSIC) {
+                    recordMissionEvent('finished_classic', score);
+                } else if (gameMode === GAME_MODES.SURVIVAL) {
+                    recordMissionEvent('finished_survival', score);
+                } else if (gameMode === GAME_MODES.BATTLE) {
+                    recordMissionEvent('finished_battle', score);
+                }
+            }
+            gameOver = true;
+            playGameOverSound();
+            if (currentUser) {
+                if (gameMode === GAME_MODES.SURVIVAL) {
+                    const pos = addSurvivalScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                } else if (gameMode === GAME_MODES.BATTLE) {
+                    const pos = addBattleScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                } else {
+                    const pos = addScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                }
+            }
         }
-    }
-    gameOver = true;
-    playGameOverSound();
-    if (currentUser) {
-        if (gameMode === GAME_MODES.SURVIVAL) {
-            const pos = addSurvivalScoreToUser(currentUser, score);
-            if (pos !== -1) {
-                isNewRecord = true;
-                newRecordPosition = pos;
-                playRecordSound();
-            }
-        } else if (gameMode === GAME_MODES.BATTLE) {
-            const pos = addBattleScoreToUser(currentUser, score);
-            if (pos !== -1) {
-                isNewRecord = true;
-                newRecordPosition = pos;
-                playRecordSound();
-            }
-        } else {
-            const pos = addScoreToUser(currentUser, score);
-            if (pos !== -1) {
-                isNewRecord = true;
-                newRecordPosition = pos;
-                playRecordSound();
-            }
-        }
-    }
-}
 
         /* ============================================================
            6. DRAWING FUNCTIONS
@@ -3934,7 +3935,7 @@ function endGame() {
 
         function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
-            const isBattle   = gameMode === GAME_MODES.BATTLE;
+            const isBattle = gameMode === GAME_MODES.BATTLE;
             // ----- Battle HUD overlay -----
             // Two visual elements render BEFORE anything else:
             //   1) a 6 px-tall health strip across the very top edge
@@ -4718,10 +4719,10 @@ function endGame() {
                     const record = battleRecords[idx];
                     let label, color;
                     let weight = 'normal';
-                    if (idx === 0)      { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
+                    if (idx === 0) { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
                     else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
                     else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
-                    else                { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
+                    else { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
                     ctx.fillText(label + ' kills', col3X + colW / 2, colY + 90 + idx * 28);
@@ -4905,11 +4906,11 @@ function endGame() {
             // (tapping it would imply continuous drag, which is out of
             // scope for "standard buttons").
             menuButtons.push({
-                rect: { x: decBtnX, y: btnY, w: btnSize, h: btnSize },
+                rect: { x: decBtnX, y: btnY - settingsScrollY, w: btnSize, h: btnSize },
                 action: decAction
             });
             menuButtons.push({
-                rect: { x: incBtnX, y: btnY, w: btnSize, h: btnSize },
+                rect: { x: incBtnX, y: btnY - settingsScrollY, w: btnSize, h: btnSize },
                 action: incAction
             });
 
@@ -4964,7 +4965,7 @@ function endGame() {
 
             // The whole pill is the click target
             menuButtons.push({
-                rect: { x: pillX, y: pillY, w: pillW, h: pillH },
+                rect: { x: pillX, y: pillY - settingsScrollY, w: pillW, h: pillH },
                 action: action
             });
 
@@ -5294,9 +5295,9 @@ function endGame() {
                     const rowW = cardW * 3 + cardGap * 2;
                     const cardsY = 215;
                     const cardsLeftX = canvas.width / 2 - rowW / 2;
-                    const easyX   = cardsLeftX;
+                    const easyX = cardsLeftX;
                     const normalX = cardsLeftX + cardW + cardGap;
-                    const hardX   = cardsLeftX + (cardW + cardGap) * 2;
+                    const hardX = cardsLeftX + (cardW + cardGap) * 2;
                     // --- Easy card (green) ---
                     ctx.shadowBlur = 28;
                     ctx.shadowColor = 'rgba(120, 255, 160, 0.55)';
@@ -5373,9 +5374,9 @@ function endGame() {
                     ctx.fillText('coming later)', hardX + cardW / 2, cardsY + 138);
                     ctx.textBaseline = 'alphabetic';
                     // Click targets
-                    menuButtons.push({ rect: { x: easyX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy'   });
+                    menuButtons.push({ rect: { x: easyX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy' });
                     menuButtons.push({ rect: { x: normalX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_normal' });
-                    menuButtons.push({ rect: { x: hardX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_hard'   });
+                    menuButtons.push({ rect: { x: hardX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_hard' });
                     // BACK button below the row
                     const backW = 180;
                     const backH = 50;
@@ -5545,8 +5546,8 @@ function endGame() {
                                 const allRecords = getAllRecords();
                                 delete allRecords[currentUser];
                                 delete allRecords[currentUser + '__survival'];
-                            delete allRecords[currentUser + '__missions'];
-                            delete allRecords[currentUser + '__playTime'];
+                                delete allRecords[currentUser + '__missions'];
+                                delete allRecords[currentUser + '__playTime'];
                                 saveAllRecords(allRecords);
                                 currentUser = newUser;
                                 getUserRecords(currentUser);
@@ -6131,8 +6132,8 @@ function endGame() {
                     const allRecords = getAllRecords();
                     delete allRecords[currentUser];
                     delete allRecords[currentUser + '__survival'];
-                            delete allRecords[currentUser + '__missions'];
-                            delete allRecords[currentUser + '__playTime'];
+                    delete allRecords[currentUser + '__missions'];
+                    delete allRecords[currentUser + '__playTime'];
                     saveAllRecords(allRecords);
 
                     // Rimuovi l'ultimo utente salvato
