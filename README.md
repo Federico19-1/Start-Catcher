@@ -17,7 +17,6 @@ A small space arcade game built with **HTML5 Canvas** and **JavaScript** — no 
 
 - **Classic Mode**: catch the falling stars. Each catch is worth **+1 point**, and every missed star costs one of your **3 lives**.
 - **Survival Mode**: avoid the falling meteorites for as long as you can. Your score is the time you survive in seconds.
-- If a run beats a previous personal record, the game saves it automatically.
 
 ## 🕹️ Controls
 
@@ -34,19 +33,6 @@ A small space arcade game built with **HTML5 Canvas** and **JavaScript** — no 
 - **Web Audio API** for synthesized sound effects (beeps, notes, arpeggios)
 - **localStorage** for account and high-score persistence, with no server/backend required
 - **Google Fonts (Orbitron)** for the sci-fi typography
-
-## 📁 Project structure
-
-```
-star-catcher/
-├── star-catcher.html                      # markup, styling, and game logic in a single file
-├── menu-song.mp3                          # main menu background music
-├── paulyudin-synth-pop-Classic-Mode.mp3   # classic mode soundtrack
-├── desifreemusic...-SurvivalMode.mp3      # survival soundtrack
-└── README.md                              # project documentation
-```
-
-> All three MP3 files must live in the **same folder** as `star-catcher.html`. If you also want the collect sound to load from a file instead of the built-in fallback, place `star-sound.txt` next to the HTML too. Otherwise, the game synthesizes that sound in-browser.
 
 ## 🚀 Running the game
 
