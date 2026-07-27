@@ -43,7 +43,6 @@ star-catcher/
 ├── menu-song.mp3                          # main menu background music
 ├── paulyudin-synth-pop-Classic-Mode.mp3   # classic mode soundtrack
 ├── desifreemusic...-SurvivalMode.mp3      # survival soundtrack
-│                                          # background music while playing Survival mode
 └── README.md                              # project documentation
 ```
 
