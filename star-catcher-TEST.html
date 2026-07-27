@@ -474,6 +474,55 @@
         // Both modes use it the same way: if > 0 the player cannot take
         // damage; the value counts down to zero each frame.
         let meteoriteHitCooldown = 0; // frames of i-frames after a hit in survival
+
+        // ----- Survival-mode monster -----
+        // Only its face appears on screen — a dark-green cyclops with a
+        // wide mouth and a small antenna with a glowing dot on its
+        // forehead. The face anchors to either the left or right edge
+        // of the canvas (random per spawn), with the body cropping
+        // off-canvas. When its beam is active, fire is on a fixed
+        // schedule: the first beam contact damages the player once;
+        // remaining in the beam continues to drain lives on a fixed
+        // 2-second tick.
+        const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
+        const SURVIVAL_MONSTER_RESPAWN_MIN_MS = 14000; // 14-22 s randomised respawn
+        const SURVIVAL_MONSTER_RESPAWN_MAX_MS = 22000;
+        const MONSTER_WARP_IN_MS  = 800;                // alpha ease-in
+        const MONSTER_ACTIVE_MS   = 3500;               // total beam-on window
+        const MONSTER_FADE_OUT_MS = 800;                // alpha ease-out
+        const MONSTER_BEAM_ONSET_MS = 700;              // beam fires 0.7 s into "active" so the player can read the monster first
+        const monster = {
+            active: false,
+            state: 'idle',                  // 'warp-in' | 'active' | 'fade-out'
+            side: 'right',                  // 'left' | 'right'
+            cx: 0,
+            // Fixed vertical centre so the player can learn one safe
+            // row to dodge into. cy=300 sits clearly above the player's
+            // bottom-strip default (y=550) and below the survival
+            // score-row at y≈80, giving a predictable horizontal band.
+            cy: 300,
+            faceRadius: 95,
+            stateStartedMs: 0,
+            beamActive: false,
+            beamStrokeW: 36,                // vertical slab thickness (kept for future tuning)
+            beamSpanY: 110                  // half-height of beam rectangle
+        };
+        // Date.now() when player FIRST entered the beam; 0 = not in beam.
+        // Used by the 2-second recurring-tick damage rule: while
+        // playerInBeamSince > 0, every 2 s of continuous exposure
+        // subtracts another life. Resetting to 0 the moment the player
+        // exits the beam is what makes "if you avoid it, the game
+        // continues as usual" actually true.
+        let playerInBeamSince = 0;
+        // Wall-clock-style deadline in survival-elapsed-MS for the next
+        // monster appearance. Seeded from FIRST_SPAWN_MS at game start
+        // and re-seeded after every fade-out so back-to-back runs of
+        // the monster don't feel mechanical.
+        let monsterNextSpawnAtMs = SURVIVAL_MONSTER_FIRST_SPAWN_MS;
+        // Hook into the existing score clock for survival-elapsed time
+        // (score is "seconds survived"). score * 1000 gets us back to
+        // ms-aligned numbers without introducing a parallel timer.
+        function survivalElapsedMs() { return score * 1000; }
         let isNewRecord = false;
         let newRecordPosition = -1;
         const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
@@ -1934,6 +1983,16 @@
         function resetGame() {
             stars = [];
             meteorites = [];
+            // Survival monster state must reset on every new run so a
+            // half-finished monster from the previous run doesn't fade
+            // in over the new player's first 8 seconds. The next-spawn
+            // deadline goes back to the first-spawn constant so the
+            // first monster still appears ~8 s into the new run.
+            monster.active = false;
+            monster.state = 'idle';
+            monster.beamActive = false;
+            monsterNextSpawnAtMs = SURVIVAL_MONSTER_FIRST_SPAWN_MS;
+            playerInBeamSince = 0;
             // Battle mode keeps three independent collections so the
             // Classic star physics and Survival meteorite AI never leak
             // into each other (the Battle bullets move in a straight
@@ -2374,6 +2433,230 @@ function startGame(mode) {
             }
         }
 
+        // ----- Monster helpers (Survival only) -----
+        // All monsters share one entry point: spawnMonster() flips
+        // monster.active = true and resets state, while updateMonster()
+        // ticks the warp-in/active/fade-out state machine forward each
+        // frame. The damage gate lives in updateSurvival() so it can
+        // coordinate with the existing lives-- / endGame() flow.
+
+        function spawnMonster(now) {
+            monster.active = true;
+            monster.state = 'warp-in';
+            // Random side per spawn (50/50) so the player can't memorise
+            // a single dodge column. cx sits 60 px from the chosen edge
+            // so the face disc clips "the body" off-canvas as the user
+            // described, with the visible portion of the face taking
+            // up roughly the inner 60% of the side margin.
+            monster.side = Math.random() < 0.5 ? 'left' : 'right';
+            monster.cx = monster.side === 'left' ? 60 : 740;
+            monster.cy = 300;
+            monster.stateStartedMs = now;
+            monster.beamActive = false;
+        }
+
+        function updateMonster(now) {
+            // Lazy-spawn check: only ONE monster on screen at a time.
+            // Until the player's survival clock passes monsterNextSpawnAtMs,
+            // we sit idle.
+            if (!monster.active && monsterNextSpawnAtMs > 0
+                && survivalElapsedMs() >= monsterNextSpawnAtMs) {
+                spawnMonster(now);
+            }
+            if (!monster.active) return;
+
+            const elapsed = now - monster.stateStartedMs;
+            if (monster.state === 'warp-in' && elapsed >= MONSTER_WARP_IN_MS) {
+                monster.state = 'active';
+                monster.stateStartedMs = now;
+                monster.beamActive = false;
+            } else if (monster.state === 'active' && elapsed >= MONSTER_ACTIVE_MS) {
+                monster.state = 'fade-out';
+                monster.stateStartedMs = now;
+                monster.beamActive = false;
+            } else if (monster.state === 'fade-out' && elapsed >= MONSTER_FADE_OUT_MS) {
+                monster.active = false;
+                // Schedule the next monster with a randomised gap so
+                // back-to-back appearances don't feel mechanical.
+                const gap = SURVIVAL_MONSTER_RESPAWN_MIN_MS
+                    + Math.floor(Math.random()
+                        * (SURVIVAL_MONSTER_RESPAWN_MAX_MS
+                            - SURVIVAL_MONSTER_RESPAWN_MIN_MS));
+                monsterNextSpawnAtMs = survivalElapsedMs() + gap;
+                return;
+            }
+            // Beam-on delay inside 'active' so the player has a beat
+            // to see the monster before damage starts accruing.
+            if (monster.state === 'active'
+                && (now - monster.stateStartedMs) >= MONSTER_BEAM_ONSET_MS) {
+                monster.beamActive = true;
+            }
+        }
+
+        // Returns true when the player's hit circle overlaps the active
+        // beam rectangle. Circle-vs-rect test via the "closest point"
+        // trick: clamp the circle centre to the rect, distance to
+        // radius wins. True even when the player is partially OUT of
+        // the rect but still grazing it.
+        function isPlayerInMonsterBeam() {
+            if (!monster.active || !monster.beamActive) return false;
+            // Beam rectangle: starts at the monster's cx and runs all
+            // the way across the canvas to the opposite edge.
+            const x0 = monster.side === 'left' ? monster.cx : 0;
+            const x1 = monster.side === 'left' ? canvas.width : monster.cx;
+            const y0 = monster.cy - monster.beamSpanY;
+            const y1 = monster.cy + monster.beamSpanY;
+            const closestX = Math.max(x0, Math.min(player.x, x1));
+            const closestY = Math.max(y0, Math.min(player.y, y1));
+            const dx = player.x - closestX;
+            const dy = player.y - closestY;
+            return (dx * dx + dy * dy) < (player.radius * player.radius);
+        }
+
+        // ----- Monster render -----
+        // drawMonster() is the single entry point called from the main
+        // render pipeline (between drawMeteorites and drawSurvivalOverlay
+        // in the PLAYING/Survival branch). Internally it composites the
+        // beam first (so the face disc reads ON TOP of it where the
+        // two overlap at the canvas edge) and then the face primitives
+        // (body, antenna, mouth, eye). Alpha eases in/out for the
+        // warp-in and fade-out phases.
+        function drawMonsterBeam() {
+            const x0 = monster.side === 'left' ? monster.cx : -20;
+            const x1 = monster.side === 'left' ? canvas.width + 20 : monster.cx;
+            const yTop = monster.cy - monster.beamSpanY / 2;
+            const yBot = monster.cy + monster.beamSpanY / 2;
+            // Normal alpha compositing (no 'lighter') so the green
+            // beam reads as a translucent band over the red vignette
+            // without RGB-add muddying the colours. The three stacked
+            // rects (broad body + bright core + shimmer line) build
+            // up the light effect through overlapping opacity rather
+            // than additive blending, which keeps the colour of the
+            // face disc underneath stable.
+            // Broad translucent body
+            ctx.fillStyle = 'rgba(170, 255, 170, 0.20)';
+            ctx.fillRect(x0, yTop, x1 - x0, yBot - yTop);
+            // Bright narrow core on top of body
+            ctx.fillStyle = 'rgba(220, 255, 220, 0.70)';
+            ctx.fillRect(x0, monster.cy - 8, x1 - x0, 16);
+            // Pulse shimmer line for energy read
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.60)';
+            ctx.fillRect(x0, monster.cy - 1, x1 - x0, 2);
+        }
+
+        function drawMonsterFace() {
+            const fx = monster.cx;
+            const fy = monster.cy;
+            const r = monster.faceRadius;
+            // sgn = -1 for side='right' (eye looks LEFT into canvas),
+            // +1 for 'left' (eye looks RIGHT into canvas). The eye-
+            // highlight + iris offset use this so the cyclops stares
+            // at the player regardless of side.
+            const sgn = monster.side === 'left' ? 1 : -1;
+            ctx.save();
+            // Outline glow so the dark green face reads against the
+            // red survival vignette without disappearing into it.
+            ctx.shadowColor = '#aaffaa';
+            ctx.shadowBlur = 26;
+
+            // Body disc — taller-than-wide green ellipse so the
+            // antenna + mouth + eye all fit vertically inside it.
+            ctx.fillStyle = '#1a4a2a';
+            ctx.beginPath();
+            ctx.ellipse(fx, fy, r * 1.05, r * 1.25, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#0e3a1a';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Antenna — thin stem + glowing green dot on the forehead.
+            ctx.strokeStyle = '#0e3a1a';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy - r * 1.0);
+            ctx.lineTo(fx, fy - r * 1.45);
+            ctx.stroke();
+            ctx.fillStyle = '#aaffaa';
+            ctx.shadowColor = '#aaffaa';
+            ctx.shadowBlur = 14;
+            ctx.beginPath();
+            ctx.arc(fx, fy - r * 1.5, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Mouth — wide dark rectangle across the lower face with a
+            // row of small triangle teeth so it reads as "wide mouth"
+            // rather than just a flat slot.
+            const mw = r * 1.4;
+            const mh = r * 0.42;
+            const mx = fx - mw / 2;
+            const my = fy + r * 0.45;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(mx, my, mw, mh);
+            ctx.fillStyle = '#dfd';
+            for (let i = 0; i < 6; i++) {
+                const tx = mx + (mw / 6) * i + (mw / 12);
+                ctx.beginPath();
+                ctx.moveTo(tx - 6, my + 4);
+                ctx.lineTo(tx + 6, my + 4);
+                ctx.lineTo(tx, my + mh - 3);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Single large eye — white sclera ellipse + green iris +
+            // black pupil + tiny white highlight, offset toward the
+            // inside of the canvas so it always looks AT the player.
+            const eyeOffsetX = sgn * -10;
+            const eyeOffsetY = -r * 0.12;
+            const ex = fx + eyeOffsetX;
+            const ey = fy + eyeOffsetY;
+            const ew = r * 0.85;     // sclera half-width
+            const eh = r * 0.55;     // sclera half-height
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.ellipse(ex, ey, ew, eh, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Iris — large green circle
+            ctx.fillStyle = '#aaffaa';
+            ctx.beginPath();
+            ctx.arc(ex + sgn * 10, ey, ew * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+            // Pupil — black slit
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(ex + sgn * 14, ey, ew * 0.30, 0, Math.PI * 2);
+            ctx.fill();
+            // White highlight
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(ex + sgn * 18, ey - eh * 0.35, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawMonster() {
+            if (!monster.active) return;
+            // Alpha eases in/out for warp-in / fade-out so the
+            // monster doesn't pop in or out abruptly.
+            const now = Date.now();
+            const elapsed = now - monster.stateStartedMs;
+            let alpha = 1;
+            if (monster.state === 'warp-in') {
+                alpha = Math.min(1, elapsed / MONSTER_WARP_IN_MS);
+            } else if (monster.state === 'fade-out') {
+                alpha = Math.max(0, 1 - elapsed / MONSTER_FADE_OUT_MS);
+            }
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            // Beam first so the face primitives read ON TOP of the
+            // beam where the two overlap at the canvas edge.
+            if (monster.beamActive) drawMonsterBeam();
+            drawMonsterFace();
+            ctx.restore();
+        }
+
         function updateSurvival() {
             // Score grows with time — convert real-time elapsed since the
             // run started into an integer-seconds counter via an accumulator.
@@ -2449,6 +2732,43 @@ function startGame(mode) {
                 const m = meteorites[i];
                 if (m.y > canvas.height + m.radius * 2) {
                     meteorites.splice(i, 1);
+                }
+            }
+            // ----- Survival monster update + beam damage gate -----
+            // The monster state machine runs every survival frame so
+            // warp-in / active / fade-out animations progress
+            // regardless of beam damage (otherwise an early death would
+            // freeze the monster mid-animation).
+            updateMonster(Date.now());
+            // Beam damage is gated by !gameOver so a single frame of
+            // intersection after endGame() can't drain lives below
+            // zero — defence in depth on top of endGame()'s own
+            // gameOver flag.
+            if (!gameOver) {
+                const inBeam = isPlayerInMonsterBeam();
+                if (inBeam) {
+                    if (playerInBeamSince === 0) {
+                        // FIRST contact: instant -1 life.
+                        lives--;
+                        playLoseLifeSound();
+                        playerInBeamSince = Date.now();
+                        if (lives <= 0) endGame();
+                    } else if (Date.now() - playerInBeamSince >= 2000) {
+                        // Sustained contact: -1 life every 2 s while
+                        // the player remains inside the beam. Resetting
+                        // playerInBeamSince to "now" rather than to 0
+                        // keeps the cadence on a 2-s rolling window
+                        // rather than draining 1 life per frame.
+                        lives--;
+                        playLoseLifeSound();
+                        playerInBeamSince = Date.now();
+                        if (lives <= 0) endGame();
+                    }
+                } else if (playerInBeamSince > 0) {
+                    // Player left the beam — clear the entry timestamp
+                    // so the NEXT entry triggers the first-contact
+                    // damage, not a 2-s-tick drain.
+                    playerInBeamSince = 0;
                 }
             }
         }
@@ -4875,7 +5195,8 @@ function endGame() {
                     drawBackground();
                     if (gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
-                        drawSurvivalOverlay();   // red filter on top of bg+rocks+ship
+                        drawSurvivalOverlay();   // red filter on top of bg + meteorites
+                        drawMonster();          // cyclops face + beam drawn AFTER vignette so the dark green reads true
                     } else if (gameMode === GAME_MODES.BATTLE) {
                         // Battle mode owns its own scene: red enemy
                         // ships with HP bars, blue ray bullets, red
