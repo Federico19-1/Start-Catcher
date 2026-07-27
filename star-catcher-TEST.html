@@ -7,37 +7,216 @@
     <title>🚀 Star Catcher - Space Game</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #0a0a1a;
-            font-family: 'Orbitron', sans-serif;
-            overflow: hidden;
-            user-select: none;
-            /* Phone-friendly: leave room for the address bar to appear
-               and disappear without re-flowing the canvas. */
-            padding: 8px;
+        :root {
+            --ink: #f4f1e8;
+            --muted: #9aa6b2;
+            --panel: rgba(10, 15, 24, 0.86);
+            --panel-strong: rgba(7, 10, 16, 0.96);
+            --accent: #ff9f43;
+            --accent-soft: #ffd56a;
+            --accent-alt: #49d7c8;
+            --border: rgba(255, 255, 255, 0.14);
+        }
+
+        * {
             box-sizing: border-box;
         }
 
-        canvas {
-            border: 2px solid #4a4a8a;
-            border-radius: 10px;
-            box-shadow: 0 0 40px rgba(74, 74, 138, 0.5);
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 12px;
+            background:
+                radial-gradient(circle at 18% 18%, rgba(73, 215, 200, 0.18), transparent 26%),
+                radial-gradient(circle at 82% 78%, rgba(255, 159, 67, 0.16), transparent 28%),
+                linear-gradient(160deg, #04050a 0%, #0c1120 48%, #141b2d 100%);
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            user-select: none;
+            color: var(--ink);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                radial-gradient(circle at center, rgba(255, 255, 255, 0.08), transparent 64%);
+            background-size: 100% 4px, 4px 100%, auto;
+            mix-blend-mode: screen;
+            opacity: 0.16;
+        }
+
+        #gameCanvas {
+            width: min(100vw - 24px, 800px);
+            height: auto;
+            max-height: calc(100vh - 24px);
+            aspect-ratio: 4 / 3;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 28px;
+            box-shadow:
+                0 24px 80px rgba(0, 0, 0, 0.56),
+                0 0 0 6px rgba(73, 215, 200, 0.08),
+                0 0 0 1px rgba(255, 159, 67, 0.18) inset;
+            background: rgba(6, 10, 18, 0.58);
+            backdrop-filter: blur(8px) saturate(120%);
             cursor: pointer;
             touch-action: none;
             user-select: none;
-            /* Mobile-friendly: shrink the canvas inside the viewport while
-               keeping the 4:3 aspect ratio of the internal grid.
-               Viewport units (vw/vh) are safer than percentages here
-               because the parent flex item's intrinsic size can play
-               tricks with % sizing in Safari. */
-            max-width: 100vw;
-            max-height: 100vh;
-            object-fit: contain;
+        }
+
+        .hud-button {
+            position: fixed;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            user-select: none;
+            touch-action: manipulation;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+        }
+
+        .hud-button:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        .hud-button--pause {
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            border: 1px solid rgba(73, 215, 200, 0.55);
+            background: linear-gradient(180deg, rgba(10, 15, 24, 0.96), rgba(22, 28, 42, 0.92));
+            color: #f9d56e;
+            font-size: 32px;
+            font-weight: 900;
+            box-shadow: 0 0 24px rgba(73, 215, 200, 0.18), 0 0 36px rgba(255, 159, 67, 0.16);
+        }
+
+        .hud-button--pause:hover {
+            border-color: rgba(255, 159, 67, 0.75);
+            box-shadow: 0 0 28px rgba(73, 215, 200, 0.28), 0 0 44px rgba(255, 159, 67, 0.22);
+        }
+
+        .key-hint {
+            position: fixed;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0 12px;
+            min-width: 42px;
+            height: 30px;
+            border-radius: 15px;
+            background: linear-gradient(180deg, rgba(70, 50, 10, 0.95), rgba(35, 22, 5, 0.95));
+            border: 1px solid #ffd84a;
+            color: #ffd84a;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-shadow: 0 0 8px rgba(255, 216, 74, 0.7);
+            box-shadow: 0 0 14px rgba(255, 216, 74, 0.4);
+            opacity: 0;
+            transition: opacity 0.28s ease;
+            pointer-events: none;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .account-card {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 30;
+            background: linear-gradient(180deg, rgba(9, 15, 24, 0.96), rgba(13, 21, 34, 0.92));
+            padding: 24px 22px 20px;
+            border-radius: 24px;
+            border: 1px solid rgba(73, 215, 200, 0.35);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 159, 67, 0.12) inset;
+            width: min(92vw, 360px);
+            text-align: center;
+        }
+
+        .account-card__title {
+            color: var(--ink);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 20px;
+            margin-bottom: 18px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .account-card__input {
+            width: 100%;
+            background: rgba(16, 22, 34, 0.96);
+            color: white;
+            border: 1px solid rgba(73, 215, 200, 0.55);
+            border-radius: 14px;
+            padding: 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            text-align: center;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .account-card__input:focus {
+            border-color: rgba(255, 159, 67, 0.8);
+            box-shadow: 0 0 0 3px rgba(255, 159, 67, 0.16);
+        }
+
+        .account-card__actions {
+            margin-top: 18px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .account-card__button {
+            flex: 1 1 112px;
+            min-height: 40px;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .account-card__button--ghost {
+            background: rgba(84, 65, 28, 0.9);
+            color: #f3d27a;
+            border-color: rgba(255, 216, 74, 0.3);
+        }
+
+        .account-card__button--primary {
+            background: linear-gradient(180deg, #ffb14d, #de7a21);
+            color: #1c1206;
+            box-shadow: 0 0 16px rgba(255, 159, 67, 0.35);
+        }
+
+        .account-card__button--secondary {
+            background: rgba(57, 64, 84, 0.95);
+            color: #d8dde8;
+            border-color: rgba(135, 152, 181, 0.2);
+        }
+
+        .account-card__button--danger {
+            margin-top: 10px;
+            background: rgba(98, 33, 33, 0.95);
+            color: #ffb0b0;
+            border-color: rgba(255, 120, 120, 0.22);
         }
 
     </style>
@@ -46,26 +225,8 @@
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-    <div id="testBackupPanel"
-        style="position: fixed; top: 18px; right: 18px; z-index: 60; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 2px solid rgba(74, 140, 255, 0.85); background: rgba(10, 10, 26, 0.92); box-shadow: 0 0 22px rgba(74, 140, 255, 0.35); font-family: 'Orbitron', sans-serif; color: #dbe8ff; max-width: 210px;">
-        <div style="font-size: 11px; letter-spacing: 1px; color: #8fb6ff; text-transform: uppercase;">Test backup</div>
-        <button id="backupRecordsBtn"
-            style="border: none; border-radius: 8px; padding: 8px 10px; background: #2a6aff; color: white; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Esporta backup</button>
-        <button id="restoreRecordsBtn"
-            style="border: none; border-radius: 8px; padding: 8px 10px; background: #3a3a5a; color: #e5e5ff; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Ripristina backup</button>
-        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 10px; color: #aac0ee;">
-            Offset giorno test
-            <input id="debugDayOffsetInput" type="number" min="0" max="7" value="0"
-                style="width: 100%; box-sizing: border-box; border: 1px solid rgba(143, 182, 255, 0.7); border-radius: 6px; padding: 6px 8px; background: #10172a; color: #dbe8ff; font-family: inherit; font-size: 12px;">
-        </label>
-        <button id="applyDebugDayOffsetBtn"
-            style="border: none; border-radius: 8px; padding: 8px 10px; background: #5a2a7a; color: white; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;">Applica offset</button>
-        <div style="font-size: 10px; line-height: 1.3; color: #aac0ee;">Copia di test: salva o ripristina <span style="word-break: break-all;">starCatcherAllRecords</span> senza DevTools.</div>
-    </div>
-
-    <button id="pauseButton" aria-label="Game Pause" aria-keyshortcuts="P"
-        title="Pause / Resume (press P)"
-        style="position: fixed; top: 24px; left: 24px; z-index: 50; width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(74, 140, 255, 0.95); background: #0a0a1a; color: #4a8cff; font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; cursor: pointer; box-shadow: 0 0 26px rgba(74, 140, 255, 0.6), 0 0 6px rgba(74, 140, 255, 0.4); display: none; align-items: center; justify-content: center; touch-action: manipulation; user-select: none;">⏸</button>
+    <button id="pauseButton" class="hud-button hud-button--pause" aria-label="Game Pause" aria-keyshortcuts="P"
+        title="Pause / Resume (press P)" style="display: none;">⏸</button>
 
     <!-- Small "P" key hint pill that sits BESIDE the pause button so the
          player sees that the keyboard shortcut exists. Hidden by default
@@ -73,30 +234,19 @@
          same gold palette as the menu's "M KEY" pill keeps it on-brand and
          gives the indicator visual weight without competing with the
          pause ⏸ icon for attention. -->
-    <span id="pauseKeyHint" aria-hidden="true"
-        style="position: fixed; z-index: 50; top: 24px; left: 24px; display: none; align-items: center; justify-content: center; padding: 0 12px; min-width: 42px; height: 30px; border-radius: 15px; background: linear-gradient(180deg, rgba(70, 50, 10, 0.95), rgba(35, 22, 5, 0.95)); border: 2px solid #ffd84a; color: #ffd84a; font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 900; letter-spacing: 1px; text-shadow: 0 0 8px rgba(255, 216, 74, 0.7); box-shadow: 0 0 14px rgba(255, 216, 74, 0.55); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; user-select: none; white-space: nowrap;">P</span>
+    <span id="pauseKeyHint" class="key-hint" aria-hidden="true">P</span>
 
-    <div id="mobileAccountInput"
-        style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background: #0a0a1a; padding: 25px; border-radius: 15px; border: 2px solid #4a8cff; box-shadow: 0 0 40px rgba(74, 140, 255, 0.5); width: 320px; text-align: center;">
-        <div style="color: white; font-family: 'Orbitron', sans-serif; font-size: 22px; margin-bottom: 20px;">👤 NEW
-            ACCOUNT</div>
+    <div id="mobileAccountInput" class="account-card">
+        <div class="account-card__title">👤 NEW ACCOUNT</div>
         <input type="text" id="accountMobileInput" maxlength="12" placeholder="Name (max 12 char)"
-            style="width: 100%; background: #1a1a3a; color: white; border: 2px solid #4a8cff; border-radius: 8px; padding: 12px; font-family: 'Orbitron', sans-serif; font-size: 20px; text-align: center; box-sizing: border-box; outline: none;">
-        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 15px;">
-            <button id="mobileClearNameBtn"
-                style="background: #5a4a2a; color: #ffdd88; border: none; border-radius: 10px; padding: 12px 20px; font-family: 'Orbitron', sans-serif; font-size: 14px; cursor: pointer;">🗑️
-                Clear Name</button>
-            <button id="mobileConfirmBtn"
-                style="background: #2a6aff; color: white; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✅
-                CONFIRM</button>
-            <button id="mobileCancelBtn"
-                style="background: #3a3a5a; color: #aaa; border: none; border-radius: 10px; padding: 12px 35px; font-family: 'Orbitron', sans-serif; font-size: 18px; cursor: pointer;">✖
-                CANCEL</button>
+            class="account-card__input">
+        <div class="account-card__actions">
+            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost">🗑️ Clear Name</button>
+            <button id="mobileConfirmBtn" class="account-card__button account-card__button--primary">✅ CONFIRM</button>
+            <button id="mobileCancelBtn" class="account-card__button account-card__button--secondary">✖ CANCEL</button>
         </div>
         <div style="margin-top: 15px;">
-            <button id="mobileClearAccountBtn"
-                style="background: #5a2a2a; color: #ff8888; border: none; border-radius: 10px; padding: 10px 25px; font-family: 'Orbitron', sans-serif; font-size: 14px; cursor: pointer;">🗑️
-                Clear Account</button>
+            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger">🗑️ Clear Account</button>
         </div>
     </div>
 
@@ -154,27 +304,6 @@
             };
         }
 
-        const TEST_DAY_OFFSET_KEY = 'starCatcherDebugDayOffset';
-
-        function getTestDayOffset() {
-            const raw = localStorage.getItem(TEST_DAY_OFFSET_KEY);
-            const parsed = Number.parseInt(raw || '0', 10);
-            return Number.isFinite(parsed) ? parsed : 0;
-        }
-
-        function setTestDayOffset(offset) {
-            const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.min(7, Math.floor(offset))) : 0;
-            localStorage.setItem(TEST_DAY_OFFSET_KEY, String(safeOffset));
-            return safeOffset;
-        }
-
-        function getTestDate(baseDate = new Date()) {
-            const offset = getTestDayOffset();
-            const testDate = new Date(baseDate);
-            testDate.setDate(testDate.getDate() + offset);
-            return testDate;
-        }
-
         /* ============================================================
            1. GAME STATE AND GLOBAL VARIABLES
         ============================================================ */
@@ -213,23 +342,6 @@
         // Records screen.
         let playingStartedAt = 0;
 
-        // Per-account audio preferences.
-        //   music / classicMusic / survivalMusic — independent on/off
-        //                            toggles for the menu song, the
-        //                            Classic-mode BGM, and the new
-        //                            Survival-mode BGM (a Pixabay
-        //                            download). Each owns its own audio
-        //                            element so the player can mute any
-        //                            track while leaving the others on.
-        //   menuVolume / classicVolume / survivalVolume — playback level
-        //                                for each of the three music
-        //                                tracks (0.0 .. 1.0 in 0.1 steps).
-        //                                Default is 0.7 so a fresh account
-        //                                hears every track at a
-        //                                comfortable level; the +/−
-        //                                steppers dip down to silence (0%)
-        //                                or reach full (100%).
-        //   sfx                     — every other in-game sound effect.
         let settings = {
             schemaVersion: 3,                  // bump when migrations land so loadSettings skips them
             music: true,
@@ -719,38 +831,6 @@
             localStorage.setItem('starCatcherAllRecords', JSON.stringify(records));
         }
 
-        function downloadTextFile(filename, text) {
-            const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 0);
-        }
-
-        function exportRecordsBackup() {
-            const backup = localStorage.getItem('starCatcherAllRecords') || '{}';
-            const stamp = new Date().toISOString().slice(0, 10);
-            downloadTextFile(`starCatcherAllRecords-backup-${stamp}.json`, backup);
-            alert('Backup esportato. Salva il file scaricato.');
-        }
-
-        function restoreRecordsBackup() {
-            const backupText = prompt('Incolla qui il contenuto salvato di starCatcherAllRecords:');
-            if (!backupText) return;
-
-            try {
-                const parsed = JSON.parse(backupText);
-                localStorage.setItem('starCatcherAllRecords', JSON.stringify(parsed));
-                alert('Backup ripristinato. Ricarica la pagina per vedere i dati aggiornati.');
-            } catch (error) {
-                alert('Il contenuto incollato non è un JSON valido.');
-            }
-        }
-
         function getUserRecords(username) {
             const all = getAllRecords();
             if (!all[username]) {
@@ -1030,7 +1110,7 @@
             return Math.abs(h);
         }
 
-        function localDayKey(date = getTestDate()) {
+        function localDayKey(date = new Date()) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
@@ -1309,7 +1389,7 @@
             ctx.shadowColor = 'black';
             ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9cd3ff';
-            const dateStr = getTestDate().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+            const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             ctx.fillText('\u{1f4c5} ' + dateStr, canvas.width / 2, 92);
 
             // Streak panel
@@ -1535,13 +1615,23 @@
         }
 
         function createStar() {
+            const isLucky = Math.random() < 0.08;
             return {
                 x: Math.random() * canvas.width,
                 y: -10,
-                radius: 8 + Math.random() * 10,
-                speed: 1 + Math.random() * 3,
-                color: `hsl(${Math.random() * 60 + 30}, 100%, 60%)`
+                radius: isLucky ? 14 + Math.random() * 3 : 8 + Math.random() * 10,
+                speed: isLucky ? 1 + Math.random() * 1.3 : 1 + Math.random() * 3,
+                color: isLucky
+                    ? '#ffd84a'
+                    : `hsl(${Math.random() * 60 + 30}, 100%, 60%)`,
+                kind: isLucky ? 'lucky' : 'normal',
+                spin: (Math.random() - 0.5) * 0.06,
+                pointValue: isLucky ? 3 : 1
             };
+        }
+
+        function getComboMultiplier() {
+            return 1 + Math.min(3, Math.floor(comboStreak / 5));
         }
 
         function createMeteorite() {
@@ -1571,6 +1661,9 @@
             score = 0;
             lives = 3;
             gameOver = false;
+            comboStreak = 0;
+            comboBest = 0;
+            luckyStarsCaught = 0;
             isNewRecord = false;
             newRecordPosition = -1;
             inGameRecordShown = false;
@@ -1861,13 +1954,26 @@
                     const collisionDistance = player.radius + star.radius;
 
                     if (distance < collisionDistance) {
-                        score++;
-                        playCollectSound();
+                        comboStreak++;
+                        comboBest = Math.max(comboBest, comboStreak);
+                        const comboBonus = Math.min(3, Math.floor(comboStreak / 5));
+                        if (star.kind === 'lucky') {
+                            luckyStarsCaught++;
+                            score += 3 + comboBonus;
+                            if (lives < 3) {
+                                lives++;
+                            }
+                            playRecordSound();
+                        } else {
+                            score += 1 + comboBonus;
+                            playCollectSound();
+                        }
                         stars.splice(i, 1);
                         continue;
                     }
 
                     if (star.y > canvas.height + star.radius) {
+                        comboStreak = 0;
                         lives--;
                         playLoseLifeSound();
                         stars.splice(i, 1);
@@ -1932,12 +2038,13 @@
                 if (meteoriteHitCooldown === 0) {
                     const dx = player.x - m.x;
                     const dy = player.y - m.y;
-                    // Survival uses an almost-minimum capture radius so a
-                    // glancing meteorite won't drain a life. The hit zone
-                    // shrinks to a tiny core near the player's centre:
-                    // meteorites must almost literally land on the ship to
-                    // count. The mode is intentionally easy / enjoyable.
-                    const hitDistance = player.radius * 0.15 + m.radius * 0.30;
+                    // Survival uses a deliberately forgiving capture radius so
+                    // a glancing meteorite won't drain a life. The hit zone
+                    // covers a moderate core around the ship's centre — the
+                    // player must still take care, but a near miss is no
+                    // longer a guaranteed hit. The mode stays gentle while
+                    // feeling less unfair on tight dodges.
+                    const hitDistance = player.radius * 0.20 + m.radius * 0.35;
                     const dist2 = dx * dx + dy * dy;
                     if (dist2 < hitDistance * hitDistance) {
                         lives--;
@@ -1962,11 +2069,13 @@
             // expands, every layer fades). Called every frame so bursts
             // finish cleanly even when no new meteorite spawns.
 
-            // Safety cap so a long survival run can't accumulate thousands
-            // of meteorites and tank the framerate. Tighter on mobile.
-            const meteorCap = IS_MOBILE ? 25 : 40;
-            if (meteorites.length > meteorCap) {
-                meteorites.splice(0, meteorites.length - meteorCap);
+            // Cleanup only meteorites that have fully left the screen.
+            // Do not cull on-screen meteorites just because the array is large.
+            for (let i = meteorites.length - 1; i >= 0; i--) {
+                const m = meteorites[i];
+                if (m.y > canvas.height + m.radius * 2) {
+                    meteorites.splice(i, 1);
+                }
             }
         }
 
@@ -2516,13 +2625,26 @@
             for (const star of stars) {
                 ctx.save();
                 ctx.translate(star.x, star.y);
-                ctx.shadowColor = star.color;
-                ctx.shadowBlur = 20;
-                ctx.fillStyle = star.color;
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
+                ctx.rotate(star.spin || 0);
+                const lucky = star.kind === 'lucky';
+                ctx.shadowColor = lucky ? '#ffd84a' : star.color;
+                ctx.shadowBlur = lucky ? 28 : 20;
+                if (lucky) {
+                    const glow = ctx.createRadialGradient(0, 0, 1, 0, 0, star.radius * 2.4);
+                    glow.addColorStop(0, 'rgba(255, 240, 168, 0.95)');
+                    glow.addColorStop(0.45, 'rgba(255, 184, 77, 0.45)');
+                    glow.addColorStop(1, 'rgba(255, 159, 67, 0)');
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, star.radius * 1.7, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
-                const spikes = 5;
+                ctx.fillStyle = star.color;
+                ctx.strokeStyle = lucky ? '#fff4c0' : '#fff';
+                ctx.lineWidth = lucky ? 1.5 : 1;
+
+                const spikes = lucky ? 8 : 5;
                 const outerRadius = star.radius;
                 const innerRadius = star.radius * 0.4;
                 ctx.beginPath();
@@ -2753,6 +2875,14 @@
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = 'white';
                 ctx.fillText(`⭐ Points: ${score}`, 20, scoreValueY);
+
+                const comboMultiplier = getComboMultiplier();
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = comboStreak > 0 ? '#ffd56a' : '#9aa6b2';
+                ctx.fillText(`⟲ Combo x${comboMultiplier} · ${comboStreak}`, 20, 110);
+                ctx.font = '11px Orbitron, sans-serif';
+                ctx.fillStyle = '#8e9aad';
+                ctx.fillText('Gold stars refill a heart', 20, 130);
             }
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
@@ -2949,6 +3079,20 @@
                     `Best${isSurvival ? ' Survival Time' : ' Record'}: ${highScore}${isSurvival ? 's' : ''}`,
                     canvas.width / 2, 200
                 );
+            }
+
+            if (!isSurvival) {
+                ctx.shadowColor = '#ffd56a';
+                ctx.shadowBlur = 18;
+                ctx.font = '18px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd56a';
+                ctx.fillText(`Best combo: x${comboBest}`, canvas.width / 2, 228);
+                if (luckyStarsCaught > 0) {
+                    ctx.shadowBlur = 8;
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.fillStyle = '#f5d488';
+                    ctx.fillText(`Lucky stars caught: ${luckyStarsCaught}`, canvas.width / 2, 252);
+                }
             }
 
             const leftColX = 60;
@@ -3702,6 +3846,7 @@
         }
 
         function draw() {
+            updatePauseButton();
             switch (gameState) {
                 case GAME_STATES.MENU:
                     drawMenu();
@@ -4073,22 +4218,6 @@
                 }
             }
         });
-
-        const backupRecordsBtn = document.getElementById('backupRecordsBtn');
-        const restoreRecordsBtn = document.getElementById('restoreRecordsBtn');
-        const debugDayOffsetInput = document.getElementById('debugDayOffsetInput');
-        const applyDebugDayOffsetBtn = document.getElementById('applyDebugDayOffsetBtn');
-        if (backupRecordsBtn) backupRecordsBtn.addEventListener('click', exportRecordsBackup);
-        if (restoreRecordsBtn) restoreRecordsBtn.addEventListener('click', restoreRecordsBackup);
-        if (debugDayOffsetInput) debugDayOffsetInput.value = String(getTestDayOffset());
-        if (applyDebugDayOffsetBtn && debugDayOffsetInput) {
-            applyDebugDayOffsetBtn.addEventListener('click', () => {
-                const nextOffset = setTestDayOffset(Number.parseInt(debugDayOffsetInput.value || '0', 10));
-                debugDayOffsetInput.value = String(nextOffset);
-                if (currentUser) refreshMissionsForUser(currentUser);
-                draw();
-            });
-        }
 
 
         // Touch drag on canvas — drives the ship during gameplay AND
