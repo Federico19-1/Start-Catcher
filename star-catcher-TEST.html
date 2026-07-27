@@ -255,8 +255,19 @@
         /* ============================================================
            0. SETUP CANVAS AND CONTEXT
         ============================================================ */
+        const FIRE_RATE_COOLDOWN_MS = 140; // minimum delay between shots in Battle mode
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        // Right-click on the canvas normally pops the browser context
+        // menu (Reload, Inspect, etc.). Battle Mode uses right-click to
+        // fire a blue ray bullet, so the menu must be suppressed while
+        // the player is interacting with the game. preventDefault on
+        // `contextmenu` does not affect left-click behaviour, so the
+        // existing ship-move handler keeps working untouched.
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
 
         // Detect a touch-first device or narrow viewport — used to dial
         // back background / overlay work on phones. Re-evaluated on
@@ -319,7 +330,8 @@
 
         const GAME_MODES = {
             CLASSIC: 'classic',
-            SURVIVAL: 'survival'
+            SURVIVAL: 'survival',
+            BATTLE: 'battle'
         };
 
         let gameState = GAME_STATES.MENU;
@@ -357,14 +369,37 @@
             x: 400,
             y: 550,
             radius: 100,
-            targetX: 400
+            targetX: 400,
+            // Battle Mode uses HP instead of lives (Battle ships are tougher
+            // and the player must weather sustained enemy fire without
+            // losing all their hearts in 2 seconds).
+            hp: 100
         };
 
         let stars = [];
         let meteorites = [];
+        // ----- Battle mode arrays -----
+        // Players and enemies shoot discrete blue / red energy bolts at
+        // each other. We keep them in their own arrays (rather than
+        // reusing the existing `stars` / `meteorites` collections) so
+        // the Battle physics — straight-line motion either up or down —
+        // never accidentally inherits the falling-stars sideways drift
+        // or the meteorite gravity well.
+        let battleEnemies = [];
+        let playerBullets = [];
+        let enemyBullets = [];
         let score = 0;
         let lives = 3;
-        let gameOver = false;
+        let hp = 100;
+        // Battle-mode spawn pacing knobs. Tuned for a 60fps game but the
+        // one-line cooldown math scales OK on mobile because the
+        // requestAnimationFrame-driven logic below treats it as elapsed
+        // time rather than frame count, see update().
+        let battleSpawnCooldown = 90;
+        let battleElapsedMs = 0;
+        // Generic i-frame countdown reused across Survival and Battle.
+        // Both modes use it the same way: if > 0 the player cannot take
+        // damage; the value counts down to zero each frame.
         let meteoriteHitCooldown = 0; // frames of i-frames after a hit in survival
         let isNewRecord = false;
         let newRecordPosition = -1;
@@ -393,6 +428,7 @@
         const BLUE_LINES = [
             'Hi, my name is Blue.',
             'Try the new SURVIVAL mode!',
+            'Try the new BATTLE mode!',
             'A project for Stardance challenge.',
             'Beware the meteorites...',
             'Catch them all!',
@@ -819,6 +855,87 @@
             } catch (e) { }
         }
 
+        // ----- Battle Mode SFX -----
+        // Three short synthesised sounds used only by Battle mode.
+        // They follow the same simple `oscillator → gain → destination`
+        // recipe as the existing playCollectSound / playLoseLifeSound /
+        // playClickSound helpers so the audio graph stays uniform and
+        // there are zero asset file dependencies for the new mode.
+        //   * playShootSound          — blue ray launched by the player
+        //   * playEnemyShootSound     — red ray launched by an enemy
+        //   * playEnemyExplodeSound   — enemy destroyed by a hit
+        // Player damage re-uses the existing playLoseLifeSound so the
+        // enemy "ouch" tone stays consistent with the existing arcade
+        // vocabulary without inventing a fourth SFX.
+        function playShootSound() {
+            if (!settings.sfx) return;
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'square';
+                // Brief downward blaster zap: high pitch that quickly
+                // sweeps to a much lower frequency over 0.08 seconds.
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.08);
+                gainNode.gain.setValueAtTime(0.13, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.08);
+            } catch (e) { }
+        }
+
+        function playEnemyShootSound() {
+            if (!settings.sfx) return;
+            try {
+                initAudio();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'triangle';
+                // Lower-pitched, slightly longer than the player's shot
+                // so the player can tell which side is firing.
+                oscillator.frequency.setValueAtTime(420, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.12);
+                gainNode.gain.setValueAtTime(0.10, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.12);
+            } catch (e) { }
+        }
+
+        function playEnemyExplodeSound() {
+            if (!settings.sfx) return;
+            try {
+                initAudio();
+                // Slightly richer than the other SFX — three stacked
+                // sawtooth oscillators sweeping downward in parallel
+                // create a "crunch" without dragging the audio graph.
+                const notes = [180, 140, 90];
+                for (const baseFreq of notes) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.type = 'sawtooth';
+                    oscillator.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.35);
+                    gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.40);
+                    oscillator.start(audioCtx.currentTime);
+                    oscillator.stop(audioCtx.currentTime + 0.40);
+                }
+            } catch (e) { }
+        }
+
+        // Last fire timestamp so the player cannot machine-gun by
+        // holding the right mouse button or by spam-tapping the
+        // mobile FIRE button. Updated on every successful shot.
+        let lastFireTimeMs = 0;
+
         /* ============================================================
            3. RECORDS GESTION (localStorage)
         ============================================================ */
@@ -910,6 +1027,54 @@
         function getMaxSurvivalScore(username) {
             if (!username) return 0;
             const records = getSurvivalRecords(username);
+            return records.length > 0 ? records[0] : 0;
+        }
+
+        // ----- Battle Mode records -----
+        // Top-10 best Battle runs keyed by kill count. Mirrors the
+        // `${user}__survival` bucket so the existing JSON.parse on
+        // `starCatcherAllRecords` continues to work and the per-mode
+        // top-10 shape is identical (Array(10).fill(0) → sorted → first
+        // 10 entries) so the Records screen can iterate mode buckets
+        // uniformly with `getUserRecords / getSurvivalRecords / getBattleRecords`.
+        function getBattleRecords(username) {
+            const key = `${username}__battle`;
+            const all = getAllRecords();
+            if (!all[key]) {
+                all[key] = Array(10).fill(0);
+                saveAllRecords(all);
+            }
+            return all[key];
+        }
+
+        function setBattleRecords(username, records) {
+            const key = `${username}__battle`;
+            const all = getAllRecords();
+            all[key] = records;
+            saveAllRecords(all);
+        }
+
+        function addBattleScoreToUser(username, newScore) {
+            if (newScore <= 0) return -1;
+
+            let records = getBattleRecords(username);
+            const previousMin = records.length >= 10 ? records[9] : 0;
+
+            records.push(newScore);
+            records.sort((a, b) => b - a);
+            records = records.slice(0, 10);
+            setBattleRecords(username, records);
+
+            if (newScore <= previousMin && records.length >= 10) {
+                return -1;
+            }
+
+            return records.indexOf(newScore);
+        }
+
+        function getMaxBattleScore(username) {
+            if (!username) return 0;
+            const records = getBattleRecords(username);
             return records.length > 0 ? records[0] : 0;
         }
 
@@ -1094,6 +1259,9 @@
             { id: 'survive30',  label: 'Survive 30s in Survival',         target: 30, type: 'survival_time' },
             { id: 'survive45',  label: 'Survive 45s in Survival',         target: 45, type: 'survival_time' },
             { id: 'no_death',   label: 'Finish Classic with all 3 lives', type: 'no_death_run' },
+            { id: 'battle_kill_5',  label: 'Destroy 5 enemies in Battle', target: 5,  type: 'battle_kills' },
+            { id: 'battle_kill_15', label: 'Destroy 15 enemies in Battle', target: 15, type: 'battle_kills' },
+            { id: 'battle_no_damage', label: 'Finish Battle with full HP (min 1 kill)', type: 'battle_no_damage_run' },
             { id: 'visit_set',  label: 'Visit Settings today',           type: 'visit_settings' },
             { id: 'toggle_set', label: 'Toggle a setting today',         type: 'toggle_setting' },
             { id: 'both_modes', label: 'Play both Classic + Survival',   type: 'both_modes' }
@@ -1230,6 +1398,20 @@
             } else if (eventType === 'finished_survival') {
                 m.modesPlayedToday.survival = true;
                 if (value > m.bestSurvivalTimeToday) m.bestSurvivalTimeToday = value;
+            } else if (eventType === 'finished_battle') {
+                // `value` is the kill count of the Battle run that just
+                // ended. Two flags flip off this event:
+                //   * modesPlayedToday.battle — toggles the
+                //     play-counter used by the Super Streak heuristic.
+                //   * bestBattleKillsToday — fuels the two
+                //     `battle_kills` daily missions.
+                // `noDamageBattleToday` was already flagged at the moment
+                // a hit actually reduced `hp`, so its truth value here is
+                // simply observed via recheckMissionCompletion below.
+                m.modesPlayedToday.battle = true;
+                if (typeof value === 'number' && value > m.bestBattleKillsToday) {
+                    m.bestBattleKillsToday = value;
+                }
             } else if (eventType === 'visited_settings') {
                 m.settingsVisitedToday = true;
             } else if (eventType === 'toggled_setting') {
@@ -1269,12 +1451,14 @@
                 missionsForDay: [],
                 missionsCompleted: {},
                 _lastAllCompleteDayKey: null,
-                modesPlayedToday: { classic: false, survival: false },
+                modesPlayedToday: { classic: false, survival: false, battle: false },
                 settingsVisitedToday: false,
                 settingsToggledCountToday: 0,
                 bestClassicScoreToday: 0,
                 bestSurvivalTimeToday: 0,
-                noDeathClassicToday: false
+                bestBattleKillsToday: 0,
+                noDeathClassicToday: false,
+                noDamageBattleToday: false
             };
         }
 
@@ -1302,12 +1486,14 @@
             for (const mission of m.missionsForDay) {
                 let done = false;
                 switch (mission.type) {
-                    case 'classic_score': done = m.bestClassicScoreToday >= mission.target; break;
-                    case 'survival_time': done = m.bestSurvivalTimeToday >= mission.target; break;
-                    case 'no_death_run':  done = m.noDeathClassicToday; break;
-                    case 'visit_settings':done = m.settingsVisitedToday; break;
-                    case 'toggle_setting':done = (m.settingsToggledCountToday || 0) >= 1; break;
-                    case 'both_modes':    done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
+                    case 'classic_score':          done = m.bestClassicScoreToday >= mission.target; break;
+                    case 'survival_time':          done = m.bestSurvivalTimeToday >= mission.target; break;
+                    case 'no_death_run':           done = m.noDeathClassicToday; break;
+                    case 'battle_kills':           done = m.bestBattleKillsToday >= mission.target; break;
+                    case 'battle_no_damage_run':   done = !!(m.noDamageBattleToday && m.bestBattleKillsToday >= 1); break;
+                    case 'visit_settings':         done = m.settingsVisitedToday; break;
+                    case 'toggle_setting':         done = (m.settingsToggledCountToday || 0) >= 1; break;
+                    case 'both_modes':             done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
                 }
                 m.missionsCompleted[mission.id] = done;
             }
@@ -1320,12 +1506,14 @@
                 m.currentDayKey = today;
                 m.missionsForDay = generateDailyMissions(today);
                 m.missionsCompleted = {};
-                m.modesPlayedToday = { classic: false, survival: false };
+                m.modesPlayedToday = { classic: false, survival: false, battle: false };
                 m.settingsVisitedToday = false;
                 m.settingsToggledCountToday = 0;
                 m.bestClassicScoreToday = 0;
                 m.bestSurvivalTimeToday = 0;
+                m.bestBattleKillsToday = 0;
                 m.noDeathClassicToday = false;
+                m.noDamageBattleToday = false;
                 m._lastAllCompleteDayKey = null;
                 m.superClaimedDate = null;
             }
@@ -1658,6 +1846,24 @@
         function resetGame() {
             stars = [];
             meteorites = [];
+            // Battle mode keeps three independent collections so the
+            // Classic star physics and Survival meteorite AI never leak
+            // into each other (the Battle bullets move in a straight
+            // line, neither with the stars' sideways drift nor with
+            // meteorites' gravity). Wipe them on every new run so a
+            // half-finished previous Battle cannot bleed its enemies or
+            // bullets into the next game.
+            battleEnemies = [];
+            playerBullets = [];
+            enemyBullets = [];
+            // Battle spawn cadence resets each new run too — the
+            // `battleSpawnCooldown` initial value (90 frames) keeps the
+            // first enemy from appearing off-screen and gives the
+            // player roughly 1.5 seconds to read the field.
+            battleSpawnCooldown = 90;
+            battleElapsedMs = 0;
+            // Reset HP to full so each new Battle run starts fresh.
+            hp = 100;
             score = 0;
             lives = 3;
             gameOver = false;
@@ -1676,27 +1882,35 @@
             player.targetX = 400;
         }
 
-        function startGame(mode) {
-            if (typeof mode === 'string') {
-                gameMode = mode;
-            }
-            if (!currentUser) {
-                showMobileInput(false);
-                gameState = GAME_STATES.ACCOUNT;
-                accountInput = '';
-                return;
-            }
-            stopMenuMusic();
-            resetGame();
-            showMobileInput(false);
-            gameState = GAME_STATES.PLAYING;
-            startPlayTimer();          // begin timing this play session
-            if (gameMode === GAME_MODES.CLASSIC) {
-                playClassicMusic();    // background song for the Classic run (no-op for Survival)
-            } else if (gameMode === GAME_MODES.SURVIVAL) {
-                playSurvivalMusic();   // background song for the Survival run (no-op for Classic)
-            }
-        }
+function startGame(mode) {
+    if (typeof mode === 'string') {
+        gameMode = mode;
+    }
+    if (!currentUser) {
+        showMobileInput(false);
+        gameState = GAME_STATES.ACCOUNT;
+        accountInput = '';
+        return;
+    }
+    stopMenuMusic();
+    resetGame();
+    showMobileInput(false);
+    gameState = GAME_STATES.PLAYING;
+    startPlayTimer();          // begin timing this play session
+    if (gameMode === GAME_MODES.CLASSIC) {
+        playClassicMusic();    // background song for the Classic run (no-op for Survival)
+    } else if (gameMode === GAME_MODES.SURVIVAL) {
+        playSurvivalMusic();   // background song for the Survival run (no-op for Classic)
+    } else if (gameMode === GAME_MODES.BATTLE) {
+        // Battle ships take the field under SFX alone — the user opted
+        // to add a dedicated track later, so this branch is explicitly a
+        // no-op. We still set gameMode via the inner branch above so
+        // any pre-existing track for the previously-active mode stops
+        // before play (Classic / Survival have already done so via
+        // stopMenuMusic + resetGame clearing internal audio counters).
+        lastFireTimeMs = 0;
+    }
+}
 
         function togglePause() {
             if (gameState === GAME_STATES.PLAYING && !gameOver) {
@@ -1993,10 +2207,17 @@
                     inGameRecordShown = true;
                     inGameRecordShownAt = Date.now();
                 }
-            } else {
+            } else if (gameMode === GAME_MODES.SURVIVAL) {
                 // Survival: meteorites fall; dodging them is the goal.
                 // Hitting the ship costs a life. Score = seconds survived.
                 updateSurvival();
+            } else if (gameMode === GAME_MODES.BATTLE) {
+                // Battle: red ships drop in and shoot the player; right-click
+                // (or the mobile FIRE pad) fires blue ray bullets. Score = kills.
+                // All enemy / bullet / HP bookkeeping lives inside updateBattle();
+                // we just pass in the current wall-clock so it can compute its
+                // own dt-relative animations and spawn cadence.
+                updateBattle(Date.now());
             }
         }
 
@@ -2079,43 +2300,246 @@
             }
         }
 
-        function endGame() {
-            // Centralised game-over so both classic (star missed) and
-            // survival (meteorite hit) paths honour the same record logic.
-            //
-            // NOTE: intentionally do NOT stop classicAudio here. Letting
-            // the song play through the game-over overlay means a fast
-            // 'playAgain' (R key / tap) re-uses the same playback
-            // position for a seamless restart. The song is stopped in
-            // case 'menu' when the player actually returns to the menu.
-            flushPlayTime();   // persist this run's time to the account
-            if (currentUser) {
-                if (gameMode === GAME_MODES.CLASSIC) {
-                    recordMissionEvent('finished_classic', score);
-                } else if (gameMode === GAME_MODES.SURVIVAL) {
-                    recordMissionEvent('finished_survival', score);
-                }
+        // ----- Battle mode loop -----
+        // A self-contained branch added at the end of update() so the
+        // existing Classic and Survival logic keeps its proven shape.
+        // The branch runs only when gameMode === BATTLE; it owns:
+        //   * spawning new enemy ships according to a cooldown that
+        //     shrinks as battleElapsedMs grows,
+        //   * advancing every enemy toward its anchorY unless it has
+        //     been destroyed, then telegraph & fire red bullets,
+        //   * moving player / enemy bullets, then resolving collisions
+        //     in reverse to safely splice hits out of the array,
+        //   * draining player hp on hits and flipping the
+        //     `noDamageBattleToday` flag the first time hp dips below
+        //     100 (used by the `battle_no_damage` daily mission),
+        //   * ending the game when hp ≤ 0 via the shared endGame() hook.
+        function updateBattle(nowMs) {
+            battleElapsedMs += 16;
+            // Spawn cadence — at t=0 we wait ~90 frames for the first
+            // arrival; by ~60s of play we cap at one enemy every 60
+            // frames, with a hard ceiling of 4 enemies on screen so the
+            // field never becomes unfair on slow devices.
+            battleSpawnCooldown -= 1;
+            if (battleSpawnCooldown <= 0 && battleEnemies.length < 4) {
+                battleEnemies.push(createEnemy());
+                // Re-arm: starts at 180, ticks down toward 60 as the
+                // player has been alive longer. Linear ease.
+                const t = Math.min(1, battleElapsedMs / 60000);
+                battleSpawnCooldown = Math.round(180 - t * 120);
             }
-            gameOver = true;
-            playGameOverSound();
-            if (currentUser) {
-                if (gameMode === GAME_MODES.SURVIVAL) {
-                    const pos = addSurvivalScoreToUser(currentUser, score);
-                    if (pos !== -1) {
-                        isNewRecord = true;
-                        newRecordPosition = pos;
-                        playRecordSound();
+
+            // Enemies advance to anchorY then hover / fire.
+            for (let i = battleEnemies.length - 1; i >= 0; i--) {
+                const e = battleEnemies[i];
+                if (e.state === 'entering') {
+                    e.y += 1.4;
+                    if (e.y >= e.anchorY) {
+                        e.y = e.anchorY;
+                        e.state = 'hover';
+                        e.fireTimer = 60 + Math.floor(Math.random() * 60);
                     }
                 } else {
-                    const pos = addScoreToUser(currentUser, score);
-                    if (pos !== -1) {
-                        isNewRecord = true;
-                        newRecordPosition = pos;
-                        playRecordSound();
+                    // Hover: gentle horizontal sway + telegraph before
+                    // each red ray bolt.
+                    e.swayPhase += 0.05;
+                    e.x = e.anchorX + Math.sin(e.swayPhase) * 14;
+                    e.flashTimer = Math.max(0, e.flashTimer - 1);
+                    e.fireTimer -= 1;
+                    if (e.fireTimer <= 0) {
+                        // 30-frame telegraph = visible white flash so
+                        // the player can dodge.
+                        if (e.flashTimer === 0) e.flashTimer = 30;
+                        if (e.flashTimer > 0) {
+                            // wait for telegraph to elapse before firing
+                            if (e.flashTimer === 1) {
+                                enemyBullets.push({
+                                    x: e.x,
+                                    y: e.y + 28,
+                                    radius: 6,
+                                    vy: 5.0 + Math.min(2, battleElapsedMs / 30000),
+                                    dmg: 10 + Math.floor(Math.random() * 21)
+                                });
+                                playEnemyShootSound();
+                                e.fireTimer = 100 + Math.floor(Math.random() * 80);
+                            }
+                        }
                     }
                 }
             }
+
+            // Player bullets — straight up, no gravity, no sway.
+            for (let i = playerBullets.length - 1; i >= 0; i--) {
+                const b = playerBullets[i];
+                b.y += b.vy;
+                if (b.y < -20) {
+                    playerBullets.splice(i, 1);
+                }
+            }
+
+            // Enemy bullets — straight down, increasing vy with time.
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const b = enemyBullets[i];
+                b.y += b.vy;
+                if (b.y > canvas.height + 20) {
+                    enemyBullets.splice(i, 1);
+                }
+            }
+
+            // Player bullets vs enemies (reverse-loop so splice is safe).
+            for (let i = playerBullets.length - 1; i >= 0; i--) {
+                const b = playerBullets[i];
+                let consumed = false;
+                for (let j = battleEnemies.length - 1; j >= 0; j--) {
+                    const e = battleEnemies[j];
+                    const dx = b.x - e.x;
+                    const dy = b.y - e.y;
+                    if (dx * dx + dy * dy < 36 * 36) {
+                        // Apply damage; only increment the kill counter
+                        // when this hit is the one that takes the enemy
+                        // from positive hp to zero, so a stacked
+                        // bullet cluster cannot over-credit the score.
+                        e.hp -= b.dmg;
+                        if (e.hp > 0) {
+                            // Enemy is hurt — flash it briefly, leave it
+                            // alive so the same bullet does not jump to
+                            // a second enemy.
+                            e.flashTimer = 8;
+                            break;
+                        }
+                        battleEnemies.splice(j, 1);
+                        score += 1;
+                        playEnemyExplodeSound();
+                        consumed = true;
+                        break;
+                    }
+                }
+                if (consumed) playerBullets.splice(i, 1);
+            }
+
+            // Enemy bullets vs player. Same i-frame rule as Survival
+            // (`meteoriteHitCooldown` doubles as the Battle cooldown so
+            // a wall of bullets cannot drain all 100 HP in a single
+            // frame).
+            if (meteoriteHitCooldown > 0) meteoriteHitCooldown -= 1;
+            if (meteoriteHitCooldown === 0) {
+                for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                    const b = enemyBullets[i];
+                    const dx = b.x - player.x;
+                    const dy = b.y - player.y;
+                    if (dx * dx + dy * dy < 80 * 80) {
+                        if (hp === 100) {
+                            // First bite of the run — record that the
+                            // no-damage mission is now permanently
+                            // impossible today for this account.
+                            const m = currentUser ? refreshMissionsForUser(currentUser) : null;
+                            if (m) {
+                                m.noDamageBattleToday = false;
+                                saveUserMissions(currentUser, m);
+                            }
+                        }
+                        hp = Math.max(0, hp - b.dmg);
+                        playLoseLifeSound();
+                        enemyBullets.splice(i, 1);
+                        meteoriteHitCooldown = 36; // ~0.6s i-frames
+                        if (hp <= 0) {
+                            endGame();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // If we die by some other path (e.g. manual menu back), the
+            // endGame call above is the canonical state change; the
+            // game-over overlay will pick up from `gameOver`.
         }
+
+        function createEnemy() {
+            const anchorX = 80 + Math.random() * (canvas.width - 160);
+            return {
+                x: anchorX,
+                y: -40,
+                anchorX: anchorX,
+                anchorY: 60 + Math.random() * 140,
+                width: 48,
+                height: 56,
+                hp: 100,
+                state: 'entering',
+                swayPhase: Math.random() * Math.PI * 2,
+                fireTimer: 30 + Math.floor(Math.random() * 30),
+                flashTimer: 0
+            };
+        }
+
+        function fireBullet() {
+            if (gameState !== GAME_STATES.PLAYING || gameOver) return;
+            if (gameMode !== GAME_MODES.BATTLE) return;
+            const now = Date.now();
+            if (now - lastFireTimeMs < FIRE_RATE_COOLDOWN_MS) return;
+            playerBullets.push({
+                x: player.x,
+                y: player.y - 80,
+                vy: -14,
+                dmg: 10 + Math.floor(Math.random() * 21)
+            });
+            lastFireTimeMs = now;
+            playShootSound();
+        }
+
+function endGame() {
+    // Centralised game-over so classic (star missed), survival
+    // (meteorite hit) and battle (HP ≤ 0) paths honour the same
+    // record logic.
+    //
+    // NOTE: intentionally do NOT stop classicAudio here. Letting
+    // the song play through the game-over overlay means a fast
+    // 'playAgain' (R key / tap) re-uses the same playback
+    // position for a seamless restart. The song is stopped in
+    // case 'menu' when the player actually returns to the menu.
+    flushPlayTime();   // persist this run's time to the account
+    if (currentUser) {
+        // Snapshot the Battle HP state BEFORE recording the mission
+        // event so the `battle_no_damage` mission can read a
+        // consistent value (noDamageBattleToday was already set the
+        // first time hp dropped below 100; if a finished Battle
+        // survived with hp === 100, noDamageBattleToday stayed
+        // true and the daily mission flips to ✅ below).
+        if (gameMode === GAME_MODES.CLASSIC) {
+            recordMissionEvent('finished_classic', score);
+        } else if (gameMode === GAME_MODES.SURVIVAL) {
+            recordMissionEvent('finished_survival', score);
+        } else if (gameMode === GAME_MODES.BATTLE) {
+            recordMissionEvent('finished_battle', score);
+        }
+    }
+    gameOver = true;
+    playGameOverSound();
+    if (currentUser) {
+        if (gameMode === GAME_MODES.SURVIVAL) {
+            const pos = addSurvivalScoreToUser(currentUser, score);
+            if (pos !== -1) {
+                isNewRecord = true;
+                newRecordPosition = pos;
+                playRecordSound();
+            }
+        } else if (gameMode === GAME_MODES.BATTLE) {
+            const pos = addBattleScoreToUser(currentUser, score);
+            if (pos !== -1) {
+                isNewRecord = true;
+                newRecordPosition = pos;
+                playRecordSound();
+            }
+        } else {
+            const pos = addScoreToUser(currentUser, score);
+            if (pos !== -1) {
+                isNewRecord = true;
+                newRecordPosition = pos;
+                playRecordSound();
+            }
+        }
+    }
+}
 
         /* ============================================================
            6. DRAWING FUNCTIONS
@@ -2487,33 +2911,63 @@
             drawBlueCharacter(now);
             drawSpeechBubble();
 
-            // Row 3 SURVIVAL: full-width red button with skull emoji,
-            // entry point for the high-difficulty dodge mode.
-            const survivalMenuY = row2Y + row2H + 25;
-            const survivalMenuW = 200;
-            const survivalMenuX = canvas.width / 2 - survivalMenuW / 2;
-            ctx.shadowBlur = 35;
+            // Row 3 — BATTLE | SURVIVAL split. Two equal-width buttons
+            // sitting side-by-side under RECORDS / SETTINGS so the new
+            // mode does not push the MISSIONS pill down past the
+            // canvas's lower safe area. Both buttons keep the same
+            // visual height as row 1 (btnH-ish, rounded 12 px) so the
+            // menu's tier hierarchy reads cleanly: top row → quick
+            // launchers; second row → menu pages; third row → high-
+            // difficulty alternatives.
+            const row3Y = row2Y + row2H + 25;
+            const row3H = 50;
+            const row3W = 165;
+            const row3Gap = 12;
+            const battleMenuX = canvas.width / 2 - row3W - row3Gap / 2;
+            const survivalMenuX = canvas.width / 2 + row3Gap / 2;
+            const survivalMenuW = row3W;
+
+            // ----- BATTLE button (left) -----
+            ctx.shadowBlur = 28;
+            ctx.shadowColor = '#ff8a3d';
+            ctx.fillStyle = '#4a1a0a';
+            ctx.beginPath();
+            ctx.roundRect(battleMenuX, row3Y, row3W, row3H, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 138, 61, 0.85)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(battleMenuX, row3Y, row3W, row3H, 12);
+            ctx.stroke();
+            ctx.fillStyle = '#ffd2a8';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillText('🎯 BATTLE', battleMenuX + row3W / 2, row3Y + 30);
+
+            // ----- SURVIVAL button (right) -----
+            ctx.shadowBlur = 28;
             ctx.shadowColor = '#ff0000';
             ctx.fillStyle = '#a01010';
             ctx.beginPath();
-            ctx.roundRect(survivalMenuX, survivalMenuY, survivalMenuW, 40, 10);
+            ctx.roundRect(survivalMenuX, row3Y, survivalMenuW, row3H, 12);
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.strokeStyle = 'rgba(255, 90, 90, 0.7)';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.roundRect(survivalMenuX, survivalMenuY, survivalMenuW, 40, 10);
+            ctx.roundRect(survivalMenuX, row3Y, survivalMenuW, row3H, 12);
             ctx.stroke();
             ctx.fillStyle = '#ffcccc';
             ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.fillText('💀 SURVIVAL', canvas.width / 2, survivalMenuY + 27);
+            ctx.fillText('💀 SURVIVAL', survivalMenuX + survivalMenuW / 2, row3Y + 30);
 
             menuButtons = [
                 { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
                 { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
                 { rect: { x: recX, y: row2Y, w: btnW, h: row2H }, action: 'records' },
                 { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' },
-                { rect: { x: survivalMenuX, y: survivalMenuY, w: survivalMenuW, h: 40 }, action: 'survival' }
+                { rect: { x: battleMenuX, y: row3Y, w: row3W, h: row3H }, action: 'playBattle' },
+                { rect: { x: survivalMenuX, y: row3Y, w: survivalMenuW, h: row3H }, action: 'survival' }
             ];
             // ----- BIG "M KEY" pill -- enters the Missions page -----
             // No swipe gesture anymore; the pill AND the M keyboard
@@ -2829,6 +3283,46 @@
 
         function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
+            const isBattle   = gameMode === GAME_MODES.BATTLE;
+            // ----- Battle HUD overlay -----
+            // Two visual elements render BEFORE anything else:
+            //   1) a 6 px-tall health strip across the very top edge
+            //      of the canvas, color-coded green/yellow/red so the
+            //      player can read their remaining HP at a glance.
+            //   2) a compact "KILLS / BEST" readout on the top so the
+            //      player can compare their current run to their
+            //      personal record without opening the Records screen.
+            if (isBattle) {
+                const hpMax = 100;
+                const ratio = Math.max(0, hp) / hpMax;
+                const barX = 0;
+                const barW = canvas.width;
+                const barY = 0;
+                const barH = 6;
+                ctx.fillStyle = 'rgba(0,0,0,0.72)';
+                ctx.fillRect(barX, barY, barW, barH);
+                const fillW = Math.max(0, barW * ratio);
+                let hpColor;
+                if (ratio > 0.5) hpColor = '#3ec46d';
+                else if (ratio > 0.25) hpColor = '#ffaa33';
+                else hpColor = '#ff6b6b';
+                ctx.fillStyle = hpColor;
+                ctx.fillRect(barX, barY, fillW, barH);
+                // KILLS + HP readouts in the same conditional block so
+                // the HUD has a single source of truth for "is this a
+                // battle HUD" — avoids the prior nested if(isBattle)
+                // that split the bar render from the readout render.
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = '#ff6b6b';
+                ctx.fillStyle = '#ff6b6b';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
+                ctx.fillText(`🛡 KILLS: ${score}`, 20, 26);
+                const hpText = `❤ ${hp}/100`;
+                const hpTextWidth = ctx.measureText(hpText).width;
+                ctx.fillStyle = hpColor;
+                ctx.fillText(hpText, canvas.width - hpTextWidth - 20, 26);
+                ctx.shadowBlur = 0;
+            }
             const highScore = currentUser
                 ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
                 : 0;
@@ -3022,7 +3516,7 @@
             ctx.shadowBlur = 40;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#ff4444';
-            ctx.fillText(isSurvival ? '☠ SURVIVAL OVER' : 'GAME OVER', canvas.width / 2, 100);
+            ctx.fillText(isBattle ? '💥 BATTLE OVER' : (isSurvival ? '☠ SURVIVAL OVER' : 'GAME OVER'), canvas.width / 2, 100);
 
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
@@ -3116,6 +3610,17 @@
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
             ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL' : '🏆 TOP 10', leftColX, top5Y);
+            // ----- Battle mode best-score inline badge -----
+            // Surfaces the player's top Battle run right next to the
+            // existing TOP 10 header so the new mode is visible even
+            // though the full 3-column grid hasn't been integrated yet.
+            // TODO: replace with a real Battle column once the records
+            // grid layout is refactored to 3 columns of ~240 px.
+            const battleBest = currentUser ? getMaxBattleScore(currentUser) : 0;
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.fillStyle = battleBest > 0 ? '#ff8a3d' : '#9aa6b2';
+            ctx.fillText(`⚔ BATTLE BEST: ${battleBest} ${battleBest === 1 ? 'kill' : 'kills'}`, leftColX, top5Y + 22);
 
             if (currentUser) {
                 const records = isSurvival
@@ -3847,6 +4352,12 @@
 
         function draw() {
             updatePauseButton();
+            // Battle mode ships a mobile FIRE pad positioned outside the
+            // canvas. The pad's visibility follows the current run-state,
+            // so calling updateFireButton() at the top of draw() each
+            // frame keeps it correctly shown / hidden during state
+            // transitions (PLAYING → PAUSED → MENU, etc).
+            updateFireButton();
             switch (gameState) {
                 case GAME_STATES.MENU:
                     drawMenu();
@@ -3911,6 +4422,15 @@
                         showMobileInput(true);
                     } else {
                         startGame(GAME_MODES.SURVIVAL);
+                    }
+                    break;
+                case 'playBattle':
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        startGame(GAME_MODES.BATTLE);
                     }
                     break;
                 case 'account':
@@ -4420,6 +4940,113 @@
         document.addEventListener('click', initAudioOnUserInteraction);
         document.addEventListener('keydown', initAudioOnUserInteraction);
         document.addEventListener('touchstart', initAudioOnUserInteraction);
+
+        // ----- Battle Mode input handlers -----
+        // Desktop: fire a blue ray bullet on right-mouse-down while a
+        // Battle run is in progress. Right-click is reserved for this
+        // purpose; the browser context menu is suppressed everywhere on
+        // the canvas via the canvas-level `contextmenu` preventDefault
+        // registered near the top of the script, so this listener is
+        // never interrupted by the pop-up menu.
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 2 &&
+                gameMode === GAME_MODES.BATTLE &&
+                gameState === GAME_STATES.PLAYING &&
+                !gameOver) {
+                e.preventDefault();
+                fireBullet();
+            }
+        });
+
+        // Mobile fallback: a dedicated FIRE button overlay that lives
+        // outside the canvas. Touch users cannot trigger a button === 2
+        // event, so they tap this pad instead. The button is HIDDEN by
+        // default; `updateFireButton()` toggles its visibility from the
+        // main render loop so it appears only while a Battle run is in
+        // progress on a touch-first viewport.
+        const fireButton = document.createElement('button');
+        fireButton.id = 'fireButton';
+        fireButton.setAttribute('aria-label', 'Fire ray bullet');
+        fireButton.style.cssText = [
+            'position:fixed',
+            'z-index:55',
+            'display:none',
+            'align-items:center',
+            'justify-content:center',
+            'width:88px',
+            'height:88px',
+            'border-radius:24px',
+            'border:1px solid rgba(255,138,61,0.85)',
+            'background:linear-gradient(180deg, rgba(74,26,10,0.95), rgba(46,16,6,0.95))',
+            'color:#ffd2a8',
+            'font:900 24px Orbitron, sans-serif',
+            'cursor:pointer',
+            'user-select:none',
+            'touch-action:manipulation',
+            'box-shadow:0 0 24px rgba(255,138,61,0.4)',
+            'transition:transform 0.12s ease'
+        ].join(';');
+        fireButton.textContent = '🎯';
+        document.body.appendChild(fireButton);
+
+        fireButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameMode === GAME_MODES.BATTLE &&
+                gameState === GAME_STATES.PLAYING &&
+                !gameOver) {
+                fireBullet();
+            }
+        }, { passive: false });
+        fireButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (gameMode === GAME_MODES.BATTLE &&
+                gameState === GAME_STATES.PLAYING &&
+                !gameOver) {
+                fireBullet();
+            }
+        });
+
+        // Position the FIRE pad on the right edge below the canvas and
+        // show/hide it from the render loop. Mirrors the
+        // positionPauseButton() pattern so future re-layouts share
+        // the same logic.
+        //
+        // FIX (reviewer found a layout bug here): use the explicit
+        // fixed dimensions (88 px on each axis, set in `cssText`)
+        // instead of `fireButton.offsetWidth`. While `display: none`
+        // the browser strips layout for the element so `offsetWidth`
+        // reads 0 — meaning the first time the button becomes visible
+        // it would paint at `left = rect.right - 0 - 16` and stick
+        // there until the layout pass that happens AFTER the very next
+        // paint cycle. Hardcoding the geometry avoids the layout
+        // dependency entirely.
+        const FIRE_BUTTON_W = 88;
+        const FIRE_BUTTON_H = 88;
+        function positionFireButton() {
+            if (!fireButton) return;
+            const rect = canvas.getBoundingClientRect();
+            const margin = 16;
+            fireButton.style.left = (rect.right - FIRE_BUTTON_W - margin) + 'px';
+            fireButton.style.top = (rect.bottom - FIRE_BUTTON_H - margin) + 'px';
+        }
+
+        function updateFireButton() {
+            if (!fireButton) return;
+            const shouldShow =
+                IS_MOBILE &&
+                gameMode === GAME_MODES.BATTLE &&
+                gameState === GAME_STATES.PLAYING &&
+                !gameOver;
+            // Set display FIRST; only then position. `positionFireButton`
+            // relies on hardcoded geometry rather than the element's
+            // measured size so this ordering is also safe with the old
+            // `display: none` bug, but flipping the order keeps the
+            // intent obvious.
+            fireButton.style.display = shouldShow ? 'flex' : 'none';
+            if (shouldShow) positionFireButton();
+        }
+        window.addEventListener('resize', positionFireButton);
+        window.addEventListener('orientationchange', () => setTimeout(positionFireButton, 100));
 
         // No-interaction fallback: also attempt to start the menu
         // song at +1 s for desktop / browsers that allow autoplay.
