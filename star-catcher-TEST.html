@@ -369,7 +369,15 @@
         const GAME_MODES = {
             CLASSIC: 'classic',
             SURVIVAL: 'survival',
-            BATTLE: 'battle'
+            BATTLE: 'battle',
+            // CO-OP: two-player mode on the same keyboard.
+            //   * Blue (mouse) collects stars AND takes damage from
+            //     missed stars (3 lives, like Classic).
+            //   * Green (arrow keys) shoots light-green beams at enemies
+            //     AND has its own HP bar (like Battle).
+            //   If either player is eliminated, both lose. Score is
+            //   1 per star + 2 per enemy kill.
+            COOP: 'coop'
         };
 
         let gameState = GAME_STATES.MENU;
@@ -470,6 +478,55 @@
         let battleEnemies = [];
         let playerBullets = [];
         let enemyBullets = [];
+        // ----- CO-OP mode (Player 2 = Green) -----
+        // Green is a fully independent ship above Blue. The green
+        // ship moves exclusively with the LEFT and RIGHT arrow keys
+        // (mirroring the mouse-driven Blue ship), shoots light-green
+        // beams straight up at enemies with UP arrow, and has its own
+        // HP bar — when green reaches 0 HP, both players lose.
+        // Reusing the battleEnemies/playerBullets/enemyBullets arrays
+        // keeps the CO-OP spawn + combat math identical to Battle, so
+        // a freshly-tuned Battle balance also improves CO-OP.
+        // greenPlayerBeams is the only CO-OP-specific projectile pool
+        // because their visual + collision semantics are distinct
+        // (light green + instantly-kills enemies).
+        const greenPlayer = {
+            x: 400,
+            y: 350,
+            radius: 28,        // hitbox half-width; clamp keeps it on-canvas
+            hp: 100,
+            maxHp: 100,
+            // Same visual diameter as the drawable blue ship so both
+            // ships feel evenly sized on screen.
+            drawRadius: 26
+        };
+        let greenPlayerBeams = [];
+        // Tracks which arrow keys are currently held down. The Blue
+        // ship's mouse-driven smoothing still uses targetX (no change).
+        // CO-OP green movement is direct (no smoothing — instant
+        // feedback for an arcade co-op feel).
+        const coopKeys = {
+            left: false,
+            right: false,
+            up: false,
+            // Space is kept as a redundant shoot trigger so users
+            // reaching for either UP or SPACE both get a beam. Mirrors
+            // how classic arcade co-op titles model "primary action".
+            space: false
+        };
+        // Same cooldown discipline as the Battle player's right-click
+        // firing. Prevents green from machine-gunning beams when UP
+        // (or SPACE) is held down.
+        let lastGreenFireTimeMs = 0;
+        // CO-OP also has its own elapsed-Ms clock so the enemy-spawn
+        // ramp (from Battle) eases in at the start of a CO-OP run
+        // instead of dumping the full wave on frame 1.
+        let coopElapsedMs = 0;
+        let coopSpawnCooldown = 110;
+        // CO-OP_i-frames after the green player takes damage to avoid
+        // being melted in a single 5-bullet volley. Reset to 30 in the
+        // damage handler, ticks down toward 0 each frame.
+        let coopGreenHitCooldown = 0;
         let score = 0;
         let lives = 3;
         let hp = 100;
@@ -568,6 +625,7 @@
             'Hi, my name is Blue.',
             'Try the new SURVIVAL mode!',
             'Try the new BATTLE mode!',
+            'Try the new CO-OP mode!',
             'A project for Stardance challenge.',
             'Beware the meteorites...',
             'Catch them all!',
@@ -1214,6 +1272,52 @@
         function getMaxBattleScore(username) {
             if (!username) return 0;
             const records = getBattleRecords(username);
+            return records.length > 0 ? records[0] : 0;
+        }
+
+        // ----- CO-OP Mode records -----
+        // Top-10 best CO-OP runs (1 star + 2 enemy-kill per score).
+        // Identical shape / storage convention to the `${user}__battle`
+        // bucket above so the Records screen can iterate mode buckets
+        // uniformly with the existing getBattleRecords / getSurvivalRecords.
+        function getCoopRecords(username) {
+            const key = `${username}__coop`;
+            const all = getAllRecords();
+            if (!all[key]) {
+                all[key] = Array(10).fill(0);
+                saveAllRecords(all);
+            }
+            return all[key];
+        }
+
+        function setCoopRecords(username, records) {
+            const key = `${username}__coop`;
+            const all = getAllRecords();
+            all[key] = records;
+            saveAllRecords(all);
+        }
+
+        function addCoopScoreToUser(username, newScore) {
+            if (newScore <= 0) return -1;
+
+            let records = getCoopRecords(username);
+            const previousMin = records.length >= 10 ? records[9] : 0;
+
+            records.push(newScore);
+            records.sort((a, b) => b - a);
+            records = records.slice(0, 10);
+            setCoopRecords(username, records);
+
+            if (newScore <= previousMin && records.length >= 10) {
+                return -1;
+            }
+
+            return records.indexOf(newScore);
+        }
+
+        function getMaxCoopScore(username) {
+            if (!username) return 0;
+            const records = getCoopRecords(username);
             return records.length > 0 ? records[0] : 0;
         }
 
@@ -2043,6 +2147,24 @@
             player.x = 400;
             player.y = 550;
             player.targetX = 400;
+            // ----- CO-OP reset -----
+            // Wipe beams + cooldown so a half-finished CO-OP run cannot
+            // bleed combat data into the next one; restore both ships
+            // to their canonical x/y so the first frame looks the same
+            // whether the player came from the menu or from a restart.
+            // Green sits at y=350 (above Blue's y=550) and on top of
+            // the centre line so the player can see both ships at a
+            // glance from frame 1. coopGreenHitCooldown resets to 0 —
+            // the green player starts with full, non-invulnerable HP.
+            greenPlayerBeams = [];
+            greenPlayer.x = 400;
+            greenPlayer.y = 350;
+            greenPlayer.hp = 100;
+            greenPlayer.maxHp = 100;
+            coopElapsedMs = 0;
+            coopSpawnCooldown = 110;
+            coopGreenHitCooldown = 0;
+            lastGreenFireTimeMs = 0;
         }
 
         function startGame(mode) {
@@ -2072,10 +2194,26 @@
                 // before play (Classic / Survival have already done so via
                 // stopMenuMusic + resetGame clearing internal audio counters).
                 lastFireTimeMs = 0;
+            } else if (gameMode === GAME_MODES.COOP) {
+                // CO-OP reuses Battle's enemy / bullet pools, so reset the
+                // same firing-cooldown timestamp on every fresh run so the
+                // first shot comes out clean (otherwise restarting with
+                // mouse-down could fire instantly).
+                lastFireTimeMs = 0;
+                lastGreenFireTimeMs = 0;
             }
         }
 
         function togglePause() {
+            // Clear sticky CO-OP keys so a held arrow + P pause
+            // doesn't leave the green ship drifting on unpause. Also
+            // a safety net for the window-blur handler that's
+            // already firing — covering both leaves no path for
+            // coopKeys to survive a pause-resume cycle.
+            coopKeys.left = false;
+            coopKeys.right = false;
+            coopKeys.up = false;
+            coopKeys.space = false;
             if (gameState === GAME_STATES.PLAYING && !gameOver) {
                 flushPlayTime();       // stop the clock while paused
                 gameState = GAME_STATES.PAUSED;
@@ -2446,6 +2584,14 @@
                 // we just pass in the current wall-clock so it can compute its
                 // own dt-relative animations and spawn cadence.
                 updateBattle(Date.now());
+            } else if (gameMode === GAME_MODES.COOP) {
+                // ----- CO-OP mode tick -----
+                // Two-player shared run. Stars use the OLD Classic spawn
+                // cadence (5% chance per frame) because Blue is the only
+                // one catching them; enemies reuse Battle's full spawn
+                // ramp because Green needs the same threat density to be
+                // able to keep up with the +2-per-kill economy.
+                updateCoop(Date.now());
             }
         }
 
@@ -3023,6 +3169,217 @@
             };
         }
 
+        // ----- CO-OP combat tick -----
+        // Reuses Battle's battleEnemies / enemyBullets pools so the
+        // enemy behaviour + telegraph feel is identical, and adds only
+        // greenPlayerBeams on top. Score: +1 per star caught (no combo
+        // / no lucky bonus because green is also playing), +2 per
+        // enemy destroyed by green beams.
+        //
+        // Shared lose condition: lives <= 0 OR greenPlayer.hp <= 0.
+        // Both call endGame() so the unified game-over overlay + record
+        // saving flow stays the same.
+        function updateCoop(nowMs) {
+            coopElapsedMs += 16;
+
+            // ===== Green ship (Player 2) movement =====
+            // Direct keyboard control: ±GREEN_SPEED px per frame, clamped
+            // to the canvas edges so green cannot leave the play area.
+            // No smoothing on green because the player explicitly
+            // presses left/right and expects an instant arcady
+            // response. Speed tuned to feel like an equal to Blue's
+            // smoothed targetX motion (which travels 0.3 of the
+            // distance per frame from the cursor — at 100 px gap that's
+            // 30 px/frame, so 6 px/frame for green keeps both ships
+            // roughly matched on the same horizontal line).
+            const GREEN_SPEED = 6;
+            if (coopKeys.left) greenPlayer.x -= GREEN_SPEED;
+            if (coopKeys.right) greenPlayer.x += GREEN_SPEED;
+            if (greenPlayer.x < greenPlayer.radius) greenPlayer.x = greenPlayer.radius;
+            if (greenPlayer.x > canvas.width - greenPlayer.radius) greenPlayer.x = canvas.width - greenPlayer.radius;
+
+            // ===== Green beams =====
+            // UP arrow or SPACE pushes a beam straight up. Same
+            // cooldown as the Battle player's right-click bullet so
+            // both players feel equally armed.
+            if ((coopKeys.up || coopKeys.space) && !gameOver) {
+                if (nowMs - lastGreenFireTimeMs >= FIRE_RATE_COOLDOWN_MS) {
+                    greenPlayerBeams.push({
+                        x: greenPlayer.x,
+                        y: greenPlayer.y - 24,
+                        width: 10,
+                        height: 22,
+                        vy: -16
+                    });
+                    lastGreenFireTimeMs = nowMs;
+                    playShootSound();
+                }
+            }
+
+            // ===== Star spawn (Classic mechanic for Blue) =====
+            // 5% per frame is the same spawn rate the existing Classic
+            // mode uses — the player description is explicit that
+            // CO-OP stars behave "just like Classic". All stars are
+            // worth +1 here regardless of kind because the green
+            // player is also playing and the green player's kills
+            // are weighted +2, which keeps the runs balanced
+            // (combo + lucky bonuses are Classic-only perks).
+            if (Math.random() < 0.05) {
+                stars.push(createStar());
+            }
+            for (let i = stars.length - 1; i >= 0; i--) {
+                const star = stars[i];
+                star.y += star.speed;
+                const dx = player.x - star.x;
+                const dy = player.y - star.y;
+                const dist2 = dx * dx + dy * dy;
+                const hitR = player.radius + star.radius;
+                if (dist2 < hitR * hitR) {
+                    // +1 regardless of kind per CO-OP spec.
+                    score += 1;
+                    playCollectSound();
+                    stars.splice(i, 1);
+                    continue;
+                }
+                if (star.y > canvas.height + star.radius) {
+                    lives--;
+                    playLoseLifeSound();
+                    stars.splice(i, 1);
+                    if (lives <= 0) {
+                        endGame();
+                        return;
+                    }
+                }
+            }
+            if (stars.length > 100) stars.splice(0, stars.length - 100);
+
+            // ===== Enemy spawn (Battle mechanic for Green) =====
+            // 110-frame initial cooldown (slightly slower than Battle's
+            // 90 so the player can read the field on first frame), then
+            // linear ramp 180 → 60 over the first 60 s of play. Same
+            //   per-frame tick rate as Battle so any future tuning to
+            // Battle cadence is mirrored here for free.
+            coopSpawnCooldown -= 1;
+            if (coopSpawnCooldown <= 0 && battleEnemies.length < 4) {
+                battleEnemies.push(createEnemy());
+                const t = Math.min(1, coopElapsedMs / 60000);
+                coopSpawnCooldown = Math.round(180 - t * 120);
+            }
+
+            // ===== Enemy ships: advance / hover / fire =====
+            // Mirrors updateBattle() verbatim so CO-OP — like Battle —
+            // has a 30-frame telegraph whenever an enemy is about to
+            // shoot a red ray. The telegraph is essential for fair
+            // dodging because Green has only one row of vertical space
+            // (above Blue) to dodge into.
+            for (let i = battleEnemies.length - 1; i >= 0; i--) {
+                const e = battleEnemies[i];
+                if (e.state === 'entering') {
+                    e.y += 1.4;
+                    if (e.y >= e.anchorY) {
+                        e.y = e.anchorY;
+                        e.state = 'hover';
+                        e.fireTimer = 60 + Math.floor(Math.random() * 60);
+                    }
+                } else {
+                    e.swayPhase += 0.05;
+                    e.x = e.anchorX + Math.sin(e.swayPhase) * 14;
+                    e.flashTimer = Math.max(0, e.flashTimer - 1);
+                    e.fireTimer -= 1;
+                    if (e.fireTimer <= 0) {
+                        if (e.flashTimer === 0) e.flashTimer = 30;
+                        if (e.flashTimer > 0 && e.flashTimer === 1) {
+                            enemyBullets.push({
+                                x: e.x,
+                                y: e.y + 28,
+                                radius: 6,
+                                vy: 4.0 + Math.min(2, coopElapsedMs / 30000),
+                                dmg: 8 + Math.floor(Math.random() * 13)
+                            });
+                            playEnemyShootSound();
+                            e.fireTimer = 100 + Math.floor(Math.random() * 80);
+                        }
+                    }
+                }
+            }
+
+            // ===== Beam movement =====
+            for (let i = greenPlayerBeams.length - 1; i >= 0; i--) {
+                const b = greenPlayerBeams[i];
+                b.y += b.vy;
+                if (b.y < -30) {
+                    greenPlayerBeams.splice(i, 1);
+                }
+            }
+
+            // ===== Enemy bullet movement =====
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const b = enemyBullets[i];
+                b.y += b.vy;
+                if (b.y > canvas.height + 20) {
+                    enemyBullets.splice(i, 1);
+                }
+            }
+
+            // ===== Beam vs Enemy collision =====
+            // +2 score per kill per CO-OP spec.  One-hit-one-kill so
+            // the math is obvious to the player (vs Battle's 10-30 dmg
+            // per bullet).  Reverse-loop splice is safe.
+            for (let i = greenPlayerBeams.length - 1; i >= 0; i--) {
+                const b = greenPlayerBeams[i];
+                let consumed = false;
+                for (let j = battleEnemies.length - 1; j >= 0; j--) {
+                    const e = battleEnemies[j];
+                    const dx = b.x - e.x;
+                    const dy = b.y - e.y;
+                    if (dx * dx + dy * dy < 36 * 36) {
+                        battleEnemies.splice(j, 1);
+                        score += 2;
+                        playEnemyExplodeSound();
+                        consumed = true;
+                        break;
+                    }
+                }
+                if (consumed) greenPlayerBeams.splice(i, 1);
+            }
+
+            // ===== Enemy bullet vs both players =====
+            // CO-OP uses its own i-frame clock (`coopGreenHitCooldown`)
+            // so Green doesn't share the Battle's `meteoriteHitCooldown`
+            // (Blue is unaffected by bullets in CO-OP per spec — Blue
+            // only loses lives by missing stars).
+            if (coopGreenHitCooldown > 0) coopGreenHitCooldown -= 1;
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const b = enemyBullets[i];
+
+                // Green hit-test first.  Smaller hit radius (28 vs the
+                // 80 Battle uses for Blue) because green's drawRadius
+                // is intentionally narrower than Blue's giant 100-px
+                // hitbox so the two ships feel differently-sized on
+                // screen.
+                if (coopGreenHitCooldown === 0) {
+                    const gdx = b.x - greenPlayer.x;
+                    const gdy = b.y - greenPlayer.y;
+                    if (gdx * gdx + gdy * gdy < 40 * 40) {
+                        greenPlayer.hp = Math.max(0, greenPlayer.hp - b.dmg);
+                        playLoseLifeSound();
+                        enemyBullets.splice(i, 1);
+                        coopGreenHitCooldown = 36;
+                        if (greenPlayer.hp <= 0) {
+                            endGame();
+                            return;
+                        }
+                        continue;
+                    }
+                }// Blue is never directly hit by enemy bullets per spec —
+                    // Blue is the Classic-style collector.  Enemy bullets
+                    // simply pass Blue by and vanish off the bottom of the
+                    // canvas (handled by the splice at the top of this
+                    // block). Leaving the per-bullet positional check
+                    // untouched keeps the loop's indexing safe.
+                }
+            }
+
         function fireBullet() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
             if (gameMode !== GAME_MODES.BATTLE) return;
@@ -3048,6 +3405,15 @@
             // 'playAgain' (R key / tap) re-uses the same playback
             // position for a seamless restart. The song is stopped in
             // case 'menu' when the player actually returns to the menu.
+            // Mirror the togglePause() discipline: a held arrow at the
+            // moment of game-over would otherwise leave coopKeys stuck
+            // true and visibly teleport the green ship on the next CO-OP
+            // restart. The same clear also defends against the
+            // window-blur handler being slow to fire mid-frame.
+            coopKeys.left = false;
+            coopKeys.right = false;
+            coopKeys.up = false;
+            coopKeys.space = false;
             flushPlayTime();   // persist this run's time to the account
             if (currentUser) {
                 // Snapshot the Battle HP state BEFORE recording the mission
@@ -3062,6 +3428,12 @@
                     recordMissionEvent('finished_survival', score);
                 } else if (gameMode === GAME_MODES.BATTLE) {
                     recordMissionEvent('finished_battle', score);
+                } else if (gameMode === GAME_MODES.COOP) {
+                    // CO-OP runs don't have a daily mission mapping today
+                    // (no entries in MISSION_POOL use a coop_* type) but
+                    // we still emit `finished_coop` so a future mission
+                    // can hook in without a code change at the call site.
+                    recordMissionEvent('finished_coop', score);
                 }
             }
             gameOver = true;
@@ -3076,6 +3448,16 @@
                     }
                 } else if (gameMode === GAME_MODES.BATTLE) {
                     const pos = addBattleScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                } else if (gameMode === GAME_MODES.COOP) {
+                    // CO-OP writes to its own bucket (`${user}__coop`)
+                    // so the Records screen can show a separate top-10
+                    // column without polluting Classic / Battle records.
+                    const pos = addCoopScoreToUser(currentUser, score);
                     if (pos !== -1) {
                         isNewRecord = true;
                         newRecordPosition = pos;
@@ -3469,13 +3851,24 @@
             // visual height as row 1 (btnH-ish, rounded 12 px) so the
             // menu's tier hierarchy reads cleanly: top row → quick
             // launchers; second row → menu pages; third row → high-
-            // difficulty alternatives.
+            // difficulty alternatives. After CO-OP shipped, row 3
+            // hosts THREE buttons (Battle / CO-OP / Survival) so
+            // row3W is shrunk to 130 px to fit all three within the
+            // 800 px canvas without overlap.
             const row3Y = row2Y + row2H + 25;
             const row3H = 50;
-            const row3W = 165;
-            const row3Gap = 12;
-            const battleMenuX = canvas.width / 2 - row3W - row3Gap / 2;
-            const survivalMenuX = canvas.width / 2 + row3Gap / 2;
+            const row3W = 130;
+            const row3Gap = 10;
+            // Three buttons centred evenly across the row. Total
+            // width 3*row3W + 2*row3Gap = 410, so battle starts at
+            //    canvas.width/2 - 1.5*row3W - row3Gap
+            // and each subsequent button is offset by row3W + row3Gap.
+            // Order is BATTLE / CO-OP / SURVIVAL because that's the
+            // semantic flow "single-player combat → two-player
+            // cooperation → single-player escape".
+            const battleMenuX = canvas.width / 2 - 1.5 * row3W - row3Gap;
+            const coopMenuX = canvas.width / 2 - row3W / 2;
+            const survivalMenuX = canvas.width / 2 + row3W / 2 + row3Gap;
             const survivalMenuW = row3W;
 
             // ----- BATTLE button (left) -----
@@ -3500,7 +3893,7 @@
             ctx.shadowColor = '#ff0000';
             ctx.fillStyle = '#a01010';
             ctx.beginPath();
-            ctx.roundRect(survivalMenuX, row3Y, survivalMenuW, row3H, 12);
+            ctx.roundRect(survivalMenuX, row3Y, row3W, row3H, 12);
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.strokeStyle = 'rgba(255, 90, 90, 0.7)';
@@ -3518,6 +3911,7 @@
                 { rect: { x: recX, y: row2Y, w: btnW, h: row2H }, action: 'records' },
                 { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' },
                 { rect: { x: battleMenuX, y: row3Y, w: row3W, h: row3H }, action: 'playBattle' },
+                { rect: { x: coopMenuX, y: row3Y, w: row3W, h: row3H }, action: 'playCoop' },
                 { rect: { x: survivalMenuX, y: row3Y, w: survivalMenuW, h: row3H }, action: 'survival' }
             ];
             // ----- BIG "M KEY" pill -- enters the Missions page -----
@@ -3832,6 +4226,113 @@
             ctx.restore();
         }
 
+        // ===== CO-OP draw helpers =====
+        // Green ship (Player 2) sprite. Mirrors drawShip()'s layered
+        // ellipse + fin + thruster recipe so both ships feel like a
+        // matching pair visually. The only differences are the green
+        // palette and the lack of an orange thruster flame (Green is
+        // focused on shooting, not thrusting, so a subtle pulsating
+        // thruster dot reads quieter).
+        function drawGreenShip() {
+            ctx.save();
+            ctx.translate(greenPlayer.x, greenPlayer.y);
+            ctx.shadowColor = '#6f6';
+            ctx.shadowBlur = 25;
+
+            // Body — angular green silhouette
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 18, 14, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#3ec46d';
+            ctx.fill();
+            ctx.strokeStyle = '#8fdfa0';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Inner cockpit disc
+            ctx.beginPath();
+            ctx.ellipse(0, -6, 10, 7, 0, 0, Math.PI * 2);
+            ctx.fillStyle = '#8fdfa0';
+            ctx.fill();
+            ctx.strokeStyle = '#cfffd6';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Twin eye dots (matches Blue ship)
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(-4, -8, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(4, -8, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Side fins
+            ctx.fillStyle = '#26884a';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(-20, 5);
+            ctx.lineTo(-8, -2);
+            ctx.lineTo(-8, 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(20, 5);
+            ctx.lineTo(8, -2);
+            ctx.lineTo(8, 8);
+            ctx.closePath();
+            ctx.fill();
+
+            // Thruster: small green-tinted flame so the reader can see
+            // the ship is moving and which direction it's facing.
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#6f6';
+            ctx.fillStyle = '#6f6';
+            ctx.beginPath();
+            ctx.moveTo(-5, 14);
+            ctx.lineTo(0, 22);
+            ctx.lineTo(5, 14);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#cfffd6';
+            ctx.beginPath();
+            ctx.moveTo(-3, 14);
+            ctx.lineTo(0, 18);
+            ctx.lineTo(3, 14);
+            ctx.closePath();
+            ctx.fill();
+
+            // i-frame tint: when coopGreenHitCooldown > 0 the ship has
+            // recently taken damage and we tint it red so the player
+            // can see the i-frame window.
+            if (coopGreenHitCooldown > 0) {
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.fillStyle = 'rgba(255, 80, 80, 0.5)';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 20, 16, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        // Green beams (Player 2's light-green laser shots). Same
+        // dual-shape recipe as the Battle blue rays but with a green
+        // palette: wider dimmer halo + narrower bright white core.
+        function drawGreenBeams() {
+            for (const b of greenPlayerBeams) {
+                ctx.save();
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#6f6';
+                ctx.fillStyle = '#6f6';
+                ctx.fillRect(b.x - 5, b.y - 11, 10, 22);
+                ctx.shadowBlur = 10;
+                ctx.fillStyle = '#eaffea';
+                ctx.fillRect(b.x - 2, b.y - 9, 4, 18);
+                ctx.restore();
+            }
+        }
+
         // ====== Battle mode renderers ======
         // These three renderers are only invoked when gameMode === BATTLE
         // (see the GAME_STATES.PLAYING switch in the draw() loop below).
@@ -3936,6 +4437,7 @@
         function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
+            const isCoop = gameMode === GAME_MODES.COOP;
             // ----- Battle HUD overlay -----
             // Two visual elements render BEFORE anything else:
             //   1) a 6 px-tall health strip across the very top edge
@@ -3974,6 +4476,63 @@
                 ctx.fillStyle = hpColor;
                 ctx.fillText(hpText, canvas.width - hpTextWidth - 20, 26);
                 ctx.shadowBlur = 0;
+            }
+            if (isCoop) {
+                // ----- CO-OP HUD overlay -----
+                // Three elements at the top of the canvas:
+                //   1) Black backdrop strip (8 px) so the green HP
+                //      always reads on top of stars/enemies.
+                //   2) Green HP bar sized to `[greenPlayer.hp, 100]`.
+                //   3) Two text readouts under the bar:
+                //      - left: BLUE LIVES (3 lives, red hearts)
+                //      - right: GREEN HP
+                //      - center: SCORE with star + kill feedback built
+                //        into the score updateCounter so the player
+                //        can always see their current combo of stars
+                //        + enemy kills in real time.
+                const hpMax = greenPlayer.maxHp;
+                const grRatio = Math.max(0, greenPlayer.hp) / hpMax;
+                const barX = 0;
+                const barW = canvas.width;
+                const barY = 0;
+                const barH = 8;
+                ctx.fillStyle = 'rgba(0,0,0,0.78)';
+                ctx.fillRect(barX, barY, barW, barH);
+                const greenFillW = Math.max(0, barW * grRatio);
+                let grColor;
+                if (grRatio > 0.5) grColor = '#5fe089';
+                else if (grRatio > 0.25) grColor = '#ffd84a';
+                else grColor = '#ff6b6b';
+                ctx.fillStyle = grColor;
+                ctx.fillRect(barX, barY, greenFillW, barH);
+
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#3ec46d';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
+                ctx.textAlign = 'left';
+                // BLUE LIVES — render as N red hearts on the left so
+                // the blue player understands their Classic-style
+                // 3-life pile from frame 1.
+                let blueLivesText = '';
+                for (let i = 0; i < 3; i++) {
+                    blueLivesText += (i < lives) ? '❤' : '🖤';
+                }
+                ctx.fillStyle = '#9bd9ff';
+                ctx.fillText(`💙 ${blueLivesText}`, 16, 32);
+                // SCORE in the centre
+                const scoreLabel = `⭐ SCORE: ${score}`;
+                const scoreWidth = ctx.measureText(scoreLabel).width;
+                ctx.fillStyle = '#ffd84a';
+                ctx.shadowColor = '#ffd84a';
+                ctx.fillText(scoreLabel, canvas.width / 2 - scoreWidth / 2, 32);
+                // GREEN HP on the right
+                const grText = `💚 ${greenPlayer.hp}/100`;
+                const grWidth = ctx.measureText(grText).width;
+                ctx.fillStyle = grColor;
+                ctx.shadowColor = '#3ec46d';
+                ctx.fillText(grText, canvas.width - grWidth - 16, 32);
+                ctx.shadowBlur = 0;
+                ctx.textAlign = 'left';
             }
             const highScore = currentUser
                 ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
@@ -4574,19 +5133,29 @@
             const classicRecords = getUserRecords(currentUser).filter(r => r > 0);
             const survivalRecords = getSurvivalRecords(currentUser).filter(r => r > 0);
             const battleRecords = getBattleRecords(currentUser).filter(r => r > 0);
+            // CO-OP records bucket added with the new mode so the
+            // player can see their best two-player runs in the same
+            // Records screen as the other modes.
+            const coopRecords = getCoopRecords(currentUser).filter(r => r > 0);
             const playMs = getPlayTime(currentUser);
 
             // Three side-by-side 235 px cards, sized so the play-time
             // band fits beneath them. leftColX / rightColX are kept as
             // aliases for the Classic and Survival column bodies that
             // already use those names so we don’t have to retouch them.
-            const colW = 235;
+            const colW = 175;
             const colY = 110;
             const colH = 290;
             const colGap = 18;
             const col1X = 30;
             const col2X = col1X + colW + colGap;
             const col3X = col2X + colW + colGap;
+            // 4th column hosts the new CO-OP records so a player can
+            // see their co-op runs alongside Classic / Survival /
+            // Battle. colW was shrunk from 235 → 175 so the four
+            // cards still fit inside the 800 px canvas
+            // (4 × 175 + 3 × 18 + 30 left margin = 784 ≤ 800).
+            const col4X = col3X + colW + colGap;
             const leftColX = col1X;
             const rightColX = col2X;
 
@@ -4726,6 +5295,68 @@
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
                     ctx.fillText(label + ' kills', col3X + colW / 2, colY + 90 + idx * 28);
+                }
+            }
+            ctx.textAlign = 'left';
+            ctx.restore();
+
+            // ----- CO-OP column -----
+            // 4th column with the green palette already established
+            // by the menu's CO-OP button so the player recognises
+            // the mode at a glance. Subtitle explicitly mentions the
+            // scoring rule ("Stars + kills") because CO-OP scores mix
+            // +1/star and +2/kill — a casual reader cannot tell from
+            // the bare number what "10 pts" means. Suffix on each row
+            // is "pts" rather than "kills" to mirror the Classic
+            // column's vocabulary.
+            ctx.save();
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#6fe0a8';
+            const coopPanel = ctx.createLinearGradient(col4X, colY, col4X, colY + colH);
+            coopPanel.addColorStop(0, 'rgba(20, 60, 35, 0.40)');
+            coopPanel.addColorStop(1, 'rgba(10, 30, 18, 0.45)');
+            ctx.fillStyle = coopPanel;
+            ctx.beginPath();
+            ctx.roundRect(col4X, colY, colW, colH, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(120, 240, 180, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(col4X, colY, colW, colH, 12);
+            ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillStyle = '#cfffe5';
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#6fe0a8';
+            ctx.fillText('🤝 CO-OP', col4X + colW / 2, colY + 32);
+            ctx.shadowBlur = 0;
+            ctx.font = '12px Orbitron, sans-serif';
+            ctx.fillStyle = '#9aa6b2';
+            // Subtitle spelling out the scoring formula so a casual
+            // reader can connect the "pts" suffix below to the game's
+            // +1/star + +2/kill rule without leaving the screen.
+            ctx.fillText('Score (1/star + 2/kill)', col4X + colW / 2, colY + 52);
+
+            if (coopRecords.length === 0) {
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = '#cfffe5';
+                ctx.fillText('No records yet', col4X + colW / 2, colY + 110);
+            } else {
+                ctx.font = '15px Orbitron, sans-serif';
+                for (let idx = 0; idx < Math.min(5, coopRecords.length); idx++) {
+                    const record = coopRecords[idx];
+                    let label, color;
+                    let weight = 'normal';
+                    if (idx === 0) { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    else { label = (idx + 1) + '. ' + record; color = '#a8e8c8'; }
+                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
+                    ctx.fillStyle = color;
+                    ctx.fillText(label + ' pts', col4X + colW / 2, colY + 90 + idx * 28);
                 }
             }
             ctx.textAlign = 'left';
@@ -5418,22 +6049,49 @@
                         drawMeteorites();        // Normal/Hard Battle spawns rare meteorites — must render them or they'd be invisible damage sources
                         drawPlayerBullets();
                         drawEnemyBullets();
+                    } else if (gameMode === GAME_MODES.COOP) {
+                        // CO-OP scene: BOTH stars (Blue) and enemies
+                        // (Green) live on-screen together like the
+                        // player spec asks. Green beams render BEFORE
+                        // the enemy so the explosion spark reads on top
+                        // of the green beam glow. Blue ship draws
+                        // BEFORE Green so Green's HP reads as a
+                        // foreground ship (closer to the action zone).
+                        drawEnemies();
+                        drawGreenBeams();
+                        drawFallingStars();
+                        drawEnemyBullets();
                     } else {
                         drawFallingStars();
                     }
                     drawShip();
+                    if (gameMode === GAME_MODES.COOP) drawGreenShip();
                     drawGameUI();
                     if (gameOver) drawGameOver();
                     break;
                 case GAME_STATES.PAUSED:
                     drawBackground();
-                    if (gameMode === GAME_MODES.SURVIVAL) {
+                    if (gameMode === GAME_STATES.SURVIVAL || gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
                         drawSurvivalOverlay();
+                    } else if (gameMode === GAME_MODES.COOP) {
+                        // CO-OP paused frame: show both ships + the
+                        // frozen enemy / star field so the player can
+                        // read where everything was when they hit P.
+                        // Falling stars + enemies + beams + enemy
+                        // bullets render in the same order as the
+                        // PLAYING state above so the paused frame is
+                        // byte-identical to a single PLAYING frame
+                        // snapshot.
+                        drawEnemies();
+                        drawGreenBeams();
+                        drawFallingStars();
+                        drawEnemyBullets();
                     } else {
                         drawFallingStars();
                     }
                     drawShip();
+                    if (gameMode === GAME_MODES.COOP) drawGreenShip();
                     drawGameUI();
                     drawPauseScreen();
                     break;
@@ -5492,6 +6150,21 @@
                     // future rules will diverge here.
                     battleDifficulty = 'hard';
                     startGame(GAME_MODES.BATTLE);
+                    break;
+                case 'playCoop':
+                    // CO-OP skips the Battle difficulty picker because
+                    // the player spec says the cadence is the same as
+                    // Battle (one enemy on screen at a time, telegraph
+                    // before each shot). If a future difficulty picker
+                    // is needed, lift CO-OP into its own DIFFICULTY
+                    // state the same way Battle already does it.
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        startGame(GAME_MODES.COOP);
+                    }
                     break;
                 case 'difficultyBack':
                     // User changed their mind; drop back to the main
@@ -5957,6 +6630,27 @@
 
         window.addEventListener('keydown', (event) => {
 
+            // ----- CO-OP arrow key tracking -----
+            // The green player (Player 2) responds to Left/Right/Up
+            // arrows + Space while a CO-OP run is active. We mirror
+            // the same guard on gameState/state used for `P` below so
+            // the keys are no-ops outside an active CO-OP run — the
+            // mission-menu PAUSED state and the records / settings
+            // screens all stay free of green-movement side effects.
+            if (gameState === GAME_STATES.PLAYING
+                && gameMode === GAME_MODES.COOP && !gameOver) {
+                if (event.key === 'ArrowLeft') coopKeys.left = true;
+                else if (event.key === 'ArrowRight') coopKeys.right = true;
+                else if (event.key === 'ArrowUp') coopKeys.up = true;
+                else if (event.key === ' ' || event.code === 'Space') {
+                    coopKeys.space = true;
+                    // Suppress the browser's default Space-scroll
+                    // behaviour so the green shoot key doesn't also
+                    // page-scroll the canvas iframe edge cases.
+                    event.preventDefault();
+                }
+            }
+
             if (gameState === GAME_STATES.PLAYING) {
                 if (event.key === 'r' || event.key === 'R') {
                     if (gameOver) {
@@ -6233,6 +6927,31 @@
         document.addEventListener('click', initAudioOnUserInteraction);
         document.addEventListener('keydown', initAudioOnUserInteraction);
         document.addEventListener('touchstart', initAudioOnUserInteraction);
+
+        // ----- CO-OP keyup handler -----
+        // Releases the coopKeys flags when the player lets go of an
+        // arrow key or spacebar. Without this the green ship would
+        // keep moving / shooting forever the moment the first key
+        // is pressed (the flag would stick at `true`). We intentionally
+        // listen on the window so the release is captured even when
+        // the canvas has lost focus.
+        window.addEventListener('keyup', (event) => {
+            if (event.key === 'ArrowLeft') coopKeys.left = false;
+            else if (event.key === 'ArrowRight') coopKeys.right = false;
+            else if (event.key === 'ArrowUp') coopKeys.up = false;
+            else if (event.key === ' ' || event.code === 'Space') {
+                coopKeys.space = false;
+            }
+        });
+        // Clear sticky keys when the window loses focus (alt-tab,
+        // browser switch, etc.) so a player returning to the page
+        // doesn't find the green ship still gliding sideways.
+        window.addEventListener('blur', () => {
+            coopKeys.left = false;
+            coopKeys.right = false;
+            coopKeys.up = false;
+            coopKeys.space = false;
+        });
 
         // ----- Battle Mode input handlers -----
         // Desktop: fire a blue ray bullet on right-mouse-down while a
