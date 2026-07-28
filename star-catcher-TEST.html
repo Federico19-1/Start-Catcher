@@ -554,10 +554,12 @@
         // wide mouth and a small antenna with a glowing dot on its
         // forehead. The face anchors to either the left or right edge
         // of the canvas (random per spawn), with the body cropping
-        // off-canvas. When its beam is active, fire is on a fixed
-        // schedule: the first beam contact damages the player once;
-        // remaining in the beam continues to drain lives on a fixed
-        // 2-second tick.
+        // off-canvas. When its beam is active, damage is purely
+        // dwell-based: the player loses one life for every full
+        // 2-second window they spend inside the beam. Stepping into
+        // the beam and immediately stepping out is harmless — the
+        // entry timestamp is cleared the moment the player exits and
+        // armed again only on the next entry.
         const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
         const SURVIVAL_MONSTER_RESPAWN_MIN_MS = 14000; // 14-22 s randomised respawn
         const SURVIVAL_MONSTER_RESPAWN_MAX_MS = 22000;
@@ -2910,11 +2912,16 @@
                 const inBeam = isPlayerInMonsterBeam();
                 if (inBeam) {
                     if (playerInBeamSince === 0) {
-                        // FIRST contact: instant -1 life.
-                        lives--;
-                        playLoseLifeSound();
+                        // First beam contact does NOT deal damage —
+                        // the only way to lose a life is to remain
+                        // inside the beam for a full 2 seconds. Just
+                        // arm the timer so the dwell-then-tick rule
+                        // below can decide when to deduct a life.
+                        // This fixes the prior bug where entering the
+                        // beam at the instant the monster appeared
+                        // always cost an extra life on top of the
+                        // 2-s sustained tick.
                         playerInBeamSince = Date.now();
-                        if (lives <= 0) endGame();
                     } else if (Date.now() - playerInBeamSince >= 2000) {
                         // Sustained contact: -1 life every 2 s while
                         // the player remains inside the beam. Resetting
@@ -2928,8 +2935,8 @@
                     }
                 } else if (playerInBeamSince > 0) {
                     // Player left the beam — clear the entry timestamp
-                    // so the NEXT entry triggers the first-contact
-                    // damage, not a 2-s-tick drain.
+                    // so the NEXT entry starts a fresh 2-s grace window
+                    // before any life can be deducted.
                     playerInBeamSince = 0;
                 }
             }
@@ -3904,6 +3911,34 @@
             ctx.fillStyle = '#ffcccc';
             ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.fillText('💀 SURVIVAL', survivalMenuX + survivalMenuW / 2, row3Y + 30);
+
+            // ----- CO-OP button (centre of row 3) -----
+            // Purple gradient with handshake emoji + "CO-OP" text
+            // so the player can identify the two-player mode at a
+            // glance. Purple deliberately diverges from the blue +
+            // green ship palettes to signal "shared" rather than
+            // "either player". Must render BEFORE the menuButtons =
+            // [...] block so the click-target array below matches the
+            // pixel rectangle that was just painted.
+            ctx.shadowBlur = 28;
+            ctx.shadowColor = '#b066ff';
+            const coopPanel = ctx.createLinearGradient(coopMenuX, row3Y, coopMenuX, row3Y + row3H);
+            coopPanel.addColorStop(0, '#5a2a8a');
+            coopPanel.addColorStop(0.5, '#7a3aa8');
+            coopPanel.addColorStop(1, '#3a1660');
+            ctx.fillStyle = coopPanel;
+            ctx.beginPath();
+            ctx.roundRect(coopMenuX, row3Y, row3W, row3H, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(200, 140, 255, 0.75)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(coopMenuX, row3Y, row3W, row3H, 12);
+            ctx.stroke();
+            ctx.fillStyle = '#e8d6ff';
+            ctx.font = 'bold 18px Orbitron, sans-serif';
+            ctx.fillText('🤝 CO-OP', coopMenuX + row3W / 2, row3Y + 31);
 
             menuButtons = [
                 { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
