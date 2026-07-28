@@ -447,10 +447,11 @@
         let settingsScrollY = 0;
         // Logical (un-clipped) content height for the Settings panel:
         //   15 (top padding to first row) + existing audio rows + new
-        //   GAME CONTROLS sub-header + new Free-Movement toggle +
-        //   bottom padding.  With panelH = 449 this gives a 61 px
-        //   scroll range, just enough to reveal the new toggle.
-        const SETTINGS_CONTENT_H = 510;
+        //   SURVIVAL VOLUME stepper + GAME CONTROLS sub-header + new
+        //   Free-Movement toggle + bottom padding.  With panelH = 449
+        //   this gives a 102 px scroll range, enough to reveal the
+        //   GAME CONTROLS toggle and the new Survival volume stepper.
+        const SETTINGS_CONTENT_H = 551;
         // Max scroll = content_height - visible_panel_height. Declared
         // MODULE-level (instead of inside drawSettingsScreen) so the
         // top-level wheel event listener can reference it directly
@@ -5826,6 +5827,9 @@
                 '💀 SURVIVAL MUSIC',
                 'Plays during Survival Mode runs',
                 settings.survivalMusic, 'toggleSurvivalMusic');
+
+            drawVolumeRow(rowX, panelY + 371, innerW, 36,
+                settings.survivalVolume, 'survivalVolDown', 'survivalVolUp');
 
             // ----- 🎮 GAME CONTROLS section (closes with ctx.restore below) -
             // Visually separate from the SOUNDS controls above so the new
