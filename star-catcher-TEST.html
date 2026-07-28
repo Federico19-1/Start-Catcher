@@ -606,7 +606,7 @@
         };
         // Date.now() when player FIRST entered the beam; 0 = not in beam.
         // Used by the 2-second recurring-tick damage rule: while
-        // playerInBeamSince > 0, every 2 s of continuous exposure
+        // playerInBeamSince > 0, every 1 s of continuous exposure
         // subtracts another life. Resetting to 0 the moment the player
         // exits the beam is what makes "if you avoid it, the game
         // continues as usual" actually true.
@@ -2962,11 +2962,11 @@
                         // always cost an extra life on top of the
                         // 2-s sustained tick.
                         playerInBeamSince = Date.now();
-                    } else if (Date.now() - playerInBeamSince >= 2000) {
-                        // Sustained contact: -1 life every 2 s while
+                    } else if (Date.now() - playerInBeamSince >= 1000) {
+                        // Sustained contact: -1 life every 1 s while
                         // the player remains inside the beam. Resetting
                         // playerInBeamSince to "now" rather than to 0
-                        // keeps the cadence on a 2-s rolling window
+                        // keeps the cadence on a 1-s rolling window
                         // rather than draining 1 life per frame.
                         lives--;
                         playLoseLifeSound();
