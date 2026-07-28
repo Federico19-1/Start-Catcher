@@ -554,12 +554,16 @@
         // wide mouth and a small antenna with a glowing dot on its
         // forehead. The face anchors to either the left or right edge
         // of the canvas (random per spawn), with the body cropping
-        // off-canvas. When its beam is active, damage is purely
-        // dwell-based: the player loses one life for every full
-        // 2-second window they spend inside the beam. Stepping into
-        // the beam and immediately stepping out is harmless — the
-        // entry timestamp is cleared the moment the player exits and
-        // armed again only on the next entry.
+        // off-canvas. The face ALSO randomly picks one of three vertical
+        // rows (see MONSTER_SPAWN_ROWS — TOP, CENTER, BOTTOM) so the
+        // player can't memorise a single safe row and must dodge
+        // vertically in addition to horizontally. When its beam is
+        // active, damage is purely dwell-based: the player loses one
+        // life for every full 2-second window they spend inside the
+        // beam (hit-window aligned to the visible beam + a tight ship-
+        // body radius). Stepping into the beam and immediately stepping
+        // out is harmless — the entry timestamp is cleared the moment
+        // the player exits and armed again only on the next entry.
         const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
         const SURVIVAL_MONSTER_RESPAWN_MIN_MS = 14000; // 14-22 s randomised respawn
         const SURVIVAL_MONSTER_RESPAWN_MAX_MS = 22000;
@@ -567,6 +571,22 @@
         const MONSTER_ACTIVE_MS = 3500;               // total beam-on window
         const MONSTER_FADE_OUT_MS = 800;                // alpha ease-out
         const MONSTER_BEAM_ONSET_MS = 700;              // beam fires 0.7 s into "active" so the player can read the monster first
+        // Beam-vs-player collision: tighter than player.radius (which
+        // is 100 for the star-catching bubble in Classic mode). Without
+        // this smaller value, the player kept losing a life even when
+        // only the very edge of their drawn ship grazed the beam — the
+        // player described this as "1 HP at end of beam for no reason".
+        // 30 px matches the visible blue/green ship body (~26 px draw
+        // radius in Battle/CO-OP) so damage is now felt only when the
+        // ship visibly overlaps the beam.
+        const MONSTER_BEAM_PLAYER_HIT_RADIUS = 30;
+        // Three vertical rows the monster face can spawn at: TOP, CENTER,
+        // and BOTTOM. One row is picked uniformly per spawn so the
+        // player must dodge vertically as well as horizontally and
+        // can't cache a single safe y-coordinate. BOTTOM (480) places
+        // the default player (y=550) just inside the beam hitbox so
+        // this row acts as a deliberate challenge spawn.
+        const MONSTER_SPAWN_ROWS = [120, 300, 480];
         const monster = {
             active: false,
             state: 'idle',                  // 'warp-in' | 'active' | 'fade-out'
@@ -2614,7 +2634,14 @@
             // up roughly the inner 60% of the side margin.
             monster.side = Math.random() < 0.5 ? 'left' : 'right';
             monster.cx = monster.side === 'left' ? 60 : 740;
-            monster.cy = 300;
+            // Random vertical row per spawn from MONSTER_SPAWN_ROWS
+            // (TOP / CENTER / BOTTOM). The previous code pinned cy=300,
+            // which meant the beam always hit the same horizontal band
+            // and a stationary player could camp one safe y. Now the
+            // player must read the spawn position each time.
+            monster.cy = MONSTER_SPAWN_ROWS[
+                Math.floor(Math.random() * MONSTER_SPAWN_ROWS.length)
+            ];
             monster.stateStartedMs = now;
             monster.beamActive = false;
         }
@@ -2665,16 +2692,28 @@
         function isPlayerInMonsterBeam() {
             if (!monster.active || !monster.beamActive) return false;
             // Beam rectangle: starts at the monster's cx and runs all
-            // the way across the canvas to the opposite edge.
+            // the way across the canvas to the opposite edge. Vertical
+            // bounds use beamSpanY/2 — the SAME half-extent that
+            // drawMonsterBeam() uses to draw the visible band — so the
+            // hit rectangle exactly matches the visible beam. (The
+            // previous version used the full beamSpanY as a half-extent,
+            // which silently doubled the hitbox height — pair that with
+            // the player's 100-px Classic-mode radius and you could
+            // lose a life even when visibly outside the beam, which
+            // was the "1 HP at end of beam for no reason" bug.)
             const x0 = monster.side === 'left' ? monster.cx : 0;
             const x1 = monster.side === 'left' ? canvas.width : monster.cx;
-            const y0 = monster.cy - monster.beamSpanY;
-            const y1 = monster.cy + monster.beamSpanY;
+            const y0 = monster.cy - monster.beamSpanY / 2;
+            const y1 = monster.cy + monster.beamSpanY / 2;
             const closestX = Math.max(x0, Math.min(player.x, x1));
             const closestY = Math.max(y0, Math.min(player.y, y1));
             const dx = player.x - closestX;
             const dy = player.y - closestY;
-            return (dx * dx + dy * dy) < (player.radius * player.radius);
+            // Tight ship-body radius — see MONSTER_BEAM_PLAYER_HIT_RADIUS
+            // for the rationale. Using player.radius=100 here would let
+            // a player who's well clear of the visible beam still be
+            // counted as "in beam" via their star-catching bubble.
+            return (dx * dx + dy * dy) < (MONSTER_BEAM_PLAYER_HIT_RADIUS * MONSTER_BEAM_PLAYER_HIT_RADIUS);
         }
 
         // ----- Monster render -----
