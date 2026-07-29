@@ -5,11 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚀 Star Catcher - Space Game</title>
-    <!-- Phase-1 Foundations: Google Font Rajdhani (weights 400, 600, 700)
+    <!-- Phase-1 Foundations: Google Font Orbitron (weights 400, 600, 700, 900)
          is the application's default font-family. Imported here at the top
          of the head, BEFORE the design-system stylesheet, so the font is
          available the moment palette.css's `html, body` rule references it. -->
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet">
     <!-- Design-system link: palette.css is the browser-loadable companion
          to palette.scss and exposes the global tokens (--ink-black,
          --shadow-grey, --blue-violet, --amber-gold, --platinum) and the
@@ -47,7 +47,7 @@
                viewport and the canvas. Decorative gradients can be
                re-introduced as a separate overlay layer in a later phase. */
             background-color: var(--ink-black);
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             overflow: hidden;
             user-select: none;
             color: var(--platinum);
@@ -92,7 +92,7 @@
             align-items: center;
             justify-content: center;
             border: none;
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             cursor: pointer;
             user-select: none;
             touch-action: manipulation;
@@ -133,7 +133,7 @@
             background: linear-gradient(180deg, rgba(70, 50, 10, 0.95), rgba(35, 22, 5, 0.95));
             border: 1px solid #ffd84a;
             color: #ffd84a;
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             font-size: 14px;
             font-weight: 900;
             letter-spacing: 1px;
@@ -164,10 +164,16 @@
 
         .account-card__title {
             color: var(--ink);
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             font-size: 20px;
             margin-bottom: 18px;
-            letter-spacing: 0.08em;
+            /* explicit heading weight so the title reads bolder than
+               the inherited 400 default in palette.css */
+            font-weight: 700;
+            /* upgraded to 2px (was 0.08em ≈ 1.6px) for the signature
+               Orbitron crisp futuristic look; the 20px font-size keeps
+               the title comfortably inside its 360px card */
+            letter-spacing: 2px;
             text-transform: uppercase;
         }
 
@@ -178,7 +184,7 @@
             border: 1px solid rgba(73, 215, 200, 0.55);
             border-radius: 14px;
             padding: 12px;
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             font-size: 18px;
             text-align: center;
             box-sizing: border-box;
@@ -203,9 +209,17 @@
             min-height: 40px;
             border-radius: 14px;
             border: 1px solid transparent;
-            font-family: 'Rajdhani', sans-serif;
+            font-family: 'Orbitron', sans-serif;
             font-size: 13px;
-            font-weight: 700;
+            /* weight nudged from 700 → 600 so labels like "🗑️ Clear
+               Account" (16 chars) at Orbitron 13px stay inside the
+               112px button min-width without overflowing the rounded
+               container */
+            font-weight: 600;
+            /* signature Orbitron futuristic spacing on the button
+               labels — 1px is enough at 13px to read crisp without
+               spreading the text past the button edge */
+            letter-spacing: 1px;
             cursor: pointer;
         }
 
@@ -1839,14 +1853,14 @@
             ctx.textAlign = 'center';
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#ffd84a';
-            ctx.font = 'bold 38px Rajdhani, sans-serif';
+            ctx.font = 'bold 38px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd84a';
             ctx.fillText('\u{1f4cb} MISSIONS', canvas.width / 2, 60);
 
             if (!currentUser) {
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
-                ctx.font = '20px Rajdhani, sans-serif';
+                ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
                 ctx.fillText('Create an account to track your progress!', canvas.width / 2, 110);
                 const backY = 540, backW = 160, backH = 35;
@@ -1859,7 +1873,7 @@
                 ctx.fill();
                 ctx.shadowBlur = 0;
                 ctx.fillStyle = 'white';
-                ctx.font = '18px Rajdhani, sans-serif';
+                ctx.font = '18px Orbitron, sans-serif';
                 ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 25);
                 menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'missionsBack' }];
                 ctx.textAlign = 'left';
@@ -1870,7 +1884,7 @@
             // Date badge
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'black';
-            ctx.font = '13px Rajdhani, sans-serif';
+            ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9cd3ff';
             const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             ctx.fillText('\u{1f4c5} ' + dateStr, canvas.width / 2, 92);
@@ -1903,7 +1917,7 @@
             const superX = streakX + streakW * 0.75;
             ctx.textAlign = 'center';
 
-            ctx.font = 'bold 11px Rajdhani, sans-serif';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
             ctx.shadowColor = 'black';
             ctx.fillStyle = '#ffcc88';
@@ -1913,11 +1927,11 @@
             ctx.shadowBlur = 22;
             ctx.fillText('\u{1f525}', dailyX, streakY + 60);
             ctx.shadowBlur = 0;
-            ctx.font = 'bold 30px Rajdhani, sans-serif';
+            ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = '#ff9933';
             ctx.fillText(m.streakCount, dailyX, streakY + 95);
 
-            ctx.font = 'bold 11px Rajdhani, sans-serif';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
             ctx.shadowColor = 'black';
             ctx.fillStyle = '#ffaaaa';
@@ -1927,7 +1941,7 @@
             ctx.shadowBlur = 22;
             ctx.fillText('\u{1f525}', superX, streakY + 60);
             ctx.shadowBlur = 0;
-            ctx.font = 'bold 30px Rajdhani, sans-serif';
+            ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = '#cc4040';
             ctx.fillText(m.superStreakCount, superX, streakY + 95);
 
@@ -1952,7 +1966,7 @@
             ctx.shadowBlur = 0;
             ctx.lineWidth = 2;
             ctx.stroke();
-            ctx.font = 'bold 12px Rajdhani, sans-serif';
+            ctx.font = 'bold 12px Orbitron, sans-serif';
             ctx.fillStyle = claimedToday ? '#aaffaa' : '#ffd84a';
             ctx.fillText(claimedToday ? '\u2713 CLAIMED' : 'CLAIM TODAY', claimX + claimW / 2, claimY + 19);
 
@@ -1993,7 +2007,7 @@
             ctx.shadowBlur = 0;
             ctx.lineWidth = 2;
             ctx.stroke();
-            ctx.font = 'bold 12px Rajdhani, sans-serif';
+            ctx.font = 'bold 12px Orbitron, sans-serif';
             ctx.fillStyle = superClaimed ? '#aaffaa' : (allMissionsDone ? '#ffcccc' : '#777');
             ctx.fillText(superLabel, superClaimX + superClaimW / 2, claimY + 19);
 
@@ -2002,7 +2016,7 @@
             ctx.textAlign = 'center';
             ctx.shadowColor = '#88aaff';
             ctx.shadowBlur = 14;
-            ctx.font = 'bold 14px Rajdhani, sans-serif';
+            ctx.font = 'bold 14px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
             ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
 
@@ -2032,12 +2046,12 @@
                     ctx.fillText(done ? '\u2705' : '\u26d5', cardX + 30, y + 38);
 
                     ctx.shadowBlur = 0;
-                    ctx.font = 'bold 14px Rajdhani, sans-serif';
+                    ctx.font = 'bold 14px Orbitron, sans-serif';
                     ctx.textAlign = 'left';
                     ctx.fillStyle = done ? '#cfffcf' : '#ffffff';
                     ctx.fillText(mission.label, cardX + 62, y + 23);
 
-                    ctx.font = '11px Rajdhani, sans-serif';
+                    ctx.font = '11px Orbitron, sans-serif';
                     ctx.fillStyle = done ? '#a2e6a2' : '#88aaff';
                     let progressText = '';
                     if (mission.type === 'classic_score') {
@@ -2062,7 +2076,7 @@
             // BACK button + swipe hint
             ctx.shadowBlur = 4;
             ctx.shadowColor = 'black';
-            ctx.font = '11px Rajdhani, sans-serif';
+            ctx.font = '11px Orbitron, sans-serif';
             ctx.fillStyle = '#7eaad6';
             ctx.textAlign = 'center';
             ctx.fillText('\u2190 arrow-left / Esc to go back to menu', canvas.width / 2, 530);
@@ -2077,7 +2091,7 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
-            ctx.font = '18px Rajdhani, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 25);
             menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'missionsBack' }];
             if (!claimedToday) {
@@ -3677,7 +3691,7 @@
             ctx.stroke();
             ctx.lineCap = 'butt';
 
-            ctx.font = 'bold 11px Rajdhani, sans-serif';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.fillStyle = '#88c8ff';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 4;
@@ -3694,7 +3708,7 @@
 
             const text = blueCharacter.currentLine;
             const fontSize = 13;
-            ctx.font = fontSize + 'px Rajdhani, sans-serif';
+            ctx.font = fontSize + 'px Orbitron, sans-serif';
             const padding = 9;
             // Keep bubble well clear of RECORDS row (y >= 465).
             const maxWidth = 200;
@@ -3790,7 +3804,7 @@
             const centerX = canvas.width / 2;
             const titleY = 170;
 
-            ctx.font = 'bold 72px Rajdhani, sans-serif';
+            ctx.font = 'bold 72px Orbitron, sans-serif';
             const starText = 'STAR';
             const catcherText = 'CATCHER';
             const starWidth = ctx.measureText(starText).width;
@@ -3803,7 +3817,7 @@
                 rocketEmoji.y = rocketEmoji.baseY;
             }
 
-            ctx.font = 'bold 72px Rajdhani, sans-serif';
+            ctx.font = 'bold 72px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.fillText(starText, centerX - catcherWidth / 2 - 10, titleY);
             ctx.fillStyle = '#ffd700';
@@ -3822,11 +3836,11 @@
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
-            ctx.font = '24px Rajdhani, sans-serif';
+            ctx.font = '24px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
             ctx.fillText('Get the stars, beat the record!', canvas.width / 2, 215);
 
-            ctx.font = '18px Rajdhani, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#66dd88';
             ctx.shadowBlur = 10;
             ctx.fillText(
@@ -3853,7 +3867,7 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 24px Rajdhani, sans-serif';
+            ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillText('▶ PLAY', playCenterX, btnY + 34);
 
             const accX = canvas.width / 2 + gap / 2;
@@ -3866,7 +3880,7 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#88aaff';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34);
 
             const recX = canvas.width / 2 - btnW - gap / 2;
@@ -3879,7 +3893,7 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = '#ffd700';
-            ctx.font = '20px Rajdhani, sans-serif';
+            ctx.font = '20px Orbitron, sans-serif';
             ctx.fillText('🏆 RECORDS', recCenterX, row2Y + 28);
 
             const settingsX = canvas.width / 2 + gap / 2;
@@ -3897,7 +3911,7 @@
             ctx.roundRect(settingsX, row2Y, btnW, row2H, 10);
             ctx.stroke();
             ctx.fillStyle = '#cccccc';
-            ctx.font = '20px Rajdhani, sans-serif';
+            ctx.font = '20px Orbitron, sans-serif';
             ctx.fillText('⚙ SETTINGS', settingsCenterX, row2Y + 28);
 
             // ----- Blue mascot lives in the lower-left of the menu -----
@@ -3947,7 +3961,7 @@
             ctx.roundRect(battleMenuX, row3Y, row3W, row3H, 12);
             ctx.stroke();
             ctx.fillStyle = '#ffd2a8';
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.fillText('🎯 BATTLE', battleMenuX + row3W / 2, row3Y + 30);
 
             // ----- SURVIVAL button (right) -----
@@ -3964,7 +3978,7 @@
             ctx.roundRect(survivalMenuX, row3Y, survivalMenuW, row3H, 12);
             ctx.stroke();
             ctx.fillStyle = '#ffcccc';
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.fillText('💀 SURVIVAL', survivalMenuX + survivalMenuW / 2, row3Y + 30);
 
             // ----- CO-OP button (centre of row 3) -----
@@ -3992,7 +4006,7 @@
             ctx.roundRect(coopMenuX, row3Y, row3W, row3H, 12);
             ctx.stroke();
             ctx.fillStyle = '#e8d6ff';
-            ctx.font = 'bold 18px Rajdhani, sans-serif';
+            ctx.font = 'bold 18px Orbitron, sans-serif';
             ctx.fillText('🤝 CO-OP', coopMenuX + row3W / 2, row3Y + 31);
 
             menuButtons = [
@@ -4032,7 +4046,7 @@
             ctx.beginPath();
             ctx.roundRect(mpX, mpY, mpW, mpH, 12);
             ctx.stroke();
-            ctx.font = 'bold 24px Rajdhani, sans-serif';
+            ctx.font = 'bold 24px Orbitron, sans-serif';
             // Three-color title inside the pill:
             //   * MISSIONS (yellow) — unchanged, matches the gold pill palette
             //   * and      (white)  — standard body text color
@@ -4074,7 +4088,7 @@
             // Sub-text under the title — back to centered alignment
             // because the next line is a single fillText call.
             ctx.shadowBlur = 0;
-            ctx.font = 'bold 11px Rajdhani, sans-serif';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.fillStyle = '#ffcc88';
             ctx.textAlign = 'center';
             ctx.fillText('click or press M key', mpX + mpW / 2, mpY + 46);
@@ -4091,13 +4105,13 @@
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#4af';
 
-            ctx.font = 'bold 44px Rajdhani, sans-serif';
+            ctx.font = 'bold 44px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
             ctx.fillText('👤 ACCOUNT', canvas.width / 2, 150);
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
-            ctx.font = '18px Rajdhani, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#aaa';
             ctx.fillText('Enter your name (max 12 characters)', canvas.width / 2, 210);
 
@@ -4559,7 +4573,7 @@
                 ctx.shadowBlur = 14;
                 ctx.shadowColor = '#ff6b6b';
                 ctx.fillStyle = '#ff6b6b';
-                ctx.font = 'bold 16px Rajdhani, sans-serif';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
                 ctx.fillText(`🛡 KILLS: ${score}`, 20, 26);
                 const hpText = `❤ ${hp}/100`;
                 const hpTextWidth = ctx.measureText(hpText).width;
@@ -4598,7 +4612,7 @@
 
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#3ec46d';
-                ctx.font = 'bold 16px Rajdhani, sans-serif';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
                 ctx.textAlign = 'left';
                 // BLUE LIVES — render as N red hearts on the left so
                 // the blue player understands their Classic-style
@@ -4628,7 +4642,7 @@
                 ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
                 : 0;
 
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 10;
 
@@ -4636,7 +4650,7 @@
                 // Survival mode badge in the top-left so the player always
                 // remembers they're in the harder variant.
                 ctx.fillStyle = '#ff6b6b';
-                ctx.font = 'bold 16px Rajdhani, sans-serif';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
                 ctx.shadowColor = '#ff0000';
                 ctx.shadowBlur = 12;
                 ctx.fillText('☠ SURVIVAL', 20, 20);
@@ -4657,30 +4671,30 @@
 
             // Score readout (with mode-appropriate label)
             if (isSurvival) {
-                ctx.font = '14px Rajdhani, sans-serif';
+                ctx.font = '14px Orbitron, sans-serif';
                 ctx.fillStyle = '#ff9999';
                 ctx.shadowBlur = 4;
                 ctx.fillText('☠ SURVIVED', 20, scoreLabelY);
-                ctx.font = 'bold 26px Rajdhani, sans-serif';
+                ctx.font = 'bold 26px Orbitron, sans-serif';
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = '#ff5b5b';
                 ctx.fillStyle = '#ffcccc';
                 ctx.fillText(`${score}s`, 20, scoreValueY);
             } else {
-                ctx.font = 'bold 20px Rajdhani, sans-serif';
+                ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = 'white';
                 ctx.fillText(`⭐ Points: ${score}`, 20, scoreValueY);
 
                 const comboMultiplier = getComboMultiplier();
-                ctx.font = 'bold 14px Rajdhani, sans-serif';
+                ctx.font = 'bold 14px Orbitron, sans-serif';
                 ctx.fillStyle = comboStreak > 0 ? '#ffd56a' : '#9aa6b2';
                 ctx.fillText(`⟲ Combo x${comboMultiplier} · ${comboStreak}`, 20, 110);
-                ctx.font = '11px Rajdhani, sans-serif';
+                ctx.font = '11px Orbitron, sans-serif';
                 ctx.fillStyle = '#8e9aad';
                 ctx.fillText('Gold stars refill a heart', 20, 130);
             }
 
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.fillStyle = '#ffd700';
@@ -4695,13 +4709,13 @@
                 ctx.shadowColor = isSurvival ? '#ff6b6b' : '#ffd700';
                 ctx.shadowBlur = 30;
                 ctx.fillStyle = isSurvival ? '#ff6b6b' : '#ffd700';
-                ctx.font = 'bold 26px Rajdhani, sans-serif';
+                ctx.font = 'bold 26px Orbitron, sans-serif';
                 ctx.fillText('✦ NEW RECORD! ✦', canvas.width / 2 - 110, 130 + topLabelOffset);
                 ctx.shadowBlur = 0;
             }
 
             ctx.fillStyle = isSurvival ? '#ff9999' : 'white';
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80);
@@ -4724,13 +4738,13 @@
             ctx.shadowColor = '#4af';
             ctx.shadowBlur = 50;
 
-            ctx.font = 'bold 78px Rajdhani, sans-serif';
+            ctx.font = 'bold 78px Orbitron, sans-serif';
             ctx.fillStyle = '#4a8cff';
             ctx.fillText('⏸ PAUSED', canvas.width / 2, 175);
 
             ctx.shadowBlur = 12;
             ctx.shadowColor = 'black';
-            ctx.font = '18px Rajdhani, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#9bcfff';
             ctx.fillText('Press "P" or tap RESUME to continue', canvas.width / 2, 220);
 
@@ -4759,7 +4773,7 @@
             ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
             ctx.stroke();
             ctx.fillStyle = '#cfffcf';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.shadowColor = 'rgba(120, 255, 160, 0.4)';
             ctx.shadowBlur = 12;
@@ -4780,7 +4794,7 @@
             ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
             ctx.stroke();
             ctx.fillStyle = '#88aaff';
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('⚙ SETTINGS', settingsPauseX + btnW / 2, btnY + 35);
 
@@ -4798,7 +4812,7 @@
             ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
             ctx.stroke();
             ctx.fillStyle = '#ffd700';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillText('🏠 MENU', menuPauseX + btnW / 2, btnY + 35);
 
             // ----- SAVE button (second row, centred below the
@@ -4842,7 +4856,7 @@
             ctx.roundRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12);
             ctx.stroke();
             ctx.fillStyle = '#aff5ec';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.shadowColor = 'rgba(73, 215, 200, 0.4)';
             ctx.shadowBlur = 12;
@@ -4888,13 +4902,13 @@
 
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 40;
-            ctx.font = 'bold 60px Rajdhani, sans-serif';
+            ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#ff4444';
             ctx.fillText(isBattle ? '💥 BATTLE OVER' : (isSurvival ? '☠ SURVIVAL OVER' : 'GAME OVER'), canvas.width / 2, 100);
 
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
-            ctx.font = 'bold 28px Rajdhani, sans-serif';
+            ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
             ctx.fillText(
                 isSurvival ? `☠ Survived ${score}s` : `Score: ${score}`,
@@ -4928,7 +4942,7 @@
 
                 ctx.shadowColor = isSurvival ? '#ff6b6b' : '#ffd700';
                 ctx.shadowBlur = 50;
-                ctx.font = 'bold 30px Rajdhani, sans-serif';
+                ctx.font = 'bold 30px Orbitron, sans-serif';
                 ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
                 ctx.fillText(label, canvas.width / 2, 200);
 
@@ -4941,7 +4955,7 @@
             } else {
                 ctx.shadowColor = 'black';
                 ctx.shadowBlur = 10;
-                ctx.font = '20px Rajdhani, sans-serif';
+                ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
                 ctx.fillText(
                     `Best${isSurvival ? ' Survival Time' : ' Record'}: ${highScore}${isSurvival ? 's' : ''}`,
@@ -4952,12 +4966,12 @@
             if (!isSurvival) {
                 ctx.shadowColor = '#ffd56a';
                 ctx.shadowBlur = 18;
-                ctx.font = '18px Rajdhani, sans-serif';
+                ctx.font = '18px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd56a';
                 ctx.fillText(`Best combo: x${comboBest}`, canvas.width / 2, 228);
                 if (luckyStarsCaught > 0) {
                     ctx.shadowBlur = 8;
-                    ctx.font = '14px Rajdhani, sans-serif';
+                    ctx.font = '14px Orbitron, sans-serif';
                     ctx.fillStyle = '#f5d488';
                     ctx.fillText(`Lucky stars caught: ${luckyStarsCaught}`, canvas.width / 2, 252);
                 }
@@ -4981,7 +4995,7 @@
             ctx.textAlign = 'left';
             ctx.shadowColor = isSurvival ? '#ff8a8a' : '#ffd700';
             ctx.shadowBlur = 20;
-            ctx.font = 'bold 24px Rajdhani, sans-serif';
+            ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
             ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL' : '🏆 TOP 10', leftColX, top5Y);
             // (Previously a '⚔ BATTLE BEST' inline badge sat here as
@@ -5004,7 +5018,7 @@
                         const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
                         const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ccc';
                         ctx.fillStyle = color;
-                        ctx.font = i < 3 ? 'bold 20px Rajdhani, sans-serif' : '18px Rajdhani, sans-serif';
+                        ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
                         ctx.fillText(
                             `${medalEmoji} ${validRecords[i]}${suffix}`,
                             colX,
@@ -5013,12 +5027,12 @@
                     }
                 } else {
                     ctx.fillStyle = '#666';
-                    ctx.font = '16px Rajdhani, sans-serif';
+                    ctx.font = '16px Orbitron, sans-serif';
                     ctx.fillText('No records yet', leftColX, top5Y + 40);
                 }
             } else {
                 ctx.fillStyle = '#666';
-                ctx.font = '16px Rajdhani, sans-serif';
+                ctx.font = '16px Orbitron, sans-serif';
                 ctx.fillText('Create an account', leftColX, top5Y + 40);
             }
 
@@ -5112,7 +5126,7 @@
             ctx.textAlign = 'center';
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
-            ctx.font = 'bold 16px Rajdhani, sans-serif';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff9999' : '#66dd88';
             ctx.fillText(isSurvival ? '☠ YOU' : '★ YOU', shipX, shipY + 125);
 
@@ -5139,7 +5153,7 @@
 
             ctx.fillStyle = isSurvival ? '#ff8888' : 'white';
             ctx.shadowBlur = 0;
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(isSurvival ? '☠ RETRY' : '▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
 
@@ -5160,7 +5174,7 @@
 
             ctx.fillStyle = '#ffd700';
             ctx.shadowBlur = 0;
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
 
@@ -5171,7 +5185,7 @@
 
             ctx.shadowBlur = 5;
             ctx.shadowColor = 'black';
-            ctx.font = '14px Rajdhani, sans-serif';
+            ctx.font = '14px Orbitron, sans-serif';
             ctx.fillStyle = 'rgba(255,255,255,0.25)';
             ctx.textAlign = 'center';
             ctx.fillText('Press "R" to restart', canvas.width / 2, btnY + btnH + 35);
@@ -5186,7 +5200,7 @@
             ctx.textAlign = 'center';
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#ffd700';
-            ctx.font = 'bold 38px Rajdhani, sans-serif';
+            ctx.font = 'bold 38px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd700';
             ctx.fillText('🏆 RECORDS', canvas.width / 2, 60);
 
@@ -5204,7 +5218,7 @@
             if (!currentUser) {
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
-                ctx.font = '20px Rajdhani, sans-serif';
+                ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
                 ctx.fillText('Create an account to see your records!', canvas.width / 2, 110);
                 ctx.shadowBlur = 0;
@@ -5216,7 +5230,7 @@
             // ----- Logged-in: layout + 3 columns + play-time card -----
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
-            ctx.font = '15px Rajdhani, sans-serif';
+            ctx.font = '15px Orbitron, sans-serif';
             ctx.fillStyle = '#66dd88';
             ctx.fillText(`Account: ${currentUser}`, canvas.width / 2, 92);
 
@@ -5262,13 +5276,13 @@
             ctx.roundRect(leftColX, colY, colW, colH, 12);
             ctx.stroke();
 
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.fillStyle = '#88aaff';
             ctx.shadowColor = '#4af';
             ctx.shadowBlur = 15;
             ctx.fillText('⭐ CLASSIC', leftColX + colW / 2, colY + 30);
 
-            ctx.font = '14px Rajdhani, sans-serif';
+            ctx.font = '14px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
             ctx.fillStyle = '#aac8ff';
             ctx.fillText('Stars caught', leftColX + colW / 2, colY + 50);
@@ -5278,7 +5292,7 @@
             const classicStartY = colY + 85;
             if (classicRecords.length === 0) {
                 ctx.fillStyle = '#666';
-                ctx.font = '14px Rajdhani, sans-serif';
+                ctx.font = '14px Orbitron, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('No records yet', leftColX + colW / 2, classicStartY + 10);
             } else {
@@ -5286,7 +5300,7 @@
                     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
                     const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#aac8ff';
                     ctx.fillStyle = color;
-                    ctx.font = i < 3 ? 'bold 18px Rajdhani, sans-serif' : '15px Rajdhani, sans-serif';
+                    ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
                     ctx.shadowBlur = 4;
                     ctx.shadowColor = 'black';
                     ctx.fillText(medal + '  ' + classicRecords[i] + ' pts', leftColX + 25, classicStartY + i * 38);
@@ -5307,13 +5321,13 @@
             ctx.roundRect(rightColX, colY, colW, colH, 12);
             ctx.stroke();
 
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.fillStyle = '#ff8888';
             ctx.shadowColor = '#ff0000';
             ctx.shadowBlur = 15;
             ctx.fillText('☠ SURVIVAL', rightColX + colW / 2, colY + 30);
 
-            ctx.font = '14px Rajdhani, sans-serif';
+            ctx.font = '14px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
             ctx.fillStyle = '#ffb0b0';
             ctx.fillText('Time survived', rightColX + colW / 2, colY + 50);
@@ -5322,7 +5336,7 @@
             const survivalStartY = colY + 85;
             if (survivalRecords.length === 0) {
                 ctx.fillStyle = '#666';
-                ctx.font = '14px Rajdhani, sans-serif';
+                ctx.font = '14px Orbitron, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('No records yet', rightColX + colW / 2, survivalStartY + 10);
             } else {
@@ -5330,7 +5344,7 @@
                     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
                     const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ffb0b0';
                     ctx.fillStyle = color;
-                    ctx.font = i < 3 ? 'bold 18px Rajdhani, sans-serif' : '15px Rajdhani, sans-serif';
+                    ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
                     ctx.shadowBlur = 4;
                     ctx.shadowColor = 'black';
                     ctx.fillText(medal + '  ' + survivalRecords[i] + 's', rightColX + 25, survivalStartY + i * 38);
@@ -5353,13 +5367,13 @@
             ctx.stroke();
 
             ctx.textAlign = 'center';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd2a8';
             ctx.shadowBlur = 12;
             ctx.shadowColor = '#ff8a3d';
             ctx.fillText('🎯 BATTLE', col3X + colW / 2, colY + 32);
             ctx.shadowBlur = 0;
-            ctx.font = '13px Rajdhani, sans-serif';
+            ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9aa6b2';
             ctx.fillText('Enemies killed', col3X + colW / 2, colY + 52);
 
@@ -5369,11 +5383,11 @@
             // to keep parity with how the Classic / Survival columns
             // decide "No records yet".
             if (battleRecords.length === 0) {
-                ctx.font = 'bold 14px Rajdhani, sans-serif';
+                ctx.font = 'bold 14px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd2a8';
                 ctx.fillText('No records yet', col3X + colW / 2, colY + 110);
             } else {
-                ctx.font = '15px Rajdhani, sans-serif';
+                ctx.font = '15px Orbitron, sans-serif';
                 for (let idx = 0; idx < Math.min(5, battleRecords.length); idx++) {
                     const record = battleRecords[idx];
                     let label, color;
@@ -5382,7 +5396,7 @@
                     else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
                     else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
                     else { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
-                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Rajdhani, sans-serif';
+                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
                     ctx.fillText(label + ' kills', col3X + colW / 2, colY + 90 + idx * 28);
                 }
@@ -5417,13 +5431,13 @@
             ctx.stroke();
 
             ctx.textAlign = 'center';
-            ctx.font = 'bold 20px Rajdhani, sans-serif';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.fillStyle = '#cfffe5';
             ctx.shadowBlur = 12;
             ctx.shadowColor = '#6fe0a8';
             ctx.fillText('🤝 CO-OP', col4X + colW / 2, colY + 32);
             ctx.shadowBlur = 0;
-            ctx.font = '12px Rajdhani, sans-serif';
+            ctx.font = '12px Orbitron, sans-serif';
             ctx.fillStyle = '#9aa6b2';
             // Subtitle spelling out the scoring formula so a casual
             // reader can connect the "pts" suffix below to the game's
@@ -5431,11 +5445,11 @@
             ctx.fillText('Score (1/star + 2/kill)', col4X + colW / 2, colY + 52);
 
             if (coopRecords.length === 0) {
-                ctx.font = 'bold 14px Rajdhani, sans-serif';
+                ctx.font = 'bold 14px Orbitron, sans-serif';
                 ctx.fillStyle = '#cfffe5';
                 ctx.fillText('No records yet', col4X + colW / 2, colY + 110);
             } else {
-                ctx.font = '15px Rajdhani, sans-serif';
+                ctx.font = '15px Orbitron, sans-serif';
                 for (let idx = 0; idx < Math.min(5, coopRecords.length); idx++) {
                     const record = coopRecords[idx];
                     let label, color;
@@ -5444,7 +5458,7 @@
                     else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
                     else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
                     else { label = (idx + 1) + '. ' + record; color = '#a8e8c8'; }
-                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Rajdhani, sans-serif';
+                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
                     ctx.fillText(label + ' pts', col4X + colW / 2, colY + 90 + idx * 28);
                 }
@@ -5474,13 +5488,13 @@
             ctx.stroke();
 
             ctx.textAlign = 'left';
-            ctx.font = 'bold 13px Rajdhani, sans-serif';
+            ctx.font = 'bold 13px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 4;
             ctx.fillStyle = '#9cd3ff';
             ctx.fillText('⏱  HOW MUCH TIME DID YOU PLAY', cardX + 22, cardY + 26);
 
-            ctx.font = '11px Rajdhani, sans-serif';
+            ctx.font = '11px Orbitron, sans-serif';
             ctx.shadowBlur = 3;
             ctx.fillStyle = '#7eaad6';
             ctx.fillText('Active gameplay across this account', cardX + 22, cardY + 46);
@@ -5489,14 +5503,14 @@
             // no recorded play time still sees a populated card instead
             // of an empty placeholder.
             ctx.textAlign = 'right';
-            ctx.font = 'bold 30px Rajdhani, sans-serif';
+            ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.shadowColor = '#66e0ff';
             ctx.shadowBlur = 18;
             ctx.fillStyle = '#ffffff';
             ctx.fillText(formatPlayTime(playMs), cardX + cardW - 22, cardY + 60);
             ctx.shadowBlur = 0;
 
-            ctx.font = '11px Rajdhani, sans-serif';
+            ctx.font = '11px Orbitron, sans-serif';
             ctx.fillStyle = '#7eaad6';
             ctx.shadowBlur = 3;
             ctx.fillText('h   m   s', cardX + cardW - 22, cardY + 78);
@@ -5523,7 +5537,7 @@
             ctx.fill();
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'white';
-            ctx.font = '18px Rajdhani, sans-serif';
+            ctx.font = '18px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('← BACK', canvas.width / 2, y + 25);
             menuButtons.push({
@@ -5540,13 +5554,13 @@
         // the surrounding tap-driven UI. The same gold/orange palette
         // the BACK button uses ties the row to the panel's accent colour.
         // With 11 volume levels (0.0 → 1.0 in 0.1 steps) and matching the
-        // existing Rajdhani typography, the row reads as a sibling of
+        // existing Orbitron typography, the row reads as a sibling of
         // drawSettingsRow rather than a foreign widget.
         function drawVolumeRow(x, y, w, h, level, decAction, incAction) {
             // "VOLUME" label on the left.
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            ctx.font = 'bold 11px Rajdhani, sans-serif';
+            ctx.font = 'bold 11px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 3;
             ctx.fillStyle = '#88ddff';
@@ -5582,7 +5596,7 @@
                 ctx.roundRect(cx, btnY, btnSize, btnSize, 8);
                 ctx.stroke();
                 ctx.fillStyle = '#ffd84a';
-                ctx.font = 'bold 18px Rajdhani, sans-serif';
+                ctx.font = 'bold 18px Orbitron, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(label, cx + btnSize / 2, btnY + btnSize / 2);
             }
@@ -5616,7 +5630,7 @@
             }
 
             // Numeric readout on the right
-            ctx.font = 'bold 13px Rajdhani, sans-serif';
+            ctx.font = 'bold 13px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'right';
             ctx.shadowColor = 'black';
@@ -5643,14 +5657,14 @@
         function drawSettingsRow(x, y, w, h, title, description, value, action) {
             // Label (left)
             ctx.textAlign = 'left';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 6;
             ctx.fillStyle = '#ffffff';
             ctx.fillText(title, x, y + 30);
 
             // Description (left, smaller)
-            ctx.font = '12px Rajdhani, sans-serif';
+            ctx.font = '12px Orbitron, sans-serif';
             ctx.fillStyle = '#8cf';
             ctx.shadowBlur = 3;
             ctx.fillText(description, x, y + 52);
@@ -5672,7 +5686,7 @@
             // ON / OFF label
             ctx.shadowBlur = 0;
             ctx.fillStyle = value ? '#aaffaa' : '#888';
-            ctx.font = 'bold 16px Rajdhani, sans-serif';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(value ? 'ON' : 'OFF', pillX + pillW / 2, pillY + 28);
 
@@ -5711,7 +5725,7 @@
             // for the newly-added SURVIVAL MUSIC section. The matching
             // subtitle follows; see the panel-sizing block below for
             // the full layout math.
-            ctx.font = 'bold 44px Rajdhani, sans-serif';
+            ctx.font = 'bold 44px Orbitron, sans-serif';
             ctx.shadowColor = '#4a8cff';
             ctx.shadowBlur = 30;
             ctx.fillStyle = 'white';
@@ -5720,7 +5734,7 @@
             // Subtitle
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
-            ctx.font = '15px Rajdhani, sans-serif';
+            ctx.font = '15px Orbitron, sans-serif';
             ctx.fillStyle = '#aaa';
             ctx.fillText('Customize your settings', canvas.width / 2, 98);
 
@@ -5785,7 +5799,7 @@
             ctx.save();
             // Per-account note (always visible at the very top of the
             // panel) — see comment above on why it sits inside now.
-            ctx.font = '11px Rajdhani, sans-serif';
+            ctx.font = '11px Orbitron, sans-serif';
             ctx.textAlign = 'left';
             ctx.fillStyle = currentUser
                 ? 'rgba(73, 215, 200, 0.85)'
@@ -5853,7 +5867,7 @@
             ctx.fillStyle = 'rgba(73, 215, 200, 0.9)';
             ctx.shadowColor = 'rgba(73, 215, 200, 0.6)';
             ctx.shadowBlur = 6;
-            ctx.font = 'bold 14px Rajdhani, sans-serif';
+            ctx.font = 'bold 14px Orbitron, sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText('🎮 GAME CONTROLS', rowX, panelY + 425);
             ctx.restore();
@@ -5920,7 +5934,7 @@
             // that their settings persist for this account.
             if (settingsScrollY > 4 && currentUser) {
                 ctx.save();
-                ctx.font = '10px Rajdhani, sans-serif';
+                ctx.font = '10px Orbitron, sans-serif';
                 ctx.shadowColor = 'rgba(73, 215, 200, 0.7)';
                 ctx.shadowBlur = 4;
                 ctx.fillStyle = 'rgba(73, 215, 200, 0.95)';
@@ -5950,10 +5964,10 @@
             ctx.stroke();
 
             ctx.fillStyle = '#ffd700';
-            ctx.font = 'bold 22px Rajdhani, sans-serif';
+            ctx.font = 'bold 22px Orbitron, sans-serif';
             // Draw the label with textBaseline='middle' so it sits
             // vertically centred inside the 45-px button regardless
-            // of Rajdhani's (slightly taller than average) ascent/
+            // of Orbitron's (slightly taller than average) ascent/
             // descent — the previous btnY + 30 trick left the cap-top
             // peeking above the border, so the button visibly "spilled"
             // its text on the upper edge.
@@ -6006,10 +6020,10 @@
                     ctx.shadowColor = '#ff9f43';
                     ctx.shadowBlur = 24;
                     ctx.fillStyle = '#ffd56a';
-                    ctx.font = 'bold 44px Rajdhani, sans-serif';
+                    ctx.font = 'bold 44px Orbitron, sans-serif';
                     ctx.fillText('⚔ CHOOSE BATTLE DIFFICULTY', canvas.width / 2, 130);
                     ctx.shadowBlur = 0;
-                    ctx.font = '14px Rajdhani, sans-serif';
+                    ctx.font = '14px Orbitron, sans-serif';
                     ctx.fillStyle = '#9bcfff';
                     ctx.fillText('Easy keeps the original cadence  \u2022  Normal speeds up enemies + adds rare fast meteorites  \u2022  Hard (placeholder) mirrors Normal', canvas.width / 2, 168);
                     // Card geometry
@@ -6036,10 +6050,10 @@
                     ctx.roundRect(easyX, cardsY, cardW, cardH, 14);
                     ctx.stroke();
                     ctx.fillStyle = '#cfffcf';
-                    ctx.font = 'bold 30px Rajdhani, sans-serif';
+                    ctx.font = 'bold 30px Orbitron, sans-serif';
                     ctx.textBaseline = 'middle';
                     ctx.fillText('EASY', easyX + cardW / 2, cardsY + 50);
-                    ctx.font = '13px Rajdhani, sans-serif';
+                    ctx.font = '13px Orbitron, sans-serif';
                     ctx.fillStyle = '#aaffaa';
                     ctx.textBaseline = 'top';
                     ctx.fillText('Original enemy', easyX + cardW / 2, cardsY + 100);
@@ -6059,10 +6073,10 @@
                     ctx.roundRect(normalX, cardsY, cardW, cardH, 14);
                     ctx.stroke();
                     ctx.fillStyle = '#ffd56a';
-                    ctx.font = 'bold 30px Rajdhani, sans-serif';
+                    ctx.font = 'bold 30px Orbitron, sans-serif';
                     ctx.textBaseline = 'middle';
                     ctx.fillText('NORMAL', normalX + cardW / 2, cardsY + 50);
-                    ctx.font = '13px Rajdhani, sans-serif';
+                    ctx.font = '13px Orbitron, sans-serif';
                     ctx.fillStyle = '#ffe1a8';
                     ctx.textBaseline = 'top';
                     ctx.fillText('Enemies 2x faster.', normalX + cardW / 2, cardsY + 100);
@@ -6082,18 +6096,18 @@
                     ctx.roundRect(hardX, cardsY, cardW, cardH, 14);
                     ctx.stroke();
                     ctx.fillStyle = '#ff8a8a';
-                    ctx.font = 'bold 30px Rajdhani, sans-serif';
+                    ctx.font = 'bold 30px Orbitron, sans-serif';
                     ctx.textBaseline = 'middle';
                     ctx.fillText('HARD', hardX + cardW / 2, cardsY + 50);
                     // Regular 13 px throughout the Hard subtitle (Easy /
                     // Normal cards use a single 13 px weight so a bold
                     // prefix would look like a one-off glitch rather
                     // than a deliberate accent).
-                    ctx.font = '13px Rajdhani, sans-serif';
+                    ctx.font = '13px Orbitron, sans-serif';
                     ctx.fillStyle = '#ffaaaa';
                     ctx.textBaseline = 'top';
                     ctx.fillText('(Normal for now \u2014', hardX + cardW / 2, cardsY + 100);
-                    ctx.font = '13px Rajdhani, sans-serif';
+                    ctx.font = '13px Orbitron, sans-serif';
                     ctx.fillText('Hard-only rules', hardX + cardW / 2, cardsY + 119);
                     ctx.fillText('coming later)', hardX + cardW / 2, cardsY + 138);
                     ctx.textBaseline = 'alphabetic';
@@ -6119,7 +6133,7 @@
                     ctx.roundRect(backX, backY, backW, backH, 10);
                     ctx.stroke();
                     ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 18px Rajdhani, sans-serif';
+                    ctx.font = 'bold 18px Orbitron, sans-serif';
                     ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 31);
                     menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'difficultyBack' });
                     ctx.textAlign = 'left';
@@ -6602,7 +6616,7 @@
             ctx.shadowColor = '#aaffaa';
             ctx.shadowBlur = 40;
             ctx.fillStyle = '#aaffaa';
-            ctx.font = 'bold 64px Rajdhani, sans-serif';
+            ctx.font = 'bold 64px Orbitron, sans-serif';
             ctx.fillText('\u2713 Saved', canvas.width / 2, canvas.height / 2);
             ctx.restore();
         }
@@ -7084,7 +7098,7 @@
             'border:1px solid rgba(255,138,61,0.85)',
             'background:linear-gradient(180deg, rgba(74,26,10,0.95), rgba(46,16,6,0.95))',
             'color:#ffd2a8',
-            'font:900 24px Rajdhani, sans-serif',
+            'font:900 24px Orbitron, sans-serif',
             'cursor:pointer',
             'user-select:none',
             'touch-action:manipulation',

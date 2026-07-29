@@ -9,13 +9,14 @@
 
    Source palette: https://coolors.co/0b0e14-1a1f2c-8a2be2-ffbf24-f1f5f9
 
-   NOTE on font loading: the Google Font Rajdhani family (weights 400,
-   600, 700) is loaded ONCE via a single <link rel="stylesheet"> in the
-   HTML <head> (linked BEFORE this stylesheet so cascade + font-fetch are
-   both unblocked in parallel). We deliberately do NOT @import the font
-   here — a CSS @import inside a linked stylesheet is render-blocking
-   and would cause a second sequential fetch after palette.css itself
-   has been downloaded and parsed, slowing first paint.
+   NOTE on font loading: the Google Font Orbitron family (weights 400,
+   600, 700, 900) is loaded ONCE via a single <link rel="stylesheet">
+   in the HTML <head> (linked BEFORE this stylesheet so cascade +
+   font-fetch are both unblocked in parallel). We deliberately do NOT
+   @import the font here — a CSS @import inside a linked stylesheet is
+   render-blocking and would cause a second sequential fetch after
+   palette.css itself has been downloaded and parsed, slowing first
+   paint.
    ========================================================================== */
 
 /* -----------------------------------------------------------------------
@@ -50,20 +51,35 @@
 }
 
 /* -----------------------------------------------------------------------
-   3. Typography — Rajdhani as the default for the entire application
+   3. Typography — Orbitron as the default for the entire application
    -----------------------------------------------------------------------
-   Set on html so child elements inherit it automatically, and pinned on
-   body too so any non-DOM rendering surface (canvas, form controls the
-   browser styles directly) still picks it up. '.ui-container' is a
-   catch-all class for any future generic wrappers (cards, panels, menus)
-   added to the application. Component-level selectors can still opt into
-   a different font with their own explicit `font-family` rule.
+   Applied to html, body, every heading element (h1..h6), every <button>,
+   and any future `.ui-container` wrapper so the sci-fi Orbitron face
+   is the consistent base type across the entire application. Component-
+   level selectors can still opt into a different font with their own
+   explicit `font-family` rule.
+
+   `font-weight: 400` is the regular default; headings are upgraded to
+   700 with a 1px letter-spacing below so titles read as crisp sci-fi
+   stamps without overflowing their containers.
    ----------------------------------------------------------------------- */
 html,
 body,
+h1, h2, h3, h4, h5, h6,
+button,
 .ui-container {
-    font-family: 'Rajdhani', sans-serif;
-    font-weight: 400;            /* matches the regular weight requested */
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 400;            /* regular weight for body / regular text */
+}
+
+/* Headings: bolder weight + Orbitron's signature futuristic letter-
+   spacing. 1px is the safe middle-ground between sci-fi (1-2px) and
+   preserving the existing button / card width budgets. Component
+   classes may override per-element (e.g. `.account-card__title`
+   bumps to 2px, `.hud-button--pause` keeps its 900 black). */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: 1px;
 }
 
 /* -----------------------------------------------------------------------
