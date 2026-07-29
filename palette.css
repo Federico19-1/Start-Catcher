@@ -1,0 +1,80 @@
+/* ==========================================================================
+   Star Catcher — Global Design System & Foundations
+   Browser-loadable companion to palette.scss.
+
+   palette.scss remains the single source of truth for SCSS variables;
+   this file mirrors those tokens as plain CSS so the design system is
+   globally accessible to the browser (which cannot parse .scss natively)
+   and so the base reset / typography / background sits in one place.
+
+   Source palette: https://coolors.co/0b0e14-1a1f2c-8a2be2-ffbf24-f1f5f9
+
+   NOTE on font loading: the Google Font Rajdhani family (weights 400,
+   600, 700) is loaded ONCE via a single <link rel="stylesheet"> in the
+   HTML <head> (linked BEFORE this stylesheet so cascade + font-fetch are
+   both unblocked in parallel). We deliberately do NOT @import the font
+   here — a CSS @import inside a linked stylesheet is render-blocking
+   and would cause a second sequential fetch after palette.css itself
+   has been downloaded and parsed, slowing first paint.
+   ========================================================================== */
+
+/* -----------------------------------------------------------------------
+   1. Design Tokens — Native CSS Custom Properties (Global Root Scope)
+   -----------------------------------------------------------------------
+   These mirror the SCSS palette variables in palette.scss so any rule in
+   the application can reference `var(--ink-black)` etc. without any
+   build step. New colours added in palette.scss should be added here too.
+   ----------------------------------------------------------------------- */
+:root {
+    --ink-black: #0b0e14;       /* Deep Space Background */
+    --shadow-grey: #1a1f2c;     /* Cards, Surfaces & Panels */
+    --blue-violet: #8a2be2;     /* Primary Accent & Glows */
+    --amber-gold: #ffbf24;      /* Secondary Accent & Highlights */
+    --platinum: #f1f5f9;        /* Primary Text & Icons */
+}
+
+/* -----------------------------------------------------------------------
+   2. Global Reset — prevents layout distortion across the application
+   -----------------------------------------------------------------------
+   Applied to EVERY element via the universal selector so component
+   styles never accidentally inherit margin/padding/border-box from a
+   parent rule and shift the layout. The html element is included
+   explicitly so the document's root box also obeys box-sizing.
+   ----------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* -----------------------------------------------------------------------
+   3. Typography — Rajdhani as the default for the entire application
+   -----------------------------------------------------------------------
+   Set on html so child elements inherit it automatically, and pinned on
+   body too so any non-DOM rendering surface (canvas, form controls the
+   browser styles directly) still picks it up. '.ui-container' is a
+   catch-all class for any future generic wrappers (cards, panels, menus)
+   added to the application. Component-level selectors can still opt into
+   a different font with their own explicit `font-family` rule.
+   ----------------------------------------------------------------------- */
+html,
+body,
+.ui-container {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 400;            /* matches the regular weight requested */
+}
+
+/* -----------------------------------------------------------------------
+   4. Base Viewport — default background & typography colour
+   -----------------------------------------------------------------------
+   The body's background is the deep-space ink-black so the canvas sits
+   inside a matching theme, and the default text colour is platinum so
+   unstyled text inherits a high-contrast readable tone.
+   ----------------------------------------------------------------------- */
+body {
+    background-color: var(--ink-black);  /* #0b0e14 */
+    color: var(--platinum);              /* #f1f5f9 */
+    min-height: 100vh;
+}
