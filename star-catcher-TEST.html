@@ -4036,7 +4036,7 @@
             const panelW = 500;
             const panelX = canvas.width / 2 - panelW / 2;
             const panelY = 240;
-            const panelH = 345;
+            const panelH = 358;                  // +13px to fit extra spacing
             const pad = 30;                     // internal padding
             const innerW = panelW - pad * 2;    // usable width inside panel
             const innerX = panelX + pad;
@@ -4060,16 +4060,37 @@
             ctx.roundRect(panelX + 2, panelY + 2, panelW - 4, panelH - 4, 14);
             ctx.fill();
 
-            // --- Panel header: user info ---
-            const headerY = panelY + 32;
+            // --- Dedicated user badge at panel top ---
+            const badgeY = panelY + 20;
+            const badgeH = 30;
+            // Subtle badge background
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.50)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.20)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const badgeW = 220;
+            const badgeX = canvas.width / 2 - badgeW / 2;
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+            ctx.fill();
+            ctx.stroke();
+
+            // Username — bright platinum with amber-gold glow when logged in
             ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.shadowBlur = 0;
-            ctx.font = '18px Orbitron, sans-serif';
-            ctx.fillStyle = '#9aa6b2';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            if (currentUser) {
+                ctx.fillStyle = '#f1f5f9';
+                ctx.shadowColor = 'rgba(255, 191, 36, 0.5)';
+                ctx.shadowBlur = 8;
+            } else {
+                ctx.fillStyle = '#9aa6b2';
+            }
             ctx.fillText(
                 currentUser ? `👤 ${currentUser}` : '👤 NO ACCOUNT',
-                canvas.width / 2, headerY
+                canvas.width / 2, badgeY + badgeH / 2
             );
+            ctx.shadowBlur = 0;
 
             // --- Section helper ---
             function drawSectionLabel(label, y) {
@@ -4081,10 +4102,10 @@
             }
 
             // ===== ROW 1: MAIN (PLAY + ACCOUNT) =====
-            const sec1LabelY = headerY + 20;
+            const sec1LabelY = badgeY + badgeH + 22;
             drawSectionLabel('— MAIN —', sec1LabelY);
 
-            const row1Y = sec1LabelY + 10;
+            const row1Y = sec1LabelY + 12;
             const row1H = 52;
             const row1W = (innerW - 20) / 2;    // 2 buttons with 20px gap
             const r1LeftX = innerX;
@@ -4099,10 +4120,10 @@
             });
 
             // ===== ROW 2: MENU (RECORDS + SETTINGS + MISSIONS) =====
-            const sec2LabelY = row1Y + row1H + 18;
+            const sec2LabelY = row1Y + row1H + 22;
             drawSectionLabel('— MENU —', sec2LabelY);
 
-            const row2Y = sec2LabelY + 10;
+            const row2Y = sec2LabelY + 12;
             const row2H = 42;
             const row2W = (innerW - 30) / 3;    // 3 buttons with 15px gaps
             const r2aX = innerX;
@@ -4120,10 +4141,10 @@
             });
 
             // ===== ROW 3: GAME MODES (BATTLE + CO-OP + SURVIVAL) =====
-            const sec3LabelY = row2Y + row2H + 18;
+            const sec3LabelY = row2Y + row2H + 22;
             drawSectionLabel('— GAME MODES —', sec3LabelY);
 
-            const row3Y = sec3LabelY + 10;
+            const row3Y = sec3LabelY + 12;
             const row3H = 50;
             const row3W = (innerW - 30) / 3;    // 3 buttons with 15px gaps
             const r3aX = innerX;
