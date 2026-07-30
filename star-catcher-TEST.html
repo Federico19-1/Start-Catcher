@@ -4276,84 +4276,9 @@
             ctx.shadowBlur = 0;
             ctx.textAlign = 'start';
             ctx.textBaseline = 'alphabetic';
-            // ----- BIG "M KEY" pill -- enters the Missions page -----
-            // No swipe gesture anymore; the pill AND the M keyboard
-            // shortcut are the only two entry points now.
-            // Centered on the menu's hero column, tucked between the
-            // "Get the stars, beat the record!" subtitle (y=215) and
-            // the account-name label (y=350).
-            // Width was bumped from 220 -> 360 so the now-three-color
-            // title "MISSIONS and STREAK" has comfortable padding inside
-            // the pill; the button is centered on the canvas, so widening
-            // automatically grows it equally on the left AND the right.
-            const mpW = 360, mpH = 56;
-            const mpX = canvas.width / 2 - mpW / 2;
-            const mpY = 250;
-            ctx.shadowBlur = 30;
-            ctx.shadowColor = '#ffd84a';
-            const mpGrad = ctx.createLinearGradient(mpX, mpY, mpX, mpY + mpH);
-            mpGrad.addColorStop(0, 'rgba(70, 50, 10, 0.95)');
-            mpGrad.addColorStop(1, 'rgba(35, 22, 5, 0.95)');
-            ctx.fillStyle = mpGrad;
-            ctx.beginPath();
-            ctx.roundRect(mpX, mpY, mpW, mpH, 12);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = '#ffd84a';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(mpX, mpY, mpW, mpH, 12);
-            ctx.stroke();
-            ctx.font = 'bold 24px Orbitron, sans-serif';
-            // Three-color title inside the pill:
-            //   * MISSIONS (yellow) — unchanged, matches the gold pill palette
-            //   * and      (white)  — standard body text color
-            //   * STREAK   (red)    — mirrors the SUPER STREAK counter on
-            //                         the missions screen, so the pill
-            //                         visually rhymes with what it opens onto
-            // Each chunk is drawn separately so it can carry its own color
-            // + glow. measureText() is used to compute the total rendered
-            // width so the whole "MISSIONS and STREAK" group stays centered
-            // in the (now wider) pill even though alignment is 'left'.
-            const _mpPart1 = 'MISSIONS ';
-            const _mpPart2 = 'and ';
-            const _mpPart3 = 'STREAK';
-            const _mpW1 = ctx.measureText(_mpPart1).width;
-            const _mpW2 = ctx.measureText(_mpPart2).width;
-            const _mpTextTotal = _mpW1 + _mpW2 + ctx.measureText(_mpPart3).width;
-            const _mpStartX = mpX + mpW / 2 - _mpTextTotal / 2;
-            const _mpBaseY = mpY + 26;
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'alphabetic';
-
-            // MISSIONS — yellow (kept from the previous design)
-            ctx.shadowColor = '#ff7300';
-            ctx.shadowBlur = 14;
-            ctx.fillStyle = '#ffd84a';
-            ctx.fillText(_mpPart1, _mpStartX, _mpBaseY);
-
-            // and — plain white, no glow so it doesn't fight the title
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(_mpPart2, _mpStartX + _mpW1, _mpBaseY);
-
-            // STREAK — red glow
-            ctx.shadowColor = '#cc0000';
-            ctx.shadowBlur = 14;
-            ctx.fillStyle = '#ff4040';
-            ctx.fillText(_mpPart3, _mpStartX + _mpW1 + _mpW2, _mpBaseY);
-
-            // Sub-text under the title — back to centered alignment
-            // because the next line is a single fillText call.
-            ctx.shadowBlur = 0;
-            ctx.font = 'bold 11px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffcc88';
-            ctx.textAlign = 'center';
-            ctx.fillText('click or press M key', mpX + mpW / 2, mpY + 46);
-            menuButtons.push({ rect: { x: mpX, y: mpY, w: mpW, h: mpH }, action: 'missions' });
-            ctx.textAlign = 'left';
-            ctx.textAlign = 'left';
-            ctx.shadowBlur = 0;
+            // BIG "M KEY" Missions pill — REMOVED. The streak bar widget
+            // at the top of the glassmorphism panel now serves as the
+            // unified streak + account display.
         }
 
         function drawAccountScreen() {
