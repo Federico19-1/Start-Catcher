@@ -4030,101 +4030,138 @@
                 350
             );
 
-            // Two rows of two buttons: PLAY/ACCOUNT top, RECORDS/SETTINGS bottom
-            const btnY = 380;
-            const btnW = 180;
-            const btnH = 50;
-            const gap = 25;
-            const row2Y = btnY + btnH + 35;
-            const row2H = 40;
+            // ============================================================
+            // Phase-2C: Central Glassmorphism Panel
+            // ============================================================
+            const panelW = 500;
+            const panelX = canvas.width / 2 - panelW / 2;
+            const panelY = 240;
+            const panelH = 345;
+            const pad = 30;                     // internal padding
+            const innerW = panelW - pad * 2;    // usable width inside panel
+            const innerX = panelX + pad;
 
-            const playX = canvas.width / 2 - btnW - gap / 2;
-            const playCenterX = playX + btnW / 2;
-            // Phase-2B: PLAY is primary CTA → amber-gold glow
-            drawGlassButton(playX, btnY, btnW, btnH, 12, '▶ PLAY', 'bold 24px Orbitron, sans-serif', {
+            // --- Glassmorphism panel background ---
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.70)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(panelX, panelY, panelW, panelH, 16);
+            ctx.fill();
+            ctx.stroke();
+
+            // Subtle inner highlight (top edge)
+            const hlGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + 60);
+            hlGrad.addColorStop(0, 'rgba(138, 43, 226, 0.08)');
+            hlGrad.addColorStop(1, 'rgba(138, 43, 226, 0)');
+            ctx.fillStyle = hlGrad;
+            ctx.beginPath();
+            ctx.roundRect(panelX + 2, panelY + 2, panelW - 4, panelH - 4, 14);
+            ctx.fill();
+
+            // --- Panel header: user info ---
+            const headerY = panelY + 32;
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 0;
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.fillStyle = '#9aa6b2';
+            ctx.fillText(
+                currentUser ? `👤 ${currentUser}` : '👤 NO ACCOUNT',
+                canvas.width / 2, headerY
+            );
+
+            // --- Section helper ---
+            function drawSectionLabel(label, y) {
+                ctx.shadowBlur = 0;
+                ctx.font = '11px Orbitron, sans-serif';
+                ctx.fillStyle = 'rgba(138, 43, 226, 0.6)';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, canvas.width / 2, y);
+            }
+
+            // ===== ROW 1: MAIN (PLAY + ACCOUNT) =====
+            const sec1LabelY = headerY + 20;
+            drawSectionLabel('— MAIN —', sec1LabelY);
+
+            const row1Y = sec1LabelY + 10;
+            const row1H = 52;
+            const row1W = (innerW - 20) / 2;    // 2 buttons with 20px gap
+            const r1LeftX = innerX;
+            const r1RightX = innerX + row1W + 20;
+
+            drawGlassButton(r1LeftX, row1Y, row1W, row1H, 12, '▶ PLAY', 'bold 24px Orbitron, sans-serif', {
                 isPrimary: true,
                 hoverStrength: hoverFor('play')
             });
-
-            const accX = canvas.width / 2 + gap / 2;
-            const accCenterX = accX + btnW / 2;
-            drawGlassButton(accX, btnY, btnW, btnH, 12, '👤 ACCOUNT', 'bold 22px Orbitron, sans-serif', {
+            drawGlassButton(r1RightX, row1Y, row1W, row1H, 12, '👤 ACCOUNT', 'bold 20px Orbitron, sans-serif', {
                 hoverStrength: hoverFor('account')
             });
 
-            const recX = canvas.width / 2 - btnW - gap / 2;
-            const recCenterX = recX + btnW / 2;
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            drawGlassButton(recX, row2Y, btnW, row2H, 10, '🏆 RECORDS', '20px Orbitron, sans-serif', {
+            // ===== ROW 2: MENU (RECORDS + SETTINGS + MISSIONS) =====
+            const sec2LabelY = row1Y + row1H + 18;
+            drawSectionLabel('— MENU —', sec2LabelY);
+
+            const row2Y = sec2LabelY + 10;
+            const row2H = 42;
+            const row2W = (innerW - 30) / 3;    // 3 buttons with 15px gaps
+            const r2aX = innerX;
+            const r2bX = innerX + row2W + 15;
+            const r2cX = innerX + (row2W + 15) * 2;
+
+            drawGlassButton(r2aX, row2Y, row2W, row2H, 10, '🏆 RECORDS', '18px Orbitron, sans-serif', {
                 hoverStrength: hoverFor('records')
             });
-
-            const settingsX = canvas.width / 2 + gap / 2;
-            const settingsCenterX = settingsX + btnW / 2;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#aaaaaa';
-            drawGlassButton(settingsX, row2Y, btnW, row2H, 10, '⚙ SETTINGS', '20px Orbitron, sans-serif', {
+            drawGlassButton(r2bX, row2Y, row2W, row2H, 10, '⚙ SETTINGS', '18px Orbitron, sans-serif', {
                 hoverStrength: hoverFor('settings')
             });
+            drawGlassButton(r2cX, row2Y, row2W, row2H, 10, '📋 MISSIONS', '18px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('missions')
+            });
 
-            // ----- Blue mascot lives in the lower-left of the menu -----
+            // ===== ROW 3: GAME MODES (BATTLE + CO-OP + SURVIVAL) =====
+            const sec3LabelY = row2Y + row2H + 18;
+            drawSectionLabel('— GAME MODES —', sec3LabelY);
+
+            const row3Y = sec3LabelY + 10;
+            const row3H = 50;
+            const row3W = (innerW - 30) / 3;    // 3 buttons with 15px gaps
+            const r3aX = innerX;
+            const r3bX = innerX + row3W + 15;
+            const r3cX = innerX + (row3W + 15) * 2;
+
+            drawGlassButton(r3aX, row3Y, row3W, row3H, 12, '🎯 BATTLE', 'bold 17px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('playBattle')
+            });
+            drawGlassButton(r3bX, row3Y, row3W, row3H, 12, '🤝 CO-OP', 'bold 17px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('playCoop')
+            });
+            drawGlassButton(r3cX, row3Y, row3W, row3H, 12, '💀 SURVIVAL', 'bold 17px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('survival')
+            });
+
+            // --- Blue mascot (on top of panel) ---
             const now = Date.now();
             updateBlueCharacter(now);
             drawBlueCharacter(now);
             drawSpeechBubble();
 
-            // Row 3 — BATTLE | SURVIVAL split. Two equal-width buttons
-            // sitting side-by-side under RECORDS / SETTINGS so the new
-            // mode does not push the MISSIONS pill down past the
-            // canvas's lower safe area. Both buttons keep the same
-            // visual height as row 1 (btnH-ish, rounded 12 px) so the
-            // menu's tier hierarchy reads cleanly: top row → quick
-            // launchers; second row → menu pages; third row → high-
-            // difficulty alternatives. After CO-OP shipped, row 3
-            // hosts THREE buttons (Battle / CO-OP / Survival) so
-            // row3W is shrunk to 130 px to fit all three within the
-            // 800 px canvas without overlap.
-            const row3Y = row2Y + row2H + 25;
-            const row3H = 50;
-            const row3W = 130;
-            const row3Gap = 10;
-            // Three buttons centred evenly across the row. Total
-            // width 3*row3W + 2*row3Gap = 410, so battle starts at
-            //    canvas.width/2 - 1.5*row3W - row3Gap
-            // and each subsequent button is offset by row3W + row3Gap.
-            // Order is BATTLE / CO-OP / SURVIVAL because that's the
-            // semantic flow "single-player combat → two-player
-            // cooperation → single-player escape".
-            const battleMenuX = canvas.width / 2 - 1.5 * row3W - row3Gap;
-            const coopMenuX = canvas.width / 2 - row3W / 2;
-            const survivalMenuX = canvas.width / 2 + row3W / 2 + row3Gap;
-            const survivalMenuW = row3W;
-
-            // ----- BATTLE button (left) -----
-            drawGlassButton(battleMenuX, row3Y, row3W, row3H, 12, '🎯 BATTLE', 'bold 18px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('playBattle')
-            });
-
-            // ----- SURVIVAL button (right) -----
-            drawGlassButton(survivalMenuX, row3Y, row3W, row3H, 12, '💀 SURVIVAL', 'bold 18px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('survival')
-            });
-
-            // ----- CO-OP button (centre of row 3) -----
-            drawGlassButton(coopMenuX, row3Y, row3W, row3H, 12, '🤝 CO-OP', 'bold 18px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('playCoop')
-            });
-
+            // --- Hit-test array (must match drawn rects exactly) ---
             menuButtons = [
-                { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
-                { rect: { x: accX, y: btnY, w: btnW, h: btnH }, action: 'account' },
-                { rect: { x: recX, y: row2Y, w: btnW, h: row2H }, action: 'records' },
-                { rect: { x: settingsX, y: row2Y, w: btnW, h: row2H }, action: 'settings' },
-                { rect: { x: battleMenuX, y: row3Y, w: row3W, h: row3H }, action: 'playBattle' },
-                { rect: { x: coopMenuX, y: row3Y, w: row3W, h: row3H }, action: 'playCoop' },
-                { rect: { x: survivalMenuX, y: row3Y, w: survivalMenuW, h: row3H }, action: 'survival' }
+                { rect: { x: r1LeftX, y: row1Y, w: row1W, h: row1H }, action: 'play' },
+                { rect: { x: r1RightX, y: row1Y, w: row1W, h: row1H }, action: 'account' },
+                { rect: { x: r2aX, y: row2Y, w: row2W, h: row2H }, action: 'records' },
+                { rect: { x: r2bX, y: row2Y, w: row2W, h: row2H }, action: 'settings' },
+                { rect: { x: r2cX, y: row2Y, w: row2W, h: row2H }, action: 'missions' },
+                { rect: { x: r3aX, y: row3Y, w: row3W, h: row3H }, action: 'playBattle' },
+                { rect: { x: r3bX, y: row3Y, w: row3W, h: row3H }, action: 'playCoop' },
+                { rect: { x: r3cX, y: row3Y, w: row3W, h: row3H }, action: 'survival' }
             ];
+
+            // Clean up text state for subsequent draws
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
             // ----- BIG "M KEY" pill -- enters the Missions page -----
             // No swipe gesture anymore; the pill AND the M keyboard
             // shortcut are the only two entry points now.
@@ -5998,136 +6035,113 @@
                     drawMissionsScreen();
                     break;
                 case GAME_STATES.DIFFICULTY: {
-                    // Three rectangular cards laid out side-by-side on
-                    // the main row, with a smaller BACK button centred
-                    // below. Each card uses a colour that telegraphs
-                    // its difficulty: green=EASY, orange=NORMAL,
-                    // red=HARD (matching the project's existing palette
-                    // for Resume / Survival / Battle-danger reds).
+                    // =================================================
+                    // Phase-2D: Glassmorphism Difficulty Picker
+                    // =================================================
                     menuButtons = [];
+                    updateButtonHover();
+
+                    // --- Dark backdrop overlay (hides menu) ---
+                    ctx.fillStyle = 'rgba(11, 14, 20, 0.85)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    // --- Header with blue-violet glow ---
                     ctx.textAlign = 'center';
-                    // Header
-                    ctx.shadowColor = '#ff9f43';
-                    ctx.shadowBlur = 24;
-                    ctx.fillStyle = '#ffd56a';
-                    ctx.font = 'bold 44px Orbitron, sans-serif';
-                    ctx.fillText('⚔ CHOOSE BATTLE DIFFICULTY', canvas.width / 2, 130);
                     ctx.shadowBlur = 0;
-                    ctx.font = '14px Orbitron, sans-serif';
-                    ctx.fillStyle = '#9bcfff';
-                    ctx.fillText('Easy keeps the original cadence  \u2022  Normal speeds up enemies + adds rare fast meteorites  \u2022  Hard (placeholder) mirrors Normal', canvas.width / 2, 168);
-                    // Card geometry
-                    const cardW = 220;
-                    const cardH = 220;
-                    const cardGap = 24;
-                    const rowW = cardW * 3 + cardGap * 2;
-                    const cardsY = 215;
-                    const cardsLeftX = canvas.width / 2 - rowW / 2;
-                    const easyX = cardsLeftX;
-                    const normalX = cardsLeftX + cardW + cardGap;
-                    const hardX = cardsLeftX + (cardW + cardGap) * 2;
-                    // --- Easy card (green) ---
-                    ctx.shadowBlur = 28;
-                    ctx.shadowColor = 'rgba(120, 255, 160, 0.55)';
-                    ctx.fillStyle = '#1a4a2a';
+                    ctx.font = 'bold 40px Orbitron, sans-serif';
+                    ctx.fillStyle = '#f1f5f9';
+                    ctx.fillText('CHOOSE BATTLE DIFFICULTY', canvas.width / 2, 100);
+
+                    // --- Difficulty accent colours ---
+                    const ACCENT_EASY   = { border: 'rgba(46, 204, 113, 0.6)',  text: '#2ecc71' };
+                    const ACCENT_NORMAL = { border: 'rgba(255, 191, 36, 0.6)',  text: '#ffbf24' };
+                    const ACCENT_HARD   = { border: 'rgba(231, 76, 60, 0.6)',   text: '#e74c3c' };
+
+                    // --- Glassmorphism card panel ---
+                    const px = 80;                    // panel left edge
+                    const pw = canvas.width - px * 2; // panel width (640)
+                    const py = 140;                   // panel top
+                    const ph = 330;                   // panel height
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(26, 31, 44, 0.60)';
+                    ctx.strokeStyle = 'rgba(138, 43, 226, 0.30)';
+                    ctx.lineWidth = 1;
                     ctx.beginPath();
-                    ctx.roundRect(easyX, cardsY, cardW, cardH, 14);
+                    ctx.roundRect(px, py, pw, ph, 16);
                     ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.strokeStyle = 'rgba(120, 255, 160, 0.8)';
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.roundRect(easyX, cardsY, cardW, cardH, 14);
                     ctx.stroke();
-                    ctx.fillStyle = '#cfffcf';
-                    ctx.font = 'bold 30px Orbitron, sans-serif';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('EASY', easyX + cardW / 2, cardsY + 50);
-                    ctx.font = '13px Orbitron, sans-serif';
-                    ctx.fillStyle = '#aaffaa';
-                    ctx.textBaseline = 'top';
-                    ctx.fillText('Original enemy', easyX + cardW / 2, cardsY + 100);
-                    ctx.fillText('cadence. Best', easyX + cardW / 2, cardsY + 119);
-                    ctx.fillText('place to start.', easyX + cardW / 2, cardsY + 138);
-                    // --- Normal card (orange) ---
-                    ctx.shadowBlur = 28;
-                    ctx.shadowColor = 'rgba(255, 170, 60, 0.65)';
-                    ctx.fillStyle = '#6a3a1a';
-                    ctx.beginPath();
-                    ctx.roundRect(normalX, cardsY, cardW, cardH, 14);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.strokeStyle = 'rgba(255, 170, 60, 0.85)';
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.roundRect(normalX, cardsY, cardW, cardH, 14);
-                    ctx.stroke();
-                    ctx.fillStyle = '#ffd56a';
-                    ctx.font = 'bold 30px Orbitron, sans-serif';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('NORMAL', normalX + cardW / 2, cardsY + 50);
-                    ctx.font = '13px Orbitron, sans-serif';
-                    ctx.fillStyle = '#ffe1a8';
-                    ctx.textBaseline = 'top';
-                    ctx.fillText('Enemies 2x faster.', normalX + cardW / 2, cardsY + 100);
-                    ctx.fillText('Rare fast meteors', normalX + cardW / 2, cardsY + 119);
-                    ctx.fillText('also appear.', normalX + cardW / 2, cardsY + 138);
-                    // --- Hard card (red, mirrors Normal for now) ---
-                    ctx.shadowBlur = 28;
-                    ctx.shadowColor = 'rgba(255, 100, 100, 0.7)';
-                    ctx.fillStyle = '#5a1a1a';
-                    ctx.beginPath();
-                    ctx.roundRect(hardX, cardsY, cardW, cardH, 14);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.strokeStyle = 'rgba(255, 100, 100, 0.85)';
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.roundRect(hardX, cardsY, cardW, cardH, 14);
-                    ctx.stroke();
-                    ctx.fillStyle = '#ff8a8a';
-                    ctx.font = 'bold 30px Orbitron, sans-serif';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('HARD', hardX + cardW / 2, cardsY + 50);
-                    // Regular 13 px throughout the Hard subtitle (Easy /
-                    // Normal cards use a single 13 px weight so a bold
-                    // prefix would look like a one-off glitch rather
-                    // than a deliberate accent).
-                    ctx.font = '13px Orbitron, sans-serif';
-                    ctx.fillStyle = '#ffaaaa';
-                    ctx.textBaseline = 'top';
-                    ctx.fillText('(Normal for now \u2014', hardX + cardW / 2, cardsY + 100);
-                    ctx.font = '13px Orbitron, sans-serif';
-                    ctx.fillText('Hard-only rules', hardX + cardW / 2, cardsY + 119);
-                    ctx.fillText('coming later)', hardX + cardW / 2, cardsY + 138);
-                    ctx.textBaseline = 'alphabetic';
-                    // Click targets
-                    menuButtons.push({ rect: { x: easyX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy' });
+
+                    // --- Three cards side-by-side ---
+                    const cardPad = 30;
+                    const cardW = (pw - cardPad * 4) / 3;
+                    const cardH = 210;
+                    const cardsY = py + 35;
+                    const easyX   = px + cardPad;
+                    const normalX = px + cardPad * 2 + cardW;
+                    const hardX   = px + cardPad * 3 + cardW * 2;
+
+                    // Helper: draw one difficulty card
+                    function drawDiffCard(cx, cy, w, h, title, descLines, accent) {
+                        // Card fill
+                        ctx.shadowBlur = 0;
+                        ctx.fillStyle = 'rgba(26, 31, 44, 0.70)';
+                        ctx.strokeStyle = accent.border;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.roundRect(cx, cy, w, h, 12);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Top accent line
+                        ctx.strokeStyle = accent.border;
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(cx + 20, cy + 2);
+                        ctx.lineTo(cx + w - 20, cy + 2);
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+
+                        // Title
+                        ctx.shadowBlur = 0;
+                        ctx.font = 'bold 28px Orbitron, sans-serif';
+                        ctx.fillStyle = accent.text;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(title, cx + w / 2, cy + 50);
+
+                        // Description
+                        ctx.font = '12px Arial, sans-serif';
+                        ctx.fillStyle = '#9aa6b2';
+                        ctx.textBaseline = 'top';
+                        let dy = cy + 90;
+                        for (const line of descLines) {
+                            ctx.fillText(line, cx + w / 2, dy);
+                            dy += 18;
+                        }
+                    }
+
+                    drawDiffCard(easyX,   cardsY, cardW, cardH, 'EASY',   ['Original enemy cadence.', 'Best place to start.', 'Relaxed combat flow.'],     ACCENT_EASY);
+                    drawDiffCard(normalX, cardsY, cardW, cardH, 'NORMAL', ['Enemies 2× faster.', 'Rare fast meteorites', 'also appear.'],                  ACCENT_NORMAL);
+                    drawDiffCard(hardX,   cardsY, cardW, cardH, 'HARD',   ['Normal rules for now —', 'Hard-only changes', 'coming in an update.'],           ACCENT_HARD);
+
+                    // --- Click targets ---
+                    menuButtons.push({ rect: { x: easyX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy'   });
                     menuButtons.push({ rect: { x: normalX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_normal' });
-                    menuButtons.push({ rect: { x: hardX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_hard' });
-                    // BACK button below the row
-                    const backW = 180;
-                    const backH = 50;
+                    menuButtons.push({ rect: { x: hardX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_hard'   });
+
+                    // --- BACK button ---
+                    const backW = 200;
+                    const backH = 48;
                     const backX = canvas.width / 2 - backW / 2;
-                    const backY = cardsY + cardH + 32;
-                    ctx.shadowBlur = 20;
-                    ctx.shadowColor = 'rgba(255, 255, 255, 0.25)';
-                    ctx.fillStyle = 'rgba(60, 64, 80, 0.92)';
-                    ctx.beginPath();
-                    ctx.roundRect(backX, backY, backW, backH, 10);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.roundRect(backX, backY, backW, backH, 10);
-                    ctx.stroke();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 18px Orbitron, sans-serif';
-                    ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 31);
+                    const backY = py + ph - backH - 20;
+                    drawGlassButton(backX, backY, backW, backH, 10, '← BACK', 'bold 18px Orbitron, sans-serif', {
+                        hoverStrength: hoverFor('difficultyBack')
+                    });
                     menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'difficultyBack' });
-                    ctx.textAlign = 'left';
+
                     ctx.shadowBlur = 0;
+                    ctx.textAlign = 'start';
+                    ctx.textBaseline = 'alphabetic';
                     break;
                 }
                 case GAME_STATES.PLAYING:
