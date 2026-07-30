@@ -46,7 +46,9 @@
                overlay below still provides subtle texture between the
                viewport and the canvas. Decorative gradients can be
                re-introduced as a separate overlay layer in a later phase. */
-            background-color: var(--ink-black);
+            /* Phase-2A: radial gradient from shadow-grey center to ink-black edges per palette.scss */
+            background-color: var(--ink-black); /* fallback */
+            background: radial-gradient(circle at 50% 30%, var(--shadow-grey) 0%, var(--ink-black) 70%);
             font-family: 'Orbitron', sans-serif;
             overflow: hidden;
             user-select: none;
@@ -59,12 +61,12 @@
             inset: 0;
             pointer-events: none;
             background-image:
-                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-                radial-gradient(circle at center, rgba(255, 255, 255, 0.08), transparent 64%);
+                linear-gradient(rgba(138, 43, 226, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(138, 43, 226, 0.02) 1px, transparent 1px),
+                radial-gradient(circle at 50% 30%, rgba(138, 43, 226, 0.06), transparent 64%);
             background-size: 100% 4px, 4px 100%, auto;
             mix-blend-mode: screen;
-            opacity: 0.16;
+            opacity: 0.20;
         }
 
         #gameCanvas {
@@ -72,12 +74,12 @@
             height: auto;
             max-height: calc(100vh - 24px);
             aspect-ratio: 4 / 3;
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(138, 43, 226, 0.4);
             border-radius: 28px;
             box-shadow:
                 0 24px 80px rgba(0, 0, 0, 0.56),
-                0 0 0 6px rgba(73, 215, 200, 0.08),
-                0 0 0 1px rgba(255, 159, 67, 0.18) inset;
+                0 0 32px rgba(138, 43, 226, 0.15),
+                0 0 0 1px rgba(138, 43, 226, 0.12) inset;
             background: rgba(6, 10, 18, 0.58);
             backdrop-filter: blur(8px) saturate(120%);
             cursor: pointer;
@@ -106,18 +108,20 @@
         .hud-button--pause {
             width: 72px;
             height: 72px;
-            border-radius: 22px;
-            border: 1px solid rgba(73, 215, 200, 0.55);
-            background: linear-gradient(180deg, rgba(10, 15, 24, 0.96), rgba(22, 28, 42, 0.92));
-            color: #f9d56e;
+            border-radius: 16px;
+            border: 1px solid rgba(138, 43, 226, 0.4);
+            background: rgba(26, 31, 44, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--amber-gold);
             font-size: 32px;
             font-weight: 900;
-            box-shadow: 0 0 24px rgba(73, 215, 200, 0.18), 0 0 36px rgba(255, 159, 67, 0.16);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 24px rgba(138, 43, 226, 0.15);
         }
 
         .hud-button--pause:hover {
-            border-color: rgba(255, 159, 67, 0.75);
-            box-shadow: 0 0 28px rgba(73, 215, 200, 0.28), 0 0 44px rgba(255, 159, 67, 0.22);
+            border-color: rgba(138, 43, 226, 0.8);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 36px rgba(138, 43, 226, 0.25);
         }
 
         .key-hint {
@@ -153,36 +157,35 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 30;
-            background: linear-gradient(180deg, rgba(9, 15, 24, 0.96), rgba(13, 21, 34, 0.92));
+            /* Phase-2A Glassmorphism: shadow-grey semi-transparent with blur */
+            background: rgba(26, 31, 44, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             padding: 24px 22px 20px;
-            border-radius: 24px;
-            border: 1px solid rgba(73, 215, 200, 0.35);
-            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 159, 67, 0.12) inset;
+            border-radius: 16px;
+            border: 1px solid rgba(138, 43, 226, 0.4);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 20px rgba(138, 43, 226, 0.08);
             width: min(92vw, 360px);
             text-align: center;
         }
 
         .account-card__title {
-            color: var(--ink);
+            color: var(--platinum);
             font-family: 'Orbitron', sans-serif;
             font-size: 20px;
             margin-bottom: 18px;
-            /* explicit heading weight so the title reads bolder than
-               the inherited 400 default in palette.css */
             font-weight: 700;
-            /* upgraded to 2px (was 0.08em ≈ 1.6px) for the signature
-               Orbitron crisp futuristic look; the 20px font-size keeps
-               the title comfortably inside its 360px card */
             letter-spacing: 2px;
             text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(138, 43, 226, 0.6);
         }
 
         .account-card__input {
             width: 100%;
-            background: rgba(16, 22, 34, 0.96);
+            background: rgba(26, 31, 44, 0.85);
             color: white;
-            border: 1px solid rgba(73, 215, 200, 0.55);
-            border-radius: 14px;
+            border: 1px solid rgba(138, 43, 226, 0.4);
+            border-radius: 12px;
             padding: 12px;
             font-family: 'Orbitron', sans-serif;
             font-size: 18px;
@@ -192,8 +195,8 @@
         }
 
         .account-card__input:focus {
-            border-color: rgba(255, 159, 67, 0.8);
-            box-shadow: 0 0 0 3px rgba(255, 159, 67, 0.16);
+            border-color: rgba(138, 43, 226, 0.8);
+            box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.2);
         }
 
         .account-card__actions {
@@ -230,15 +233,15 @@
         }
 
         .account-card__button--primary {
-            background: linear-gradient(180deg, #ffb14d, #de7a21);
-            color: #1c1206;
-            box-shadow: 0 0 16px rgba(255, 159, 67, 0.35);
+            background: linear-gradient(135deg, #8a2be2, #6a1fb0);
+            color: #ffffff;
+            box-shadow: 0 0 16px rgba(138, 43, 226, 0.35);
         }
 
         .account-card__button--secondary {
-            background: rgba(57, 64, 84, 0.95);
-            color: #d8dde8;
-            border-color: rgba(135, 152, 181, 0.2);
+            background: rgba(26, 31, 44, 0.85);
+            color: var(--platinum);
+            border-color: rgba(138, 43, 226, 0.3);
         }
 
         .account-card__button--danger {
@@ -1865,9 +1868,10 @@
                 ctx.fillText('Create an account to track your progress!', canvas.width / 2, 110);
                 const backY = 540, backW = 160, backH = 35;
                 const backX = canvas.width / 2 - backW / 2;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#4af';
-                ctx.fillStyle = '#2a4a7a';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.roundRect(backX, backY, backW, backH, 10);
                 ctx.fill();
@@ -2017,7 +2021,7 @@
             ctx.shadowColor = '#88aaff';
             ctx.shadowBlur = 14;
             ctx.font = 'bold 14px Orbitron, sans-serif';
-            ctx.fillStyle = '#88aaff';
+            ctx.fillStyle = '#f1f5f9';
             ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
 
             if (m.missionsForDay && m.missionsForDay.length > 0) {
@@ -2083,14 +2087,15 @@
 
             const backY = 560, backW = 160, backH = 35;
             const backX = canvas.width / 2 - backW / 2;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#2a4a7a';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(backX, backY, backW, backH, 10);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'white';
+            ctx.stroke();
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.fillText('\u2190 BACK', canvas.width / 2, backY + 25);
             menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'missionsBack' }];
@@ -3554,7 +3559,14 @@
            6. DRAWING FUNCTIONS
         ============================================================ */
         function drawBackground() {
-            ctx.fillStyle = '#0a0a1a';
+            // Phase-2A: radial gradient from shadow-grey center to ink-black edges
+            const bgGrad = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height * 0.3, 0,
+                canvas.width / 2, canvas.height * 0.3, canvas.width * 0.75
+            );
+            bgGrad.addColorStop(0, '#1a1f2c');   // shadow-grey
+            bgGrad.addColorStop(1, '#0b0e14');   // ink-black
+            ctx.fillStyle = bgGrad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.shadowBlur = 0;
@@ -3570,35 +3582,31 @@
                 ctx.fill();
             }
 
+            // Phase-2A: subtle decorative orbs using palette colors
             const g1 = ctx.createRadialGradient(120, 100, 10, 120, 100, 60);
-            g1.addColorStop(0, '#ff8c42');
-            g1.addColorStop(0.7, '#b84a1c');
-            g1.addColorStop(1, '#4a1a0a');
-            ctx.shadowColor = '#ff8c42';
-            ctx.shadowBlur = 30;
+            g1.addColorStop(0, 'rgba(138, 43, 226, 0.35)');
+            g1.addColorStop(0.7, 'rgba(26, 31, 44, 0.6)');
+            g1.addColorStop(1, 'transparent');
+            ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.arc(120, 100, 60, 0, Math.PI * 2);
             ctx.fillStyle = g1;
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(255,200,100,0.3)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.15)';
             ctx.lineWidth = 4;
             ctx.beginPath();
             ctx.ellipse(120, 100, 90, 25, -0.2, 0, Math.PI * 2);
             ctx.stroke();
 
             const g2 = ctx.createRadialGradient(700, 500, 15, 700, 500, 45);
-            g2.addColorStop(0, '#4fc3ff');
-            g2.addColorStop(0.5, '#1a7ab5');
-            g2.addColorStop(1, '#0a2a4a');
-            ctx.shadowColor = '#4fc3ff';
-            ctx.shadowBlur = 25;
+            g2.addColorStop(0, 'rgba(138, 43, 226, 0.25)');
+            g2.addColorStop(0.5, 'rgba(26, 31, 44, 0.5)');
+            g2.addColorStop(1, 'transparent');
             ctx.beginPath();
             ctx.arc(700, 500, 45, 0, Math.PI * 2);
             ctx.fillStyle = g2;
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillStyle = 'rgba(255,255,255,0.10)';
             ctx.beginPath();
             ctx.ellipse(690, 490, 20, 10, 0.5, 0, Math.PI * 2);
             ctx.fill();
@@ -3798,7 +3806,7 @@
             // needing an auto-trigger here.
 
             ctx.textAlign = 'center';
-            ctx.shadowColor = '#4af';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.shadowBlur = 50;
 
             const centerX = canvas.width / 2;
@@ -3820,7 +3828,7 @@
             ctx.font = 'bold 72px Orbitron, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.fillText(starText, centerX - catcherWidth / 2 - 10, titleY);
-            ctx.fillStyle = '#ffd700';
+            ctx.fillStyle = '#ffbf24';
             ctx.fillText(catcherText, centerX + starWidth / 2 + 10, titleY);
 
             ctx.save();
@@ -3837,7 +3845,7 @@
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = '24px Orbitron, sans-serif';
-            ctx.fillStyle = '#88aaff';
+            ctx.fillStyle = '#f1f5f9';
             ctx.fillText('Get the stars, beat the record!', canvas.width / 2, 215);
 
             ctx.font = '18px Orbitron, sans-serif';
@@ -3860,13 +3868,16 @@
             const playX = canvas.width / 2 - btnW - gap / 2;
             const playCenterX = playX + btnW / 2;
             ctx.shadowBlur = 30;
-            ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#2a6aff';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(playX, btnY, btnW, btnH, 12);
             ctx.fill();
+            ctx.stroke();
             ctx.shadowBlur = 0;
-            ctx.fillStyle = 'white';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillText('▶ PLAY', playCenterX, btnY + 34);
 
@@ -3874,25 +3885,31 @@
             const accCenterX = accX + btnW / 2;
             ctx.shadowBlur = 20;
             ctx.shadowColor = '#88aaff';
-            ctx.fillStyle = '#3a3a6a';
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(accX, btnY, btnW, btnH, 12);
             ctx.fill();
+            ctx.stroke();
             ctx.shadowBlur = 0;
-            ctx.fillStyle = '#88aaff';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34);
 
             const recX = canvas.width / 2 - btnW - gap / 2;
             const recCenterX = recX + btnW / 2;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#ffd700';
-            ctx.fillStyle = '#2a2a4a';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(recX, row2Y, btnW, row2H, 10);
             ctx.fill();
+            ctx.stroke();
             ctx.shadowBlur = 0;
-            ctx.fillStyle = '#ffd700';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = '20px Orbitron, sans-serif';
             ctx.fillText('🏆 RECORDS', recCenterX, row2Y + 28);
 
@@ -3900,17 +3917,15 @@
             const settingsCenterX = settingsX + btnW / 2;
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#aaaaaa';
-            ctx.fillStyle = '#2a2a3a';
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(settingsX, row2Y, btnW, row2H, 10);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(170, 170, 170, 0.4)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(settingsX, row2Y, btnW, row2H, 10);
             ctx.stroke();
-            ctx.fillStyle = '#cccccc';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = '20px Orbitron, sans-serif';
             ctx.fillText('⚙ SETTINGS', settingsCenterX, row2Y + 28);
 
@@ -3948,64 +3963,41 @@
             const survivalMenuW = row3W;
 
             // ----- BATTLE button (left) -----
-            ctx.shadowBlur = 28;
-            ctx.shadowColor = '#ff8a3d';
-            ctx.fillStyle = '#4a1a0a';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(battleMenuX, row3Y, row3W, row3H, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(255, 138, 61, 0.85)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(battleMenuX, row3Y, row3W, row3H, 12);
             ctx.stroke();
-            ctx.fillStyle = '#ffd2a8';
-            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.font = 'bold 18px Orbitron, sans-serif';
             ctx.fillText('🎯 BATTLE', battleMenuX + row3W / 2, row3Y + 30);
 
             // ----- SURVIVAL button (right) -----
-            ctx.shadowBlur = 28;
-            ctx.shadowColor = '#ff0000';
-            ctx.fillStyle = '#a01010';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(survivalMenuX, row3Y, row3W, row3H, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(255, 90, 90, 0.7)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(survivalMenuX, row3Y, survivalMenuW, row3H, 12);
             ctx.stroke();
-            ctx.fillStyle = '#ffcccc';
-            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.font = 'bold 18px Orbitron, sans-serif';
             ctx.fillText('💀 SURVIVAL', survivalMenuX + survivalMenuW / 2, row3Y + 30);
 
             // ----- CO-OP button (centre of row 3) -----
-            // Purple gradient with handshake emoji + "CO-OP" text
-            // so the player can identify the two-player mode at a
-            // glance. Purple deliberately diverges from the blue +
-            // green ship palettes to signal "shared" rather than
-            // "either player". Must render BEFORE the menuButtons =
-            // [...] block so the click-target array below matches the
-            // pixel rectangle that was just painted.
-            ctx.shadowBlur = 28;
-            ctx.shadowColor = '#b066ff';
-            const coopPanel = ctx.createLinearGradient(coopMenuX, row3Y, coopMenuX, row3Y + row3H);
-            coopPanel.addColorStop(0, '#5a2a8a');
-            coopPanel.addColorStop(0.5, '#7a3aa8');
-            coopPanel.addColorStop(1, '#3a1660');
-            ctx.fillStyle = coopPanel;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(coopMenuX, row3Y, row3W, row3H, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(200, 140, 255, 0.75)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(coopMenuX, row3Y, row3W, row3H, 12);
             ctx.stroke();
-            ctx.fillStyle = '#e8d6ff';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = 'bold 18px Orbitron, sans-serif';
             ctx.fillText('🤝 CO-OP', coopMenuX + row3W / 2, row3Y + 31);
 
@@ -4103,7 +4095,7 @@
 
             ctx.textAlign = 'center';
             ctx.shadowBlur = 30;
-            ctx.shadowColor = '#4af';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
 
             ctx.font = 'bold 44px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
@@ -4266,7 +4258,7 @@
         function drawShip() {
             ctx.save();
             ctx.translate(player.x, player.y);
-            ctx.shadowColor = '#4af';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.shadowBlur = 25;
 
             ctx.beginPath();
@@ -4506,7 +4498,7 @@
             for (const b of playerBullets) {
                 ctx.save();
                 ctx.shadowBlur = 16;
-                ctx.shadowColor = '#4af';
+                ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
                 ctx.fillStyle = '#4af';
                 ctx.fillRect(b.x - 5, b.y - 8, 10, 16);
                 ctx.shadowBlur = 10;
@@ -4651,7 +4643,7 @@
                 // remembers they're in the harder variant.
                 ctx.fillStyle = '#ff6b6b';
                 ctx.font = 'bold 16px Orbitron, sans-serif';
-                ctx.shadowColor = '#ff0000';
+                ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
                 ctx.shadowBlur = 12;
                 ctx.fillText('☠ SURVIVAL', 20, 20);
                 ctx.shadowBlur = 10;
@@ -4731,21 +4723,22 @@
         }
 
         function drawPauseScreen() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+            // Phase-2A Glassmorphism overlay
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.75)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.textAlign = 'center';
-            ctx.shadowColor = '#4af';
-            ctx.shadowBlur = 50;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
+            ctx.shadowBlur = 30;
 
             ctx.font = 'bold 78px Orbitron, sans-serif';
-            ctx.fillStyle = '#4a8cff';
+            ctx.fillStyle = '#f1f5f9';
             ctx.fillText('⏸ PAUSED', canvas.width / 2, 175);
 
-            ctx.shadowBlur = 12;
+            ctx.shadowBlur = 8;
             ctx.shadowColor = 'black';
             ctx.font = '18px Orbitron, sans-serif';
-            ctx.fillStyle = '#9bcfff';
+            ctx.fillStyle = '#9aa6b2';
             ctx.fillText('Press "P" or tap RESUME to continue', canvas.width / 2, 220);
 
             // Three-button row: RESUME | SETTINGS | MENU.
@@ -4759,59 +4752,51 @@
             const settingsPauseX = rowLeftX + btnW + gap;
             const menuPauseX = rowLeftX + (btnW + gap) * 2;
 
-            // ----- RESUME button (green, the canonical "back to game") -----
-            ctx.shadowBlur = 32;
-            ctx.shadowColor = 'rgba(120, 255, 160, 0.7)';
-            ctx.fillStyle = '#1a4a2a';
+            // ----- RESUME button -----
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.8)';
             ctx.beginPath();
             ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(120, 255, 160, 0.6)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
             ctx.stroke();
-            ctx.fillStyle = '#cfffcf';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.textAlign = 'center';
-            ctx.shadowColor = 'rgba(120, 255, 160, 0.4)';
-            ctx.shadowBlur = 12;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
+            ctx.shadowBlur = 8;
             ctx.fillText('▶ RESUME', resumeX + btnW / 2, btnY + 36);
             ctx.shadowBlur = 0;
 
-            // ----- SETTINGS button (blue/grey) -----
-            ctx.shadowBlur = 28;
-            ctx.shadowColor = 'rgba(74, 170, 255, 0.55)';
-            ctx.fillStyle = '#2a2a3a';
+            // ----- SETTINGS button -----
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.8)';
             ctx.beginPath();
             ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(74, 170, 255, 0.5)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
             ctx.stroke();
-            ctx.fillStyle = '#88aaff';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = 'bold 20px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('⚙ SETTINGS', settingsPauseX + btnW / 2, btnY + 35);
 
-            // ----- MENU button (existing orange/gold, kept) -----
-            ctx.shadowBlur = 28;
-            ctx.shadowColor = '#ff8800';
-            ctx.fillStyle = '#6a3a1a';
+            // ----- MENU button -----
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.8)';
             ctx.beginPath();
             ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
             ctx.stroke();
-            ctx.fillStyle = '#ffd700';
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.fillText('🏠 MENU', menuPauseX + btnW / 2, btnY + 35);
 
@@ -4883,28 +4868,25 @@
 
         function drawGameOver() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
-            // Battle Mode needs the same per-mode flag here as in drawGameUI():
-            // the header ternary below branches on it to render
-            // '💥 BATTLE OVER' instead of the survival / classic text.
-            // Without this declaration the ternary throws a
-            // ReferenceError the moment a Battle run ends.
             const isBattle = gameMode === GAME_MODES.BATTLE;
+            const isCoop = gameMode === GAME_MODES.COOP;
             const highScore = currentUser
                 ? (isSurvival
                     ? getMaxSurvivalScore(currentUser)
-                    : (isBattle ? getMaxBattleScore(currentUser) : getMaxScore(currentUser)))
+                    : (isBattle ? getMaxBattleScore(currentUser) : (isCoop ? getMaxCoopScore(currentUser) : getMaxScore(currentUser))))
                 : 0;
 
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+            // Phase-2A Glassmorphism overlay
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.textAlign = 'center';
 
-            ctx.shadowColor = '#ff0000';
-            ctx.shadowBlur = 40;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
+            ctx.shadowBlur = 30;
             ctx.font = 'bold 60px Orbitron, sans-serif';
-            ctx.fillStyle = '#ff4444';
-            ctx.fillText(isBattle ? '💥 BATTLE OVER' : (isSurvival ? '☠ SURVIVAL OVER' : 'GAME OVER'), canvas.width / 2, 100);
+            ctx.fillStyle = '#f1f5f9';
+            ctx.fillText(isBattle ? '💥 BATTLE OVER' : (isSurvival ? '☠ SURVIVAL OVER' : (isCoop ? '🤝 CO-OP OVER' : 'GAME OVER')), canvas.width / 2, 100);
 
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
@@ -4981,13 +4963,13 @@
             const col2X = 300;
             const top5Y = 290;
 
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = isSurvival ? 'rgba(200, 30, 30, 0.18)' : 'rgba(200, 50, 50, 0.15)';
+            // Phase-2A glassmorphism panel
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
             ctx.beginPath();
             ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
             ctx.fill();
-            ctx.strokeStyle = isSurvival ? 'rgba(255, 80, 80, 0.5)' : 'rgba(255, 80, 80, 0.4)';
-            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(leftColX - 20, top5Y - 30, 480, 220, 12);
             ctx.stroke();
@@ -5051,7 +5033,7 @@
 
             ctx.save();
             ctx.translate(shipX, shipY);
-            ctx.shadowColor = '#4af';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.shadowBlur = 30;
 
             ctx.beginPath();
@@ -5198,10 +5180,10 @@
             drawBackground();
 
             ctx.textAlign = 'center';
-            ctx.shadowBlur = 30;
-            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
             ctx.font = 'bold 38px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffd700';
+            ctx.fillStyle = '#f1f5f9';
             ctx.fillText('🏆 RECORDS', canvas.width / 2, 60);
 
             // ----- Auth gate + shared back button -----
@@ -5265,20 +5247,21 @@
 
             // ----- Classic column -----
             ctx.shadowBlur = 12;
-            ctx.shadowColor = '#ffd700';
-            ctx.fillStyle = 'rgba(74, 140, 255, 0.10)';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
             ctx.beginPath();
             ctx.roundRect(leftColX, colY, colW, colH, 12);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
-            ctx.lineWidth = 2;
+            // Phase-2A glassmorphism border
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(leftColX, colY, colW, colH, 12);
             ctx.stroke();
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.fillStyle = '#88aaff';
-            ctx.shadowColor = '#4af';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.shadowBlur = 15;
             ctx.fillText('⭐ CLASSIC', leftColX + colW / 2, colY + 30);
 
@@ -5309,22 +5292,19 @@
 
             // ----- Survival column -----
             ctx.textAlign = 'center';
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#ff6b6b';
-            ctx.fillStyle = 'rgba(180, 20, 20, 0.12)';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(rightColX, colY, colW, colH, 12);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 90, 90, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(rightColX, colY, colW, colH, 12);
             ctx.stroke();
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.fillStyle = '#ff8888';
-            ctx.shadowColor = '#ff0000';
-            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#f1f5f9';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
+            ctx.shadowBlur = 10;
             ctx.fillText('☠ SURVIVAL', rightColX + colW / 2, colY + 30);
 
             ctx.font = '14px Orbitron, sans-serif';
@@ -5352,25 +5332,20 @@
             }
 
             // ----- Battle column -----
-            ctx.save();
-            ctx.shadowBlur = 18;
-            ctx.shadowColor = '#ff8a3d';
-            ctx.fillStyle = 'rgba(74, 26, 10, 0.40)';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(col3X, colY, colW, colH, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(255, 138, 61, 0.6)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(col3X, colY, colW, colH, 12);
             ctx.stroke();
 
             ctx.textAlign = 'center';
             ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillStyle = '#ffd2a8';
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#ff8a3d';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.fillText('🎯 BATTLE', col3X + colW / 2, colY + 32);
             ctx.shadowBlur = 0;
             ctx.font = '13px Orbitron, sans-serif';
@@ -5405,36 +5380,20 @@
             ctx.restore();
 
             // ----- CO-OP column -----
-            // 4th column with the green palette already established
-            // by the menu's CO-OP button so the player recognises
-            // the mode at a glance. Subtitle explicitly mentions the
-            // scoring rule ("Stars + kills") because CO-OP scores mix
-            // +1/star and +2/kill — a casual reader cannot tell from
-            // the bare number what "10 pts" means. Suffix on each row
-            // is "pts" rather than "kills" to mirror the Classic
-            // column's vocabulary.
-            ctx.save();
-            ctx.shadowBlur = 18;
-            ctx.shadowColor = '#6fe0a8';
-            const coopPanel = ctx.createLinearGradient(col4X, colY, col4X, colY + colH);
-            coopPanel.addColorStop(0, 'rgba(20, 60, 35, 0.40)');
-            coopPanel.addColorStop(1, 'rgba(10, 30, 18, 0.45)');
-            ctx.fillStyle = coopPanel;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(col4X, colY, colW, colH, 12);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(120, 240, 180, 0.6)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(col4X, colY, colW, colH, 12);
             ctx.stroke();
 
             ctx.textAlign = 'center';
             ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.fillStyle = '#cfffe5';
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#6fe0a8';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.fillText('🤝 CO-OP', col4X + colW / 2, colY + 32);
             ctx.shadowBlur = 0;
             ctx.font = '12px Orbitron, sans-serif';
@@ -5529,14 +5488,15 @@
         // place, which makes the action dispatcher in handleMenuAction
         // the single source of truth for "exit the records screen".
         function drawRecordsBackButton(x, y, w, h) {
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#4af';
-            ctx.fillStyle = '#2a4a7a';
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(x, y, w, h, 10);
             ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'white';
+            ctx.stroke();
+            ctx.fillStyle = '#f1f5f9';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText('← BACK', canvas.width / 2, y + 25);
@@ -5726,16 +5686,16 @@
             // subtitle follows; see the panel-sizing block below for
             // the full layout math.
             ctx.font = 'bold 44px Orbitron, sans-serif';
-            ctx.shadowColor = '#4a8cff';
-            ctx.shadowBlur = 30;
-            ctx.fillStyle = 'white';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
+            ctx.shadowBlur = 20;
+            // Phase-2A title text glow
+            ctx.fillStyle = '#f1f5f9';
             ctx.fillText('⚙ SETTINGS', canvas.width / 2, 70);
 
             // Subtitle
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 0;
             ctx.font = '15px Orbitron, sans-serif';
-            ctx.fillStyle = '#aaa';
+            ctx.fillStyle = '#9aa6b2';
             ctx.fillText('Customize your settings', canvas.width / 2, 98);
 
             // Outer panel — sized for 4 toggle rows + 3 volume sub-rows.
@@ -5777,14 +5737,15 @@
             if (settingsScrollY > scrollRange) settingsScrollY = scrollRange;
 
             ctx.shadowBlur = 25;
-            ctx.shadowColor = '#4a8cff';
-            ctx.fillStyle = 'rgba(15, 25, 50, 0.85)';
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
             ctx.beginPath();
             ctx.roundRect(panelX, panelY, panelW, panelH, 16);
             ctx.fill();
             ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(74, 170, 255, 0.4)';
-            ctx.lineWidth = 2;
+            // Phase-2A glassmorphism settings panel
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.roundRect(panelX, panelY, panelW, panelH, 16);
             ctx.stroke();
