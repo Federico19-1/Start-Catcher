@@ -2730,22 +2730,26 @@
             // Mouse, touch, and the canvas drag handler (which updates
             // targetX on move events) are the only ways to steer —
             // keyboard arrow movement is gone.
+            // Ship visual body radius (~26px) for edge clamping.
+            // player.radius (100px) is the star-catching bubble — using
+            // that for clamping left a 100px dead zone on each side of
+            // the canvas.  The ship can now travel all the way to the
+            // canvas edges, stopping so its visual body stays on-screen.
+            const shipEdge = 26;
             if (gameMode === GAME_MODES.SURVIVAL
                 && settings.survivalFreeMovement) {
                 // Snap directly to the cursor (no targetX smoothing,
-                // full vertical freedom). Clamp the same way the
-                // smoothed branch does so the ship never half-straddles
-                // the canvas edge no matter which way the cursor is.
+                // full vertical freedom).
                 player.x = mouseX;
                 player.y = mouseY;
-                if (player.x < player.radius) player.x = player.radius;
-                if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
-                if (player.y < player.radius) player.y = player.radius;
-                if (player.y > canvas.height - player.radius) player.y = canvas.height - player.radius;
+                if (player.x < shipEdge) player.x = shipEdge;
+                if (player.x > canvas.width - shipEdge) player.x = canvas.width - shipEdge;
+                if (player.y < shipEdge) player.y = shipEdge;
+                if (player.y > canvas.height - shipEdge) player.y = canvas.height - shipEdge;
             } else {
                 player.x += (player.targetX - player.x) * 0.3;
-                if (player.x < player.radius) player.x = player.radius;
-                if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+                if (player.x < shipEdge) player.x = shipEdge;
+                if (player.x > canvas.width - shipEdge) player.x = canvas.width - shipEdge;
             }
 
             if (gameMode === GAME_MODES.CLASSIC) {
@@ -3450,8 +3454,10 @@
             const GREEN_SPEED = 6;
             if (coopKeys.left) greenPlayer.x -= GREEN_SPEED;
             if (coopKeys.right) greenPlayer.x += GREEN_SPEED;
-            if (greenPlayer.x < greenPlayer.radius) greenPlayer.x = greenPlayer.radius;
-            if (greenPlayer.x > canvas.width - greenPlayer.radius) greenPlayer.x = canvas.width - greenPlayer.radius;
+            // Use same shipEdge (26) as Blue so both ships can reach
+            // the left/right canvas edges uniformly.
+            if (greenPlayer.x < shipEdge) greenPlayer.x = shipEdge;
+            if (greenPlayer.x > canvas.width - shipEdge) greenPlayer.x = canvas.width - shipEdge;
 
             // ===== Green beams =====
             // UP arrow or SPACE pushes a beam straight up. Same
