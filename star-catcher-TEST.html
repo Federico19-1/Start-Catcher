@@ -4217,25 +4217,21 @@
                 hoverStrength: hoverFor('account')
             });
 
-            // ===== ROW 2: MENU (RECORDS + SETTINGS + MISSIONS) =====
+            // ===== ROW 2: MENU (RECORDS + SETTINGS) =====
             const sec2LabelY = row1Y + row1H + 22;
             drawSectionLabel('— MENU —', sec2LabelY);
 
             const row2Y = sec2LabelY + 12;
             const row2H = 42;
-            const row2W = (innerW - 30) / 3;    // 3 buttons with 15px gaps
+            const row2W = (innerW - 20) / 2;    // 2 buttons with 20px gap
             const r2aX = innerX;
-            const r2bX = innerX + row2W + 15;
-            const r2cX = innerX + (row2W + 15) * 2;
+            const r2bX = innerX + row2W + 20;
 
             drawGlassButton(r2aX, row2Y, row2W, row2H, 10, '🏆 RECORDS', '18px Orbitron, sans-serif', {
                 hoverStrength: hoverFor('records')
             });
             drawGlassButton(r2bX, row2Y, row2W, row2H, 10, '⚙ SETTINGS', '18px Orbitron, sans-serif', {
                 hoverStrength: hoverFor('settings')
-            });
-            drawGlassButton(r2cX, row2Y, row2W, row2H, 10, '📋 MISSIONS', '18px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('missions')
             });
 
             // ===== ROW 3: GAME MODES (BATTLE + CO-OP + SURVIVAL) =====
@@ -4271,7 +4267,6 @@
                 { rect: { x: r1RightX, y: row1Y, w: row1W, h: row1H }, action: 'account' },
                 { rect: { x: r2aX, y: row2Y, w: row2W, h: row2H }, action: 'records' },
                 { rect: { x: r2bX, y: row2Y, w: row2W, h: row2H }, action: 'settings' },
-                { rect: { x: r2cX, y: row2Y, w: row2W, h: row2H }, action: 'missions' },
                 { rect: { x: r3aX, y: row3Y, w: row3W, h: row3H }, action: 'playBattle' },
                 { rect: { x: r3bX, y: row3Y, w: row3W, h: row3H }, action: 'playCoop' },
                 { rect: { x: r3cX, y: row3Y, w: row3W, h: row3H }, action: 'survival' }
