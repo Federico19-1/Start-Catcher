@@ -846,6 +846,11 @@
 
         let menuButtons = [];
 
+        // Missions cache for streak bar widget (avoids localStorage
+        // reads every frame inside drawMenu).
+        let _cachedMissions = null;
+        let _cachedMissionsUser = null;
+
         // ----- Blue mascot: a cute side-character who chats from the
         // lower-left corner of the menu screen. Hover over him to see a
         // little speech bubble with a randomly chosen line.
@@ -4060,37 +4065,130 @@
             ctx.roundRect(panelX + 2, panelY + 2, panelW - 4, panelH - 4, 14);
             ctx.fill();
 
-            // --- Dedicated user badge at panel top ---
-            const badgeY = panelY + 20;
-            const badgeH = 30;
-            // Subtle badge background
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.50)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.20)';
+            // ============================================================
+            // Pill-shaped Streak & Account Bar
+            // ============================================================
+            // Invalidate missions cache on every menu visit
+            _cachedMissions = null;
+            _cachedMissionsUser = null;
+
+            const barY = panelY + 16;
+            const barH = 38;
+            const barW = innerW;
+            const barX = innerX;
+
+            // --- Pill background ---
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.72)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.30)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            const badgeW = 220;
-            const badgeX = canvas.width / 2 - badgeW / 2;
-            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
+            ctx.roundRect(barX, barY, barW, barH, 20);
             ctx.fill();
             ctx.stroke();
 
-            // Username — bright platinum with amber-gold glow when logged in
+            // --- Segment 1: STREAK badge (purple gradient pill) ---
+            const seg1W = 82;
+            const seg1X = barX + 4;
+            const seg1Y = barY + 4;
+            const seg1H = barH - 8;
+            const s1Grad = ctx.createLinearGradient(seg1X, seg1Y, seg1X + seg1W, seg1Y);
+            s1Grad.addColorStop(0, '#4a3aff');
+            s1Grad.addColorStop(1, '#6c5ce7');
+            ctx.fillStyle = s1Grad;
+            ctx.shadowColor = 'rgba(74, 58, 255, 0.5)';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.roundRect(seg1X, seg1Y, seg1W, seg1H, 16);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 11px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.shadowBlur = 0;
-            ctx.font = 'bold 16px Orbitron, sans-serif';
-            if (currentUser) {
-                ctx.fillStyle = '#f1f5f9';
-                ctx.shadowColor = 'rgba(255, 191, 36, 0.5)';
-                ctx.shadowBlur = 8;
-            } else {
-                ctx.fillStyle = '#9aa6b2';
+            ctx.fillText('STREAK', seg1X + seg1W / 2, seg1Y + seg1H / 2);
+
+            // --- Separators helper ---
+            function drawSep(x) {
+                ctx.strokeStyle = 'rgba(138, 43, 226, 0.25)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x, barY + 8);
+                ctx.lineTo(x, barY + barH - 8);
+                ctx.stroke();
             }
-            ctx.fillText(
-                currentUser ? `👤 ${currentUser}` : '👤 NO ACCOUNT',
-                canvas.width / 2, badgeY + badgeH / 2
-            );
+
+            const sep1X = seg1X + seg1W + 6;
+            drawSep(sep1X);
+
+            // --- Segment 2: Username ---
+            const seg2X = sep1X + 6;
+            const seg2W = 90;
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.textBaseline = 'middle';
+            const displayName = currentUser
+                ? (currentUser.length > 8 ? currentUser.slice(0, 7) + '…' : currentUser)
+                : 'NO USER';
+            ctx.fillStyle = currentUser ? '#f1f5f9' : '#9aa6b2';
+            ctx.fillText(displayName, seg2X + seg2W / 2, barY + barH / 2);
+
+            const sep2X = seg2X + seg2W + 6;
+            drawSep(sep2X);
+
+            // --- Streak data ---
+            if (!_cachedMissions || _cachedMissionsUser !== currentUser) {
+                _cachedMissions = currentUser ? refreshMissionsForUser(currentUser) : newMissionsRecord();
+                _cachedMissionsUser = currentUser;
+            }
+            const m = _cachedMissions;
+            const tick = Date.now() / 200;
+            const flicker = 0.75 + Math.sin(tick * 1.7) * 0.18 + Math.sin(tick * 3.1) * 0.07;
+
+            // --- Segment 3: Normal Streak (orange) ---
+            const seg3X = sep2X + 8;
+            const seg3W = 90;
+            const ns = m.streakCount || 0;
+            const flameOn = ns > 0;
+            if (flameOn) {
+                ctx.shadowColor = `rgba(255, 140, 0, ${(0.6 + flicker * 0.4).toFixed(2)})`;
+                ctx.shadowBlur = 6 + flicker * 8;
+                ctx.font = `${(15 + flicker * 3).toFixed(0)}px sans-serif`;
+            } else {
+                ctx.shadowBlur = 0;
+                ctx.font = '15px sans-serif';
+            }
+            ctx.fillText('🔥', seg3X + 14, barY + barH / 2);
             ctx.shadowBlur = 0;
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.fillStyle = flameOn ? '#ff9f43' : '#555';
+            ctx.fillText(String(ns), seg3X + seg3W - 16, barY + barH / 2);
+
+            const sep3X = seg3X + seg3W + 6;
+            drawSep(sep3X);
+
+            // --- Segment 4: Super Streak (red) ---
+            const seg4X = sep3X + 8;
+            const seg4W = 90;
+            const ss = m.superStreakCount || 0;
+            const ssOn = ss > 0;
+            if (ssOn) {
+                ctx.shadowColor = `rgba(200, 40, 40, ${(0.6 + flicker * 0.4).toFixed(2)})`;
+                ctx.shadowBlur = 6 + flicker * 8;
+                ctx.font = `${(15 + flicker * 3).toFixed(0)}px sans-serif`;
+            } else {
+                ctx.shadowBlur = 0;
+                ctx.font = '15px sans-serif';
+            }
+            ctx.fillText('🔥', seg4X + 14, barY + barH / 2);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 13px Orbitron, sans-serif';
+            ctx.fillStyle = ssOn ? '#e74c3c' : '#555';
+            ctx.fillText(String(ss), seg4X + seg4W - 16, barY + barH / 2);
+
+            // Reset text state
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
 
             // --- Section helper ---
             function drawSectionLabel(label, y) {
@@ -4102,7 +4200,7 @@
             }
 
             // ===== ROW 1: MAIN (PLAY + ACCOUNT) =====
-            const sec1LabelY = badgeY + badgeH + 22;
+            const sec1LabelY = barY + barH + 22;
             drawSectionLabel('— MAIN —', sec1LabelY);
 
             const row1Y = sec1LabelY + 12;
