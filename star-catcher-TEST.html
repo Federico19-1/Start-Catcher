@@ -117,11 +117,18 @@
             font-size: 32px;
             font-weight: 900;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 24px rgba(138, 43, 226, 0.15);
+            transition: all 0.25s ease-in-out;
         }
 
         .hud-button--pause:hover {
-            border-color: rgba(138, 43, 226, 0.8);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 36px rgba(138, 43, 226, 0.25);
+            border-color: rgba(138, 43, 226, 0.9);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(138, 43, 226, 0.8);
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        .hud-button--pause:active {
+            transform: scale(0.98);
+            border-color: rgba(255, 191, 36, 0.8);
         }
 
         .key-hint {
@@ -214,41 +221,89 @@
             border: 1px solid transparent;
             font-family: 'Orbitron', sans-serif;
             font-size: 13px;
-            /* weight nudged from 700 → 600 so labels like "🗑️ Clear
-               Account" (16 chars) at Orbitron 13px stay inside the
-               112px button min-width without overflowing the rounded
-               container */
             font-weight: 600;
-            /* signature Orbitron futuristic spacing on the button
-               labels — 1px is enough at 13px to read crisp without
-               spreading the text past the button edge */
             letter-spacing: 1px;
             cursor: pointer;
+            transition: all 0.25s ease-in-out;
+        }
+
+        .account-card__button:hover {
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        .account-card__button:active {
+            transform: scale(0.98);
         }
 
         .account-card__button--ghost {
-            background: rgba(84, 65, 28, 0.9);
-            color: #f3d27a;
-            border-color: rgba(255, 216, 74, 0.3);
+            background: rgba(26, 31, 44, 0.75);
+            color: var(--platinum);
+            border-color: rgba(138, 43, 226, 0.3);
+            transition: all 0.25s ease-in-out;
+        }
+
+        .account-card__button--ghost:hover {
+            border-color: rgba(138, 43, 226, 0.7);
+            box-shadow: 0 0 12px rgba(138, 43, 226, 0.4);
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        .account-card__button--ghost:active {
+            transform: scale(0.98);
         }
 
         .account-card__button--primary {
             background: linear-gradient(135deg, #8a2be2, #6a1fb0);
             color: #ffffff;
             box-shadow: 0 0 16px rgba(138, 43, 226, 0.35);
+            transition: all 0.25s ease-in-out;
+        }
+
+        .account-card__button--primary:hover {
+            box-shadow: 0 0 15px rgba(255, 191, 36, 0.8);
+            border-color: rgba(255, 191, 36, 0.6);
+            background: linear-gradient(135deg, #a03cf0, #7a2ac0);
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        .account-card__button--primary:active {
+            transform: scale(0.98);
+            border-color: rgba(255, 191, 36, 0.9);
         }
 
         .account-card__button--secondary {
             background: rgba(26, 31, 44, 0.85);
             color: var(--platinum);
             border-color: rgba(138, 43, 226, 0.3);
+            transition: all 0.25s ease-in-out;
+        }
+
+        .account-card__button--secondary:hover {
+            border-color: rgba(138, 43, 226, 0.8);
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        .account-card__button--secondary:active {
+            transform: scale(0.98);
         }
 
         .account-card__button--danger {
             margin-top: 10px;
-            background: rgba(98, 33, 33, 0.95);
+            background: rgba(26, 31, 44, 0.85);
             color: #ffb0b0;
             border-color: rgba(255, 120, 120, 0.22);
+            transition: all 0.25s ease-in-out;
+        }
+
+        .account-card__button--danger:hover {
+            border-color: rgba(255, 120, 120, 0.6);
+            box-shadow: 0 0 15px rgba(255, 80, 80, 0.4);
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        .account-card__button--danger:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
@@ -467,6 +522,124 @@
         // somewhere up at, say, y=120).
         let mouseX = 400;
         let mouseY = 550;
+
+        // ----- Phase-2B Button hover tracking -----
+        // Tracks which menuButtons action is currently hovered and
+        // smoothly interpolates hoverStrength 0→1 (enter) / 1→0 (exit)
+        // so buttons animate rather than snapping between states.
+        let btnHoverTarget = null;   // menuButtons[].action string or null
+        let btnHoverCurrent = null;  // currently displayed hover target (lerps toward btnHoverTarget)
+        let btnHoverStrength = 0;    // 0 = idle, 1 = fully hovered
+        let btnHoverLastMs = 0;      // Date.now() of last strength update
+        const BTN_HOVER_LERP = 0.18; // lerp rate per ~16ms frame
+
+        // Phase-2B: reusable glassmorphism button renderer.
+        // Draws a rounded-rect button with fill + stroke + text, then
+        // optionally layers a glow and scale transform when hovered.
+        //   isPrimary: amber-gold glow instead of blue-violet
+        //   hoverStrength: 0..1 from btnHoverStrength
+        function drawGlassButton(x, y, w, h, radius, text, fontSize, opts) {
+            opts = opts || {};
+            const hs = opts.hoverStrength || 0;
+            const isPrimary = opts.isPrimary || false;
+            const textColor = opts.textColor || '#f1f5f9';
+            const glowColor = isPrimary ? 'rgba(255, 191, 36, ' : 'rgba(138, 43, 226, ';
+            const scale = 1 + hs * 0.03;             // scale 1.00→1.03
+            const offsetY = -hs * 2;                  // translateY 0→-2px
+            const glowAlpha = 0.05 + hs * 0.75;       // glow 0.05→0.80
+
+            ctx.save();
+            const cx = x + w / 2, cy = y + h / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cx, -cy);
+            ctx.translate(0, offsetY);
+
+            // Fill
+            const fillAlpha = 0.55 + hs * 0.25;  // darken slightly on hover
+            ctx.fillStyle = `rgba(26, 31, 44, ${fillAlpha.toFixed(2)})`;
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, radius);
+            ctx.fill();
+
+            // Glow shadow
+            if (hs > 0.01) {
+                ctx.shadowColor = glowColor + glowAlpha.toFixed(2) + ')';
+                ctx.shadowBlur = 8 + hs * 16;
+                ctx.strokeStyle = glowColor + (0.4 + hs * 0.5).toFixed(2) + ')';
+            } else {
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            }
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, radius);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Text with subtle glow on hover
+            ctx.shadowBlur = 0;
+            if (hs > 0.01) {
+                ctx.shadowColor = glowColor + (hs * 0.6).toFixed(2) + ')';
+                ctx.shadowBlur = 4 + hs * 8;
+            }
+            ctx.fillStyle = textColor;
+            ctx.font = fontSize;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, cx, cy);
+            ctx.shadowBlur = 0;
+
+            ctx.restore();
+        }
+
+        // Phase-2B: scan menuButtons[] for a rect containing (mx, my).
+        // Returns the hovered button's action string, or null.
+        function findHoveredButton(mx, my) {
+            for (let i = menuButtons.length - 1; i >= 0; i--) {
+                const r = menuButtons[i].rect;
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                    return menuButtons[i].action;
+                }
+            }
+            return null;
+        }
+
+        // Call once per frame (in drawing functions that draw buttons)
+        // to update btnHoverTarget/Current/Strength based on current mouse.
+        function updateButtonHover() {
+            const now = Date.now();
+            const target = findHoveredButton(mouseX, mouseY);
+            // If target changed, reset the lerp source
+            if (target !== btnHoverTarget) {
+                btnHoverTarget = target;
+            }
+            // Lerp hoverCurrent toward hoverTarget
+            const dt = Math.min((now - btnHoverLastMs) / 16, 4); // cap at 4 frames worth
+            btnHoverLastMs = now;
+            const goal = btnHoverTarget;
+            // Smooth step toward goal
+            if (goal === btnHoverCurrent) {
+                // Already there — move strength toward 1 (if hovering) or 0
+                const targetStr = goal ? 1 : 0;
+                btnHoverStrength += (targetStr - btnHoverStrength) * Math.min(BTN_HOVER_LERP * dt, 1);
+                if (Math.abs(btnHoverStrength - targetStr) < 0.005) btnHoverStrength = targetStr;
+            } else {
+                // Switching targets — fade current out first
+                btnHoverStrength += (0 - btnHoverStrength) * Math.min(BTN_HOVER_LERP * dt * 2, 1);
+                if (btnHoverStrength < 0.02) {
+                    btnHoverStrength = 0;
+                    btnHoverCurrent = goal;
+                }
+            }
+        }
+
+        // Convenience: returns hoverStrength if the given action matches
+        // the currently hovered button, else 0.
+        function hoverFor(action) {
+            if (btnHoverCurrent === action) return btnHoverStrength;
+            return 0;
+        }
 
         // ----- Settings-panel scroll state -----
         // The Settings screen hosts two categories (SOUNDS CONTROLS +
@@ -1848,6 +2021,7 @@
         // ----- Missions page renderer -----
         function drawMissionsScreen() {
             drawBackground();
+            updateButtonHover();  // Phase-2B
 
             const m = currentUser
                 ? refreshMissionsForUser(currentUser)
@@ -3796,14 +3970,7 @@
 
         function drawMenu() {
             drawBackground();
-            // Menu music is no longer auto-started here on the first
-            // render frame: doing so would fire at ~16 ms, shadowing
-            // the setTimeout(playMenuMusic, 300) that the boot path
-            // schedules right after stopMenuMusic(). Every later
-            // "return to menu" branch (post-game 'menu' and
-            // post-pause 'pauseMenu') already calls playMenuMusic()
-            // explicitly so the song restarts correctly without us
-            // needing an auto-trigger here.
+            updateButtonHover();  // Phase-2B hover tracking
 
             ctx.textAlign = 'center';
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
@@ -3867,67 +4034,33 @@
 
             const playX = canvas.width / 2 - btnW - gap / 2;
             const playCenterX = playX + btnW / 2;
-            ctx.shadowBlur = 30;
-            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(playX, btnY, btnW, btnH, 12);
-            ctx.fill();
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 24px Orbitron, sans-serif';
-            ctx.fillText('▶ PLAY', playCenterX, btnY + 34);
+            // Phase-2B: PLAY is primary CTA → amber-gold glow
+            drawGlassButton(playX, btnY, btnW, btnH, 12, '▶ PLAY', 'bold 24px Orbitron, sans-serif', {
+                isPrimary: true,
+                hoverStrength: hoverFor('play')
+            });
 
             const accX = canvas.width / 2 + gap / 2;
             const accCenterX = accX + btnW / 2;
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#88aaff';
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(accX, btnY, btnW, btnH, 12);
-            ctx.fill();
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillText('👤 ACCOUNT', accCenterX, btnY + 34);
+            drawGlassButton(accX, btnY, btnW, btnH, 12, '👤 ACCOUNT', 'bold 22px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('account')
+            });
 
             const recX = canvas.width / 2 - btnW - gap / 2;
             const recCenterX = recX + btnW / 2;
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(recX, row2Y, btnW, row2H, 10);
-            ctx.fill();
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = '20px Orbitron, sans-serif';
-            ctx.fillText('🏆 RECORDS', recCenterX, row2Y + 28);
+            drawGlassButton(recX, row2Y, btnW, row2H, 10, '🏆 RECORDS', '20px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('records')
+            });
 
             const settingsX = canvas.width / 2 + gap / 2;
             const settingsCenterX = settingsX + btnW / 2;
             ctx.shadowBlur = 15;
             ctx.shadowColor = '#aaaaaa';
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(settingsX, row2Y, btnW, row2H, 10);
-            ctx.fill();
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = '20px Orbitron, sans-serif';
-            ctx.fillText('⚙ SETTINGS', settingsCenterX, row2Y + 28);
+            drawGlassButton(settingsX, row2Y, btnW, row2H, 10, '⚙ SETTINGS', '20px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('settings')
+            });
 
             // ----- Blue mascot lives in the lower-left of the menu -----
             const now = Date.now();
@@ -3963,43 +4096,19 @@
             const survivalMenuW = row3W;
 
             // ----- BATTLE button (left) -----
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(battleMenuX, row3Y, row3W, row3H, 12);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 18px Orbitron, sans-serif';
-            ctx.fillText('🎯 BATTLE', battleMenuX + row3W / 2, row3Y + 30);
+            drawGlassButton(battleMenuX, row3Y, row3W, row3H, 12, '🎯 BATTLE', 'bold 18px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('playBattle')
+            });
 
             // ----- SURVIVAL button (right) -----
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(survivalMenuX, row3Y, row3W, row3H, 12);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 18px Orbitron, sans-serif';
-            ctx.fillText('💀 SURVIVAL', survivalMenuX + survivalMenuW / 2, row3Y + 30);
+            drawGlassButton(survivalMenuX, row3Y, row3W, row3H, 12, '💀 SURVIVAL', 'bold 18px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('survival')
+            });
 
             // ----- CO-OP button (centre of row 3) -----
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(coopMenuX, row3Y, row3W, row3H, 12);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 18px Orbitron, sans-serif';
-            ctx.fillText('🤝 CO-OP', coopMenuX + row3W / 2, row3Y + 31);
+            drawGlassButton(coopMenuX, row3Y, row3W, row3H, 12, '🤝 CO-OP', 'bold 18px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('playCoop')
+            });
 
             menuButtons = [
                 { rect: { x: playX, y: btnY, w: btnW, h: btnH }, action: 'play' },
@@ -4726,6 +4835,7 @@
             // Phase-2A Glassmorphism overlay
             ctx.fillStyle = 'rgba(26, 31, 44, 0.75)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            updateButtonHover();  // Phase-2B hover tracking
 
             ctx.textAlign = 'center';
             ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
@@ -4752,53 +4862,21 @@
             const settingsPauseX = rowLeftX + btnW + gap;
             const menuPauseX = rowLeftX + (btnW + gap) * 2;
 
-            // ----- RESUME button -----
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.8)';
-            ctx.beginPath();
-            ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(resumeX, btnY, btnW, btnH, 12);
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.shadowBlur = 8;
-            ctx.fillText('▶ RESUME', resumeX + btnW / 2, btnY + 36);
-            ctx.shadowBlur = 0;
+            // ----- RESUME button (primary CTA → amber-gold glow) -----
+            drawGlassButton(resumeX, btnY, btnW, btnH, 12, '▶ RESUME', 'bold 22px Orbitron, sans-serif', {
+                isPrimary: true,
+                hoverStrength: hoverFor('pauseResume')
+            });
 
             // ----- SETTINGS button -----
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.8)';
-            ctx.beginPath();
-            ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(settingsPauseX, btnY, btnW, btnH, 12);
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('⚙ SETTINGS', settingsPauseX + btnW / 2, btnY + 35);
+            drawGlassButton(settingsPauseX, btnY, btnW, btnH, 12, '⚙ SETTINGS', 'bold 20px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('pauseSettings')
+            });
 
             // ----- MENU button -----
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.8)';
-            ctx.beginPath();
-            ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(menuPauseX, btnY, btnW, btnH, 12);
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.fillText('🏠 MENU', menuPauseX + btnW / 2, btnY + 35);
+            drawGlassButton(menuPauseX, btnY, btnW, btnH, 12, '🏠 MENU', 'bold 22px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('pauseMenu')
+            });
 
             // ----- SAVE button (second row, centred below the
             // RESUME/SETTINGS/MENU row). Width bumped to 220 so the
@@ -4816,37 +4894,16 @@
             // MISSION-row-on-pause-overlay spacing used elsewhere.
             const saveBtnY = btnY + btnH + saveBtnGap;
             const saveBtnX = canvas.width / 2 - saveBtnW / 2;
+            // ----- SAVE button -----
             // Revert the cached text after the 1.5 s flash window
-            // expires so subsequent frames render "💾 SAVE" again
-            // without needing a separate rAF-driven timer (the
-            // draw call already runs every frame, so this is free).
             if (menuSaveBtnFlashUntil !== 0 && Date.now() > menuSaveBtnFlashUntil) {
                 menuSaveBtnText = '\ud83d\udcbe SAVE';
                 menuSaveBtnFlashUntil = 0;
             }
-            // Use teal accent — different from the green Resume
-            // (action), blue Settings (config), and gold Menu
-            // (navigation) so the player's eye reads SAVE as its
-            // own band rather than a fourth colour of the same row.
-            ctx.shadowBlur = 28;
-            ctx.shadowColor = 'rgba(73, 215, 200, 0.55)';
-            ctx.fillStyle = '#1a3a3a';
-            ctx.beginPath();
-            ctx.roundRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(73, 215, 200, 0.7)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12);
-            ctx.stroke();
-            ctx.fillStyle = '#aff5ec';
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = 'rgba(73, 215, 200, 0.4)';
-            ctx.shadowBlur = 12;
-            ctx.fillText(menuSaveBtnText, saveBtnX + saveBtnW / 2, saveBtnY + 36);
-            ctx.shadowBlur = 0;
+            drawGlassButton(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12, menuSaveBtnText, 'bold 22px Orbitron, sans-serif', {
+                isPrimary: true,
+                hoverStrength: hoverFor('pauseSave')
+            });
 
             menuButtons = [
                 { rect: { x: resumeX, y: btnY, w: btnW, h: btnH }, action: 'pauseResume' },
@@ -4867,6 +4924,7 @@
         }
 
         function drawGameOver() {
+            updateButtonHover();  // Phase-2B hover tracking
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
             const isCoop = gameMode === GAME_MODES.COOP;
@@ -5120,45 +5178,16 @@
 
             const playAgainX = canvas.width / 2 - btnW - gap / 2;
             const playAgainCenterX = playAgainX + btnW / 2;
-            ctx.shadowBlur = 25;
-            ctx.shadowColor = isSurvival ? '#ff3333' : '#4af';
-            ctx.fillStyle = isSurvival ? '#1a0606' : '#1a3a6a';
-            ctx.beginPath();
-            ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = isSurvival ? 'rgba(255, 80, 80, 0.6)' : 'rgba(74, 170, 255, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(playAgainX, btnY, btnW, btnH, btnRadius);
-            ctx.stroke();
-
-            ctx.fillStyle = isSurvival ? '#ff8888' : 'white';
-            ctx.shadowBlur = 0;
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(isSurvival ? '☠ RETRY' : '▶ PLAY AGAIN', playAgainCenterX, btnY + 34);
+            drawGlassButton(playAgainX, btnY, btnW, btnH, btnRadius, isSurvival ? '☠ RETRY' : '▶ PLAY AGAIN', 'bold 22px Orbitron, sans-serif', {
+                isPrimary: true,
+                hoverStrength: hoverFor('playAgain')
+            });
 
             const menuX = canvas.width / 2 + gap / 2;
             const menuCenterX = menuX + btnW / 2;
-            ctx.shadowBlur = 25;
-            ctx.shadowColor = '#ff8800';
-            ctx.fillStyle = '#6a3a1a';
-            ctx.beginPath();
-            ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = 'rgba(255, 170, 80, 0.5)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(menuX, btnY, btnW, btnH, btnRadius);
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffd700';
-            ctx.shadowBlur = 0;
-            ctx.font = 'bold 22px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('🏠 MENU', menuCenterX, btnY + 34);
+            drawGlassButton(menuX, btnY, btnW, btnH, btnRadius, '🏠 MENU', 'bold 22px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('menu')
+            });
 
             menuButtons = [
                 { rect: { x: playAgainX, y: btnY, w: btnW, h: btnH }, action: 'playAgain' },
@@ -5178,6 +5207,7 @@
 
         function drawRecordsScreen() {
             drawBackground();
+            updateButtonHover();  // Phase-2B
 
             ctx.textAlign = 'center';
             ctx.shadowBlur = 20;
@@ -5488,18 +5518,10 @@
         // place, which makes the action dispatcher in handleMenuAction
         // the single source of truth for "exit the records screen".
         function drawRecordsBackButton(x, y, w, h) {
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(x, y, w, h, 10);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#f1f5f9';
-            ctx.font = '18px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('← BACK', canvas.width / 2, y + 25);
+            const hoverForAction = hoverFor('back');
+            drawGlassButton(x, y, w, h, 10, '← BACK', '18px Orbitron, sans-serif', {
+                hoverStrength: hoverForAction
+            });
             menuButtons.push({
                 rect: { x: x, y: y, w: w, h: h },
                 action: 'back'
@@ -5670,6 +5692,7 @@
 
         function drawSettingsScreen() {
             drawBackground();
+            updateButtonHover();  // Phase-2B
 
             // Reset menuButtons at the start so stale entries from the
             // previous screen (MENU, MISSIONS, RECORDS, PAUSED, GAMEOVER...)
