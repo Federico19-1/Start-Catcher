@@ -846,11 +846,6 @@
 
         let menuButtons = [];
 
-        // Phase-2E: missions cache for streak widget (avoids
-        // localStorage read every frame inside drawMenu).
-        let _cachedMissions = null;
-        let _cachedMissionsUser = null;
-
         // ----- Blue mascot: a cute side-character who chats from the
         // lower-left corner of the menu screen. Hover over him to see a
         // little speech bubble with a randomly chosen line.
@@ -2404,8 +2399,6 @@
         }
 
         function startGame(mode) {
-            _cachedMissions = null;  // invalidate streak cache when leaving menu
-            _cachedMissionsUser = null;
             if (typeof mode === 'string') {
                 gameMode = mode;
             }
@@ -4067,97 +4060,37 @@
             ctx.roundRect(panelX + 2, panelY + 2, panelW - 4, panelH - 4, 14);
             ctx.fill();
 
-            // --- Multi-segment Streak & Account Widget ---
-            // Invalidate cache on every menu visit so streak counts
-            // stay fresh even after navigating to Missions and back.
-            _cachedMissions = null;
-            _cachedMissionsUser = null;
-            const wgtY = panelY + 18;
-            const wgtH = 34;
-            const wgtW = innerW;
-            const wgtX = innerX;
-
-            // Glassmorphism widget background
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.25)';
+            // --- Dedicated user badge at panel top ---
+            const badgeY = panelY + 20;
+            const badgeH = 30;
+            // Subtle badge background
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.50)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.20)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(wgtX, wgtY, wgtW, wgtH, 10);
+            const badgeW = 220;
+            const badgeX = canvas.width / 2 - badgeW / 2;
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 8);
             ctx.fill();
             ctx.stroke();
 
-            // Segment layout (4 equal columns)
-            const segW = (wgtW - 3 * 2) / 4;  // 3 thin dividers of 2px each
-            const segH = wgtH - 2;
-            const segY = wgtY + 1;
-            const segBaseX = wgtX;
-
-            function drawWgtSegment(idx, accentColor, label, value, valueColor, flameGlow) {
-                const sx = segBaseX + idx * (segW + 2);
-                ctx.fillStyle = 'rgba(26, 31, 44, 0.30)';
-                ctx.beginPath();
-                ctx.roundRect(sx, segY, segW, segH, 6);
-                ctx.fill();
-                ctx.strokeStyle = accentColor;
-                ctx.lineWidth = 1.5;
-                ctx.beginPath();
-                ctx.moveTo(sx + 6, segY + 2);
-                ctx.lineTo(sx + segW - 6, segY + 2);
-                ctx.stroke();
-                ctx.lineWidth = 1;
-                // Label (no shadow)
-                ctx.shadowBlur = 0;
-                ctx.shadowColor = 'transparent';
-                ctx.font = '8px Orbitron, sans-serif';
-                ctx.fillStyle = accentColor;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'top';
-                ctx.fillText(label, sx + segW / 2, segY + 6);
-                // Value (apply flame glow if provided)
-                if (flameGlow) {
-                    ctx.shadowBlur = flameGlow.blur;
-                    ctx.shadowColor = flameGlow.color;
-                } else {
-                    ctx.shadowBlur = 0;
-                    ctx.shadowColor = 'transparent';
-                }
-                ctx.font = 'bold 12px Orbitron, sans-serif';
-                ctx.fillStyle = valueColor || '#f1f5f9';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(value, sx + segW / 2, segY + segH / 2 + 3);
-                ctx.shadowBlur = 0;
+            // Username — bright platinum with amber-gold glow when logged in
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            if (currentUser) {
+                ctx.fillStyle = '#f1f5f9';
+                ctx.shadowColor = 'rgba(255, 191, 36, 0.5)';
+                ctx.shadowBlur = 8;
+            } else {
+                ctx.fillStyle = '#9aa6b2';
             }
-
-            // Flame flicker based on time
-            const tick = Date.now() / 200;
-            const flameFlicker = 0.8 + Math.sin(tick * 1.7) * 0.15 + Math.sin(tick * 3.1) * 0.05;
-
-            // Section 1: STREAK label (blue-violet)
-            drawWgtSegment(0, 'rgba(138, 43, 226, 0.9)', 'STREAK', currentUser ? 'ACTIVE' : 'OFF', '#f1f5f9');
-
-            // Section 2: Account name (platinum)
-            const username = currentUser ? (currentUser.length > 9 ? currentUser.slice(0, 8) + '…' : currentUser) : 'NONE';
-            drawWgtSegment(1, 'rgba(241, 245, 249, 0.5)', 'ACCOUNT', username, '#f1f5f9');
-
-            // Section 3: Normal Streak (orange flame)
-            if (!_cachedMissions || _cachedMissionsUser !== currentUser) {
-                _cachedMissions = currentUser ? refreshMissionsForUser(currentUser) : newMissionsRecord();
-                _cachedMissionsUser = currentUser;
-            }
-            const m = _cachedMissions;
-            const ns = m.streakCount || 0;
-            const flame1 = ns > 0 ? '🔥' : '';
-            const nsAlpha = ns > 0 ? flameFlicker : 0.5;
-            drawWgtSegment(2, 'rgba(255, 159, 67, 0.7)', 'DAILY', flame1 + ' ' + ns, '#ff9f43',
-                ns > 0 ? { blur: 4 + flameFlicker * 6, color: `rgba(255, 140, 0, ${nsAlpha.toFixed(2)})` } : null);
-
-            // Section 4: Super Streak (burgundy flame)
-            const ss = m.superStreakCount || 0;
-            const flame2 = ss > 0 ? '🔥' : '';
-            const ssAlpha = ss > 0 ? flameFlicker : 0.5;
-            drawWgtSegment(3, 'rgba(200, 50, 50, 0.7)', 'SUPER', flame2 + ' ' + ss, '#e74c3c',
-                ss > 0 ? { blur: 4 + flameFlicker * 6, color: `rgba(180, 40, 40, ${ssAlpha.toFixed(2)})` } : null);
+            ctx.fillText(
+                currentUser ? `👤 ${currentUser}` : '👤 NO ACCOUNT',
+                canvas.width / 2, badgeY + badgeH / 2
+            );
+            ctx.shadowBlur = 0;
 
             // --- Section helper ---
             function drawSectionLabel(label, y) {
