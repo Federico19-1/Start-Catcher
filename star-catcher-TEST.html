@@ -3900,11 +3900,12 @@
             if (a <= 0.01) return;
 
             const text = blueCharacter.currentLine;
-            const fontSize = 13;
+            const fontSize = 15;
             ctx.font = fontSize + 'px Orbitron, sans-serif';
-            const padding = 9;
-            // Keep bubble well clear of RECORDS row (y >= 465).
-            const maxWidth = 200;
+            const padding = 11;
+            // Keep bubble bottom clear of the GAME MODES buttons (row3Y = 490)
+            // so the enlarged bubble never covers them.
+            const maxWidth = 220;
             const words = text.split(' ');
             const lines = [];
             let cur = '';
@@ -3928,11 +3929,12 @@
             const boxH = lineHeight * lines.length + padding * 2;
 
             // Speech bubble: positioned just above Blue and to the right.
-            // With the tightened font (13px) and padding the bubble ends
-            // around y=460 for 2-line messages, leaving only a thin
-            // sliver of overlap with the top of the RECORDS row.
+            // Font bumped to 15px with wider padding for readability; boxY is
+            // nudged up slightly so the larger bubble keeps the same visual
+            // footprint (2-line bottom edge stays ~y=468, clear of the GAME
+            // MODES row at y=490).
             const boxX = 165;
-            const boxY = 415;
+            const boxY = 408;
             // Tail anchors on the bubble's bottom edge (left side) and
             // its tip points down-left toward Blue's antenna.
             const tailBaseLeftX = boxX + 6;
