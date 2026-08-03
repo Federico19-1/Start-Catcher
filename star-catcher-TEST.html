@@ -1959,6 +1959,14 @@
             if (!all[key]) {
                 all[key] = newMissionsRecord();
                 saveAllRecords(all);
+            } else {
+                // Backfill any fields missing from records saved by older
+                // versions so the streak displays never see `undefined`
+                // (the menu bar would fall back to 0, the missions screen
+                // would draw the literal string "undefined"). Existing
+                // values are always preserved — only missing fields get
+                // their defaults.
+                all[key] = Object.assign({}, newMissionsRecord(), all[key]);
             }
             return all[key];
         }
@@ -1984,6 +1992,11 @@
                     case 'visit_settings': done = m.settingsVisitedToday; break;
                     case 'toggle_setting': done = (m.settingsToggledCountToday || 0) >= 1; break;
                     case 'both_modes': done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
+                    // `all_modes` is in MISSION_POOL but was never handled
+                    // here, so a day containing it could NEVER be marked
+                    // complete — the SUPER CLAIM button stayed locked and
+                    // the super streak could not advance on those days.
+                    case 'all_modes': done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival && m.modesPlayedToday.battle); break;
                 }
                 m.missionsCompleted[mission.id] = done;
             }
@@ -2006,6 +2019,20 @@
                 m.noDamageBattleToday = false;
                 m._lastAllCompleteDayKey = null;
                 m.superClaimedDate = null;
+                // Streak honesty: a new day started, so if the last claim
+                // was NOT yesterday (claiming today is already covered by
+                // the `=== today` guard inside the claim functions), the
+                // streak is broken — zero the displayed count so the UI
+                // shows 0 instead of a stale number. The *_ClaimDate fields
+                // stay untouched so claimDailyStreak / claimSuperStreak can
+                // still tell a consecutive claim (+1) from a broken one
+                // (reset to 1 on the next claim).
+                if (!(m.lastClaimedDate && isYesterday(m.lastClaimedDate, today))) {
+                    m.streakCount = 0;
+                }
+                if (!(m.lastSuperClaimDate && isYesterday(m.lastSuperClaimDate, today))) {
+                    m.superStreakCount = 0;
+                }
             }
             recheckMissionCompletion(m);
             const all = getAllRecords();
@@ -2250,6 +2277,15 @@
                     } else if (mission.type === 'both_modes') {
                         const parts = [m.modesPlayedToday.classic ? '\u2b50 Classic \u2713' : '\u2606 Classic',
                         m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival'];
+                        progressText = parts.join('   \u00b7   ');
+                    } else if (mission.type === 'all_modes') {
+                        // Mirrors the `all_modes` completion check so the
+                        // card shows live status for all three modes.
+                        const parts = [
+                            m.modesPlayedToday.classic ? '\u2b50 Classic \u2713' : '\u2606 Classic',
+                            m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival',
+                            m.modesPlayedToday.battle ? '\u26d4 Battle \u2713' : '\u26d4 Battle'
+                        ];
                         progressText = parts.join('   \u00b7   ');
                     }
                     ctx.fillText(progressText, cardX + 62, y + 42);
