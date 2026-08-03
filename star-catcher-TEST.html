@@ -4220,12 +4220,18 @@
             ctx.textBaseline = 'alphabetic';
 
             // --- Section helper ---
+            // Teal accent (#49d7c8 / rgba(73, 215, 200, ...)) — the same
+            // color as the SETTINGS GAME CONTROLS header and the settings
+            // scroll-bar thumb. Slightly larger (bold 14px) so the three
+            // section titles read clearly while staying compact.
             function drawSectionLabel(label, y) {
-                ctx.shadowBlur = 0;
-                ctx.font = '11px Orbitron, sans-serif';
-                ctx.fillStyle = 'rgba(138, 43, 226, 0.6)';
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = 'rgba(73, 215, 200, 0.6)';
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = 'rgba(73, 215, 200, 0.9)';
                 ctx.textAlign = 'center';
                 ctx.fillText(label, canvas.width / 2, y);
+                ctx.shadowBlur = 0;
             }
 
             // ===== ROW 1: MAIN (PLAY + ACCOUNT) =====
