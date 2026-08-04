@@ -464,7 +464,14 @@
             //     AND has its own HP bar (like Battle).
             //   If either player is eliminated, both lose. Score is
             //   1 per star + 2 per enemy kill.
-            COOP: 'coop'
+            COOP: 'coop',
+            // BOSS FIGHT: a Battle-style duel against the crowned alien
+            // UFO king. HP, kills and the HUD behave exactly like Battle;
+            // on top of the usual enemies the field also carries fast
+            // boss missiles, meteorites, healing stars and the Survival
+            // monster's beam (which drains HP here, not lives). The mode
+            // is unlocked only after the three record achievements.
+            BOSS: 'boss'
         };
 
         let gameState = GAME_STATES.MENU;
@@ -755,6 +762,33 @@
         // damage; the value counts down to zero each frame.
         let meteoriteHitCooldown = 0; // frames of i-frames after a hit in survival
 
+        // ----- BOSS FIGHT state -----
+        // The crowned alien king sits at the top of the canvas, sways
+        // gently, telegraphs, then fires very fast red missiles aimed at
+        // the player. Player bullets chip away at BOSS_MAX_HP; when it
+        // reaches zero the fight is WON (bossDefeated = true, +100 kill
+        // bonus) and endGame() shows the victory overlay. Losing all HP
+        // first ends the run as a normal defeat.
+        const BOSS_MAX_HP = 1500;
+        const boss = {
+            x: 400,
+            y: 115,
+            width: 120,
+            height: 64,
+            hp: BOSS_MAX_HP,
+            maxHp: BOSS_MAX_HP,
+            swayPhase: 0,
+            fireTimer: 90,
+            flashTimer: 0,       // pre-shot telegraph (white flash)
+            hitFlash: 0          // red flash after taking a hit
+        };
+        let bossDefeated = false;   // true = victory (boss HP reached 0)
+        // Healing stars: green medical crosses that restore one third of
+        // the player's total HP on catch. Only spawn in BOSS FIGHT.
+        let healStars = [];
+        // When > 0, the BOSS FIGHT card in the difficulty picker shows a
+        // gold "unlock requirements" toast after a locked click.
+        let bossLockHintUntil = 0;
         // ----- Survival-mode monster -----
         // Only its face appears on screen — a dark-green cyclops with a
         // wide mouth and a small antenna with a glowing dot on its
@@ -824,7 +858,13 @@
         // Hook into the existing score clock for survival-elapsed time
         // (score is "seconds survived"). score * 1000 gets us back to
         // ms-aligned numbers without introducing a parallel timer.
-        function survivalElapsedMs() { return score * 1000; }
+        function survivalElapsedMs() {
+            // BOSS FIGHT reuses the survival monster, but its score is
+            // kills (not seconds). Swap the clock to the battle-style
+            // elapsed-Ms timer so the monster's first spawn + respawn
+            // gaps still run on real-ish time inside the boss match.
+            return gameMode === GAME_MODES.BOSS ? battleElapsedMs : score * 1000;
+        }
         let isNewRecord = false;
         let newRecordPosition = -1;
         const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
@@ -859,6 +899,7 @@
             'Try the new SURVIVAL mode!',
             'Try the new BATTLE mode!',
             'Try the new CO-OP mode!',
+            'Try the new BOSS FIGHT mode!',
             'A project for Stardance challenge.',
             'Beware the meteorites...',
             'Catch them all!',
@@ -1361,6 +1402,29 @@
             } catch (e) { }
         }
 
+        function playHealSound() {
+            if (!settings.sfx) return;
+            try {
+                initAudio();
+                // Two gentle ascending sine notes — reads as a soft
+                // "boost" rather than a stinger, so a caught healing
+                // star feels restorative instead of alarming.
+                const notes = [523, 784];
+                for (let i = 0; i < notes.length; i++) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(notes[i], audioCtx.currentTime + i * 0.09);
+                    gainNode.gain.setValueAtTime(0.14, audioCtx.currentTime + i * 0.09);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.09 + 0.18);
+                    oscillator.start(audioCtx.currentTime + i * 0.09);
+                    oscillator.stop(audioCtx.currentTime + i * 0.09 + 0.18);
+                }
+            } catch (e) { }
+        }
+
         // Last fire timestamp so the player cannot machine-gun by
         // holding the right mouse button or by spam-tapping the
         // mobile FIRE button. Updated on every successful shot.
@@ -1505,6 +1569,85 @@
         function getMaxBattleScore(username) {
             if (!username) return 0;
             const records = getBattleRecords(username);
+            return records.length > 0 ? records[0] : 0;
+        }
+
+        // ----- BOSS-FIGHT unlock tracking -----
+        // BOSS FIGHT unlocks once the account has three single-game
+        // records: 1000 stars in Classic, 60 s in Survival and 100 kills
+        // in Battle NORMAL mode. The generic `${user}__battle` bucket is
+        // difficulty-agnostic, so Normal-mode runs ALSO persist their
+        // best to a dedicated `${user}__battleNormal` key; otherwise a
+        // player who hit 100 kills on Easy could unlock the boss fight
+        // without ever touching Normal.
+        function getBattleNormalBest(username) {
+            const key = `${username}__battleNormal`;
+            const all = getAllRecords();
+            const v = all[key];
+            if (typeof v !== 'number' || !isFinite(v)) {
+                all[key] = 0;
+                saveAllRecords(all);
+                return 0;
+            }
+            return v;
+        }
+
+        function setBattleNormalBest(username, newBest) {
+            const key = `${username}__battleNormal`;
+            const all = getAllRecords();
+            all[key] = newBest;
+            saveAllRecords(all);
+        }
+
+        function isBossFightUnlocked() {
+            if (!currentUser) return false;
+            return getMaxScore(currentUser) >= 1000
+                && getMaxSurvivalScore(currentUser) >= 60
+                && getBattleNormalBest(currentUser) >= 100;
+        }
+
+        // ----- BOSS FIGHT Mode records -----
+        // Top-10 best boss-fight runs (kills + the +100 boss-down bonus).
+        // Mirrors the `${user}__battle` bucket shape so the Records
+        // screen and drawGameOver can iterate it uniformly.
+        function getBossRecords(username) {
+            const key = `${username}__boss`;
+            const all = getAllRecords();
+            if (!all[key]) {
+                all[key] = Array(10).fill(0);
+                saveAllRecords(all);
+            }
+            return all[key];
+        }
+
+        function setBossRecords(username, records) {
+            const key = `${username}__boss`;
+            const all = getAllRecords();
+            all[key] = records;
+            saveAllRecords(all);
+        }
+
+        function addBossScoreToUser(username, newScore) {
+            if (newScore <= 0) return -1;
+
+            let records = getBossRecords(username);
+            const previousMin = records.length >= 10 ? records[9] : 0;
+
+            records.push(newScore);
+            records.sort((a, b) => b - a);
+            records = records.slice(0, 10);
+            setBossRecords(username, records);
+
+            if (newScore <= previousMin && records.length >= 10) {
+                return -1;
+            }
+
+            return records.indexOf(newScore);
+        }
+
+        function getMaxBossScore(username) {
+            if (!username) return 0;
+            const records = getBossRecords(username);
             return records.length > 0 ? records[0] : 0;
         }
 
@@ -2395,6 +2538,18 @@
             battleEnemies = [];
             playerBullets = [];
             enemyBullets = [];
+            // BOSS FIGHT reset — fresh king, fresh field. The boss is
+            // present from frame 1 (no spawn delay: it's the match's
+            // centrepiece). healStars wipe with the rest of the pools so
+            // a previous run can't bleed green crosses into the next.
+            boss.x = 400;
+            boss.hp = boss.maxHp;
+            boss.swayPhase = 0;
+            boss.fireTimer = 90;
+            boss.flashTimer = 0;
+            boss.hitFlash = 0;
+            bossDefeated = false;
+            healStars = [];
             // Battle spawn cadence resets each new run too — the
             // `battleSpawnCooldown` initial value (90 frames) keeps the
             // first enemy from appearing off-screen and gives the
@@ -2465,6 +2620,11 @@
                 // any pre-existing track for the previously-active mode stops
                 // before play (Classic / Survival have already done so via
                 // stopMenuMusic + resetGame clearing internal audio counters).
+                lastFireTimeMs = 0;
+            } else if (gameMode === GAME_MODES.BOSS) {
+                // BOSS FIGHT reuses Battle's shooting + enemy pools, so it
+                // gets the same SFX-only BGM discipline and a clean
+                // firing-cooldown timestamp on every fresh run.
                 lastFireTimeMs = 0;
             } else if (gameMode === GAME_MODES.COOP) {
                 // CO-OP reuses Battle's enemy / bullet pools, so reset the
@@ -2860,6 +3020,11 @@
                 // we just pass in the current wall-clock so it can compute its
                 // own dt-relative animations and spawn cadence.
                 updateBattle(Date.now());
+            } else if (gameMode === GAME_MODES.BOSS) {
+                // BOSS FIGHT: Battle mechanics PLUS the crowned king's fast
+                // missiles, meteorites, healing stars and the survival
+                // monster's beam. updateBoss() owns the whole field.
+                updateBoss(Date.now());
             } else if (gameMode === GAME_MODES.COOP) {
                 // ----- CO-OP mode tick -----
                 // Two-player shared run. Stars use the OLD Classic spawn
@@ -3452,6 +3617,257 @@
             }
         }
 
+        // ----- BOSS FIGHT mode loop -----
+        // A Battle-style match against the crowned alien UFO king. The
+        // boss sways at the top, telegraphs and fires very fast red
+        // missiles aimed at the player; normal Battle enemies,
+        // meteorites, healing stars and the Survival monster (whose
+        // beam drains HP here instead of lives) all share the field.
+        // Defeat the boss (BOSS_MAX_HP) to win; run out of HP first and
+        // the fight is over. Scoreboard is identical to Battle: score =
+        // kills, with a +100 "BOSS DOWN" bonus on victory.
+        const BOSS_MISSILE_DMG = 12;
+        const BOSS_HEAL_AMOUNT = Math.round(100 / 3);  // 33 ≈ one third of total HP
+        function updateBoss(nowMs) {
+            battleElapsedMs += 16;
+
+            // ----- The king: sway + telegraph + fast red missiles -----
+            boss.swayPhase += 0.03;
+            boss.x = 400 + Math.sin(boss.swayPhase) * 60;
+            boss.flashTimer = Math.max(0, boss.flashTimer - 1);
+            boss.hitFlash = Math.max(0, boss.hitFlash - 1);
+            boss.fireTimer -= 1;
+            if (boss.fireTimer <= 0 && !bossDefeated) {
+                if (boss.flashTimer === 0) boss.flashTimer = 24;  // white telegraph so the player can dodge
+                if (boss.flashTimer === 1) {
+                    // Very fast missile aimed at the player's current
+                    // position (vx+vy, unlike the enemies' straight-down
+                    // rays). Speed ~9.5 px/frame ≈ 2× a normal ray.
+                    const dx = player.x - boss.x;
+                    const dy = player.y - boss.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    const speed = 9.5;
+                    enemyBullets.push({
+                        x: boss.x + (dx / dist) * 30,
+                        y: boss.y + 26,
+                        vx: (dx / dist) * speed,
+                        vy: (dy / dist) * speed,
+                        radius: 7,
+                        dmg: BOSS_MISSILE_DMG,
+                        boss: true          // rendered as a distinct missile
+                    });
+                    playEnemyShootSound();
+                    boss.fireTimer = 55 + Math.floor(Math.random() * 35);
+                }
+            }
+
+            // ----- Battle enemies join the fight (slightly calmer than
+            // pure Battle so the boss is the focus) -----
+            battleSpawnCooldown -= 1;
+            if (battleSpawnCooldown <= 0 && battleEnemies.length < 3) {
+                battleEnemies.push(createEnemy());
+                const t = Math.min(1, battleElapsedMs / 60000);
+                battleSpawnCooldown = Math.round(120 - t * 60);
+            }
+
+            // ----- Enemies: advance / hover / fire (same telegraph
+            // discipline as Battle so the player can read every shot) -----
+            for (let i = battleEnemies.length - 1; i >= 0; i--) {
+                const e = battleEnemies[i];
+                if (e.state === 'entering') {
+                    e.y += 1.4;
+                    if (e.y >= e.anchorY) {
+                        e.y = e.anchorY;
+                        e.state = 'hover';
+                        e.fireTimer = 60 + Math.floor(Math.random() * 60);
+                    }
+                } else {
+                    e.swayPhase += 0.05;
+                    e.x = e.anchorX + Math.sin(e.swayPhase) * 14;
+                    e.flashTimer = Math.max(0, e.flashTimer - 1);
+                    e.fireTimer -= 1;
+                    if (e.fireTimer <= 0) {
+                        if (e.flashTimer === 0) e.flashTimer = 30;
+                        if (e.flashTimer > 0 && e.flashTimer === 1) {
+                            enemyBullets.push({
+                                x: e.x,
+                                y: e.y + 28,
+                                radius: 6,
+                                vy: 5.0 + Math.min(2, battleElapsedMs / 30000),
+                                dmg: 10 + Math.floor(Math.random() * 21)
+                            });
+                            playEnemyShootSound();
+                            e.fireTimer = 100 + Math.floor(Math.random() * 80);
+                        }
+                    }
+                }
+            }
+
+            // ----- Player bullets: straight up -----
+            for (let i = playerBullets.length - 1; i >= 0; i--) {
+                const b = playerBullets[i];
+                b.y += b.vy;
+                if (b.y < -20) playerBullets.splice(i, 1);
+            }
+
+            // ----- Enemy bullets (boss missiles also travel on x) -----
+            for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                const b = enemyBullets[i];
+                b.x += (b.vx || 0);
+                b.y += b.vy;
+                if (b.y > canvas.height + 20 || b.x < -30 || b.x > canvas.width + 30) {
+                    enemyBullets.splice(i, 1);
+                }
+            }
+
+            // ----- Player bullets vs boss + enemies -----
+            for (let i = playerBullets.length - 1; i >= 0; i--) {
+                const b = playerBullets[i];
+                let consumed = false;
+                // vs the king (wide 55 px hitbox around the saucer)
+                if (!bossDefeated) {
+                    const dx = b.x - boss.x;
+                    const dy = b.y - boss.y;
+                    if (dx * dx + dy * dy < 55 * 55) {
+                        boss.hp -= b.dmg;
+                        boss.hitFlash = 6;
+                        consumed = true;
+                        if (boss.hp <= 0) {
+                            bossDefeated = true;
+                            score += 100;      // BOSS DOWN bonus
+                            playEnemyExplodeSound();
+                        }
+                    }
+                }
+                if (!consumed) {
+                    for (let j = battleEnemies.length - 1; j >= 0; j--) {
+                        const e = battleEnemies[j];
+                        const dx = b.x - e.x;
+                        const dy = b.y - e.y;
+                        if (dx * dx + dy * dy < 36 * 36) {
+                            e.hp -= b.dmg;
+                            if (e.hp > 0) {
+                                e.flashTimer = 8;
+                                break;
+                            }
+                            battleEnemies.splice(j, 1);
+                            score += 1;
+                            playEnemyExplodeSound();
+                            consumed = true;
+                            break;
+                        }
+                    }
+                }
+                if (consumed) playerBullets.splice(i, 1);
+            }
+
+            // ----- Enemy bullets vs player (same i-frame rule as Battle) -----
+            if (meteoriteHitCooldown > 0) meteoriteHitCooldown -= 1;
+            if (meteoriteHitCooldown === 0 && !bossDefeated) {
+                for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                    const b = enemyBullets[i];
+                    const dx = b.x - player.x;
+                    const dy = b.y - player.y;
+                    if (dx * dx + dy * dy < 80 * 80) {
+                        hp = Math.max(0, hp - b.dmg);
+                        playLoseLifeSound();
+                        enemyBullets.splice(i, 1);
+                        meteoriteHitCooldown = 36; // ~0.6s i-frames
+                        if (hp <= 0) {
+                            endGame();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // ----- Meteorites: always on in BOSS FIGHT, HP damage -----
+            // Gated on !bossDefeated like the enemy bullets so the king's
+            // killing shot can't share a frame with a fatal meteorite hit
+            // and flip the overlay to a defeat while bossDefeated is true.
+            if (Math.random() < 0.004) {
+                const m = createMeteorite();
+                m.speed *= 1.4;
+                meteorites.push(m);
+            }
+            for (let i = meteorites.length - 1; i >= 0; i--) {
+                const m = meteorites[i];
+                m.y += m.speed;
+                m.rotation += m.rotationSpeed;
+                if (m.y > canvas.height + m.radius * 2) {
+                    meteorites.splice(i, 1);
+                    continue;
+                }
+                if (meteoriteHitCooldown === 0 && !bossDefeated) {
+                    const dx = player.x - m.x;
+                    const dy = player.y - m.y;
+                    const hitDistance = player.radius * 0.20 + m.radius * 0.35;
+                    if (dx * dx + dy * dy < hitDistance * hitDistance) {
+                        hp = Math.max(0, hp - 15);
+                        playLoseLifeSound();
+                        meteoriteHitCooldown = 36;
+                        meteorites.splice(i, 1);
+                        if (hp <= 0) {
+                            endGame();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // ----- Healing stars: restore one third of max HP -----
+            if (Math.random() < 0.004) {
+                healStars.push({
+                    x: Math.random() * (canvas.width - 60) + 30,
+                    y: -20,
+                    radius: 14,
+                    speed: 1.6 + Math.random() * 1.2,
+                    spin: (Math.random() - 0.5) * 0.06
+                });
+            }
+            for (let i = healStars.length - 1; i >= 0; i--) {
+                const s = healStars[i];
+                s.y += s.speed;
+                s.spin += 0.02;
+                const dx = player.x - s.x;
+                const dy = player.y - s.y;
+                if (dx * dx + dy * dy < (player.radius + s.radius) * (player.radius + s.radius)) {
+                    hp = Math.min(100, hp + BOSS_HEAL_AMOUNT);
+                    playHealSound();
+                    healStars.splice(i, 1);
+                    continue;
+                }
+                if (s.y > canvas.height + s.radius) healStars.splice(i, 1);
+            }
+
+            // ----- Survival monster: the beam drains HP (not lives) -----
+            // updateMonster() handles spawn scheduling via survivalElapsedMs(),
+            // which returns battleElapsedMs while gameMode === BOSS.
+            updateMonster(nowMs);
+            if (!gameOver && monster.active && monster.beamActive) {
+                const inBeam = isPlayerInMonsterBeam();
+                if (inBeam) {
+                    if (playerInBeamSince === 0) {
+                        playerInBeamSince = Date.now();
+                    } else if (Date.now() - playerInBeamSince >= 1000) {
+                        // Sustained contact: -15 HP every 1 s.
+                        hp = Math.max(0, hp - 15);
+                        playLoseLifeSound();
+                        playerInBeamSince = Date.now();
+                        if (hp <= 0) {
+                            endGame();
+                            return;
+                        }
+                    }
+                } else if (playerInBeamSince > 0) {
+                    playerInBeamSince = 0;
+                }
+            }
+
+            // ----- Victory check -----
+            if (bossDefeated) endGame();
+        }
+
         function createEnemy() {
             const anchorX = 80 + Math.random() * (canvas.width - 160);
             return {
@@ -3684,7 +4100,9 @@
 
         function fireBullet() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
-            if (gameMode !== GAME_MODES.BATTLE) return;
+            // BOSS FIGHT reuses Battle's blue ray bullets so the player
+            // can actually damage the king.
+            if (gameMode !== GAME_MODES.BATTLE && gameMode !== GAME_MODES.BOSS) return;
             const now = Date.now();
             if (now - lastFireTimeMs < FIRE_RATE_COOLDOWN_MS) return;
             playerBullets.push({
@@ -3730,6 +4148,11 @@
                     recordMissionEvent('finished_survival', score);
                 } else if (gameMode === GAME_MODES.BATTLE) {
                     recordMissionEvent('finished_battle', score);
+                } else if (gameMode === GAME_MODES.BOSS) {
+                    // No daily mission uses a boss_* type today, but emit
+                    // the event so a future mission can hook in without a
+                    // change at this call site.
+                    recordMissionEvent('finished_boss', score);
                 } else if (gameMode === GAME_MODES.COOP) {
                     // CO-OP runs don't have a daily mission mapping today
                     // (no entries in MISSION_POOL use a coop_* type) but
@@ -3750,6 +4173,21 @@
                     }
                 } else if (gameMode === GAME_MODES.BATTLE) {
                     const pos = addBattleScoreToUser(currentUser, score);
+                    if (pos !== -1) {
+                        isNewRecord = true;
+                        newRecordPosition = pos;
+                        playRecordSound();
+                    }
+                    // BOSS FIGHT unlock requirement #3: best single-game
+                    // kill count in Battle NORMAL mode. Tracked separately
+                    // from the generic battle bucket because that bucket
+                    // mixes difficulties.
+                    if (battleDifficulty === 'normal'
+                        && score > getBattleNormalBest(currentUser)) {
+                        setBattleNormalBest(currentUser, score);
+                    }
+                } else if (gameMode === GAME_MODES.BOSS) {
+                    const pos = addBossScoreToUser(currentUser, score);
                     if (pos !== -1) {
                         isNewRecord = true;
                         newRecordPosition = pos;
@@ -4745,6 +5183,38 @@
             // outer soft halo helps the player distinguish friend vs
             // foe at a glance.
             for (const b of enemyBullets) {
+                if (b.boss) {
+                    // Boss missile: a fast elongated bolt rotated along
+                    // its travel direction with a flickering flame trail,
+                    // so the player can tell the king's shots apart from
+                    // the enemies' straight-down rays.
+                    const angle = Math.atan2(b.vy, b.vx || 0.0001);
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    ctx.rotate(angle);
+                    ctx.shadowColor = '#ff3030';
+                    ctx.shadowBlur = 20;
+                    ctx.fillStyle = '#ff3030';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 15, 5.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 8;
+                    ctx.fillStyle = '#ffe7b3';
+                    ctx.beginPath();
+                    ctx.arc(6, 0, 3.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Flame trail behind the bolt
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(255, 130, 60, 0.6)';
+                    ctx.beginPath();
+                    ctx.moveTo(-10, -3.2);
+                    ctx.lineTo(-23, 0);
+                    ctx.lineTo(-10, 3.2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                    continue;
+                }
                 ctx.save();
                 ctx.shadowBlur = 16;
                 ctx.shadowColor = '#ff3030';
@@ -4761,9 +5231,160 @@
             }
         }
 
+        // ----- BOSS FIGHT renderers -----
+        // The crowned alien king: a translucent green dome over a grey
+        // saucer with a ring of blinking belly lights, a gold crown on
+        // top and a small green alien peeking out. HP bar + '👑 BOSS'
+        // label sit above the crown. hitFlash tints the saucer red so
+        // landed shots read instantly.
+        function drawBoss() {
+            if (bossDefeated) return;
+            ctx.save();
+            ctx.translate(boss.x, boss.y);
+
+            const hpRatio = Math.max(0, boss.hp / boss.maxHp);
+            const isTelegraph = boss.flashTimer > 0;
+            const flash = boss.hitFlash > 0;
+
+            // HP bar above the crown
+            const barW = 150;
+            const barX = -barW / 2;
+            const barY = -66;
+            ctx.fillStyle = 'rgba(0,0,0,0.78)';
+            ctx.fillRect(barX, barY, barW, 6);
+            let barColor;
+            if (hpRatio > 0.5) barColor = '#ffd84a';
+            else if (hpRatio > 0.25) barColor = '#ff9f43';
+            else barColor = '#ff4060';
+            ctx.fillStyle = barColor;
+            ctx.fillRect(barX, barY, barW * hpRatio, 6);
+            ctx.font = 'bold 12px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffd84a';
+            ctx.fillText('\ud83d\udc51 BOSS', 0, barY - 9);
+
+            // Crown (gold, three points + twin gem studs)
+            ctx.shadowBlur = isTelegraph ? 30 : 16;
+            ctx.shadowColor = isTelegraph ? '#ffffff' : '#ffd84a';
+            ctx.fillStyle = isTelegraph ? '#ffffff' : '#ffd84a';
+            ctx.beginPath();
+            ctx.moveTo(-28, -24);
+            ctx.lineTo(-33, -50);
+            ctx.lineTo(-14, -38);
+            ctx.lineTo(0, -54);
+            ctx.lineTo(14, -38);
+            ctx.lineTo(33, -50);
+            ctx.lineTo(28, -24);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = isTelegraph ? '#ffffff' : '#ff5b6e';
+            ctx.beginPath();
+            ctx.arc(-9, -37, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(9, -37, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Dome with the alien inside
+            const domeGrad = ctx.createRadialGradient(0, -8, 4, 0, -8, 38);
+            domeGrad.addColorStop(0, 'rgba(160, 255, 205, 0.95)');
+            domeGrad.addColorStop(1, 'rgba(60, 160, 110, 0.55)');
+            ctx.fillStyle = domeGrad;
+            ctx.strokeStyle = isTelegraph ? '#ffffff' : 'rgba(130, 255, 175, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = isTelegraph ? '#ffffff' : '#4aff9e';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.ellipse(0, -10, 34, 26, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Alien head + eyes + grin inside the dome
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#2e8b57';
+            ctx.beginPath();
+            ctx.arc(0, -14, 13, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(-6, -16, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(6, -16, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#0a1f14';
+            ctx.beginPath();
+            ctx.arc(-6, -16, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(6, -16, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#0a3a22';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, -7, 6, 0.15 * Math.PI, 0.85 * Math.PI);
+            ctx.stroke();
+
+            // Saucer body
+            ctx.shadowBlur = flash ? 28 : 14;
+            ctx.shadowColor = flash ? '#ff5050' : 'rgba(200, 200, 220, 0.6)';
+            ctx.fillStyle = flash ? '#ff8080' : '#9aa0b5';
+            ctx.strokeStyle = '#d9dce6';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(0, 4, 60, 19, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Blinking belly lights
+            const lights = ['#ffd84a', '#4aff9e', '#6ea8ff', '#ff8a5b', '#d14aff', '#ffd84a', '#4aff9e', '#6ea8ff'];
+            const pulse = Math.sin(boss.swayPhase * 4);
+            ctx.shadowBlur = 10;
+            for (let i = 0; i < lights.length; i++) {
+                const ang = Math.PI + (i / (lights.length - 1)) * Math.PI;
+                const lx = Math.cos(ang) * 44;
+                const ly = 5 + Math.sin(ang) * 8;
+                ctx.shadowColor = lights[i];
+                ctx.fillStyle = lights[i];
+                ctx.beginPath();
+                ctx.arc(lx, ly, 2.6 + pulse * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // Healing stars: green medical crosses with a soft glow. Catching
+        // one restores one third of the player's total HP (see updateBoss).
+        function drawHealStars() {
+            for (const s of healStars) {
+                ctx.save();
+                ctx.translate(s.x, s.y);
+                ctx.rotate(s.spin);
+                ctx.shadowColor = '#5dff8a';
+                ctx.shadowBlur = 24;
+                ctx.fillStyle = '#3ec46d';
+                ctx.strokeStyle = '#c8ffdd';
+                ctx.lineWidth = 1.5;
+                const hw = s.radius * 0.34;
+                const hl = s.radius;
+                ctx.beginPath();
+                ctx.roundRect(-hw, -hl, hw * 2, hl * 2, 3);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.roundRect(-hl, -hw, hl * 2, hw * 2, 3);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
         function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
+            const isBoss = gameMode === GAME_MODES.BOSS;
             const isCoop = gameMode === GAME_MODES.COOP;
             // ----- Battle HUD overlay -----
             // Two visual elements render BEFORE anything else:
@@ -4773,7 +5394,10 @@
             //   2) a compact "KILLS / BEST" readout on the top so the
             //      player can compare their current run to their
             //      personal record without opening the Records screen.
-            if (isBattle) {
+            // BOSS FIGHT reuses this exact HUD (same background and
+            // scoreboard per spec) and adds a gold BOSS HP readout below
+            // the player HP so both health pools are visible at once.
+            if (isBattle || isBoss) {
                 const hpMax = 100;
                 const ratio = Math.max(0, hp) / hpMax;
                 const barX = 0;
@@ -4802,6 +5426,14 @@
                 const hpTextWidth = ctx.measureText(hpText).width;
                 ctx.fillStyle = hpColor;
                 ctx.fillText(hpText, canvas.width - hpTextWidth - 20, 26);
+                if (isBoss && !bossDefeated) {
+                    // King's remaining HP in gold, stacked under the
+                    // player HP on the right.
+                    ctx.fillStyle = '#ffd84a';
+                    ctx.shadowColor = '#ffd84a';
+                    const bossHpText = `👑 ${Math.max(0, Math.ceil(boss.hp))}/${boss.maxHp}`;
+                    ctx.fillText(bossHpText, canvas.width - ctx.measureText(bossHpText).width - 20, 48);
+                }
                 ctx.shadowBlur = 0;
             }
             if (isCoop) {
@@ -4862,7 +5494,9 @@
                 ctx.textAlign = 'left';
             }
             const highScore = currentUser
-                ? (isSurvival ? getMaxSurvivalScore(currentUser) : getMaxScore(currentUser))
+                ? (isSurvival
+                    ? getMaxSurvivalScore(currentUser)
+                    : (isBoss ? getMaxBossScore(currentUser) : getMaxScore(currentUser)))
                 : 0;
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
@@ -4908,13 +5542,18 @@
                 ctx.fillStyle = 'white';
                 ctx.fillText(`⭐ Points: ${score}`, 20, scoreValueY);
 
-                const comboMultiplier = getComboMultiplier();
-                ctx.font = 'bold 14px Orbitron, sans-serif';
-                ctx.fillStyle = comboStreak > 0 ? '#ffd56a' : '#9aa6b2';
-                ctx.fillText(`⟲ Combo x${comboMultiplier} · ${comboStreak}`, 20, 110);
-                ctx.font = '11px Orbitron, sans-serif';
-                ctx.fillStyle = '#8e9aad';
-                ctx.fillText('Gold stars refill a heart', 20, 130);
+                // Combo / gold-star hints are Classic mechanics — BOSS
+                // FIGHT has neither (score = kills, heal stars restore
+                // HP instead of hearts), so skip the noise there.
+                if (!isBoss) {
+                    const comboMultiplier = getComboMultiplier();
+                    ctx.font = 'bold 14px Orbitron, sans-serif';
+                    ctx.fillStyle = comboStreak > 0 ? '#ffd56a' : '#9aa6b2';
+                    ctx.fillText(`⟲ Combo x${comboMultiplier} · ${comboStreak}`, 20, 110);
+                    ctx.font = '11px Orbitron, sans-serif';
+                    ctx.fillStyle = '#8e9aad';
+                    ctx.fillText('Gold stars refill a heart', 20, 130);
+                }
             }
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
@@ -5049,11 +5688,14 @@
             updateButtonHover();  // Phase-2B hover tracking
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
+            const isBoss = gameMode === GAME_MODES.BOSS;
             const isCoop = gameMode === GAME_MODES.COOP;
             const highScore = currentUser
                 ? (isSurvival
                     ? getMaxSurvivalScore(currentUser)
-                    : (isBattle ? getMaxBattleScore(currentUser) : (isCoop ? getMaxCoopScore(currentUser) : getMaxScore(currentUser))))
+                    : (isBoss
+                        ? getMaxBossScore(currentUser)
+                        : (isBattle ? getMaxBattleScore(currentUser) : (isCoop ? getMaxCoopScore(currentUser) : getMaxScore(currentUser)))))
                 : 0;
 
             // Phase-2A Glassmorphism overlay
@@ -5066,7 +5708,13 @@
             ctx.shadowBlur = 30;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#f1f5f9';
-            ctx.fillText(isBattle ? '💥 BATTLE OVER' : (isSurvival ? '☠ SURVIVAL OVER' : (isCoop ? '🤝 CO-OP OVER' : 'GAME OVER')), canvas.width / 2, 100);
+            ctx.fillText(
+                isBattle ? '💥 BATTLE OVER'
+                    : (isBoss ? (bossDefeated ? '👑 BOSS DEFEATED!' : '👑 BOSS FIGHT OVER')
+                        : (isSurvival ? '☠ SURVIVAL OVER'
+                            : (isCoop ? '🤝 CO-OP OVER' : 'GAME OVER'))),
+                canvas.width / 2, 100
+            );
 
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
@@ -5076,6 +5724,16 @@
                 isSurvival ? `☠ Survived ${score}s` : `Score: ${score}`,
                 canvas.width / 2, 150
             );
+
+            if (isBoss && bossDefeated) {
+                // Victory flourish: the +100 BOSS DOWN bonus is already
+                // baked into score; surface it so the win feels earned.
+                ctx.shadowColor = '#ffd84a';
+                ctx.shadowBlur = 30;
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd84a';
+                ctx.fillText('👑 BOSS DOWN! +100', canvas.width / 2, 178);
+            }
 
             if (isNewRecord && currentUser && score > 0) {
                 let label = '';
@@ -5159,7 +5817,7 @@
             ctx.shadowBlur = 20;
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
-            ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL' : '🏆 TOP 10', leftColX, top5Y);
+            ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL' : (isBoss ? '👑 TOP 10 BOSS' : '🏆 TOP 10'), leftColX, top5Y);
             // (Previously a '⚔ BATTLE BEST' inline badge sat here as
             // a placeholder for the third column. It has been replaced
             // by the dedicated Battle column on drawRecordsScreen —
@@ -5168,7 +5826,7 @@
             if (currentUser) {
                 const records = isSurvival
                     ? getSurvivalRecords(currentUser)
-                    : getUserRecords(currentUser);
+                    : (isBoss ? getBossRecords(currentUser) : getUserRecords(currentUser));
                 const validRecords = records.filter(r => r > 0);
 
                 if (validRecords.length > 0) {
@@ -5375,25 +6033,25 @@
             // player can see their best two-player runs in the same
             // Records screen as the other modes.
             const coopRecords = getCoopRecords(currentUser).filter(r => r > 0);
+            // BOSS FIGHT records — 5th column, best boss-fight runs.
+            const bossRecords = getBossRecords(currentUser).filter(r => r > 0);
             const playMs = getPlayTime(currentUser);
 
-            // Three side-by-side 235 px cards, sized so the play-time
-            // band fits beneath them. leftColX / rightColX are kept as
-            // aliases for the Classic and Survival column bodies that
-            // already use those names so we don’t have to retouch them.
-            const colW = 175;
+            // Five side-by-side cards, sized so the play-time band fits
+            // beneath them. leftColX / rightColX are kept as aliases for
+            // the Classic and Survival column bodies that already use
+            // those names so we don’t have to retouch them.
+            // colW = 136 keeps all five inside the 800 px canvas
+            // (5 × 136 + 4 × 18 + 30 left margin = 782 ≤ 800).
+            const colW = 136;
             const colY = 110;
             const colH = 290;
             const colGap = 18;
             const col1X = 30;
             const col2X = col1X + colW + colGap;
             const col3X = col2X + colW + colGap;
-            // 4th column hosts the new CO-OP records so a player can
-            // see their co-op runs alongside Classic / Survival /
-            // Battle. colW was shrunk from 235 → 175 so the four
-            // cards still fit inside the 800 px canvas
-            // (4 × 175 + 3 × 18 + 30 left margin = 784 ≤ 800).
             const col4X = col3X + colW + colGap;
+            const col5X = col4X + colW + colGap;
             const leftColX = col1X;
             const rightColX = col2X;
 
@@ -5438,7 +6096,7 @@
                     ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
                     ctx.shadowBlur = 4;
                     ctx.shadowColor = 'black';
-                    ctx.fillText(medal + '  ' + classicRecords[i] + ' pts', leftColX + 25, classicStartY + i * 38);
+                    ctx.fillText(medal + '  ' + classicRecords[i], leftColX + 10, classicStartY + i * 38);
                 }
             }
 
@@ -5479,7 +6137,7 @@
                     ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
                     ctx.shadowBlur = 4;
                     ctx.shadowColor = 'black';
-                    ctx.fillText(medal + '  ' + survivalRecords[i] + 's', rightColX + 25, survivalStartY + i * 38);
+                    ctx.fillText(medal + '  ' + survivalRecords[i] + 's', rightColX + 10, survivalStartY + i * 38);
                 }
             }
 
@@ -5553,7 +6211,7 @@
             // Subtitle spelling out the scoring formula so a casual
             // reader can connect the "pts" suffix below to the game's
             // +1/star + +2/kill rule without leaving the screen.
-            ctx.fillText('Score (1/star + 2/kill)', col4X + colW / 2, colY + 52);
+            ctx.fillText('1/star + 2/kill', col4X + colW / 2, colY + 52);
 
             if (coopRecords.length === 0) {
                 ctx.font = 'bold 14px Orbitron, sans-serif';
@@ -5572,6 +6230,48 @@
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
                     ctx.fillText(label + ' pts', col4X + colW / 2, colY + 90 + idx * 28);
+                }
+            }
+            ctx.textAlign = 'left';
+
+            // ----- BOSS FIGHT column -----
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.55)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(col5X, colY, colW, colH, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 20px Orbitron, sans-serif';
+            ctx.fillStyle = '#f1f5f9';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
+            ctx.fillText('👑 BOSS', col5X + colW / 2, colY + 32);
+            ctx.shadowBlur = 0;
+            ctx.font = '12px Orbitron, sans-serif';
+            ctx.fillStyle = '#9aa6b2';
+            ctx.fillText('Best score', col5X + colW / 2, colY + 52);
+
+            if (bossRecords.length === 0) {
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffe9b3';
+                ctx.fillText('No records yet', col5X + colW / 2, colY + 110);
+            } else {
+                ctx.font = '15px Orbitron, sans-serif';
+                for (let idx = 0; idx < Math.min(5, bossRecords.length); idx++) {
+                    const record = bossRecords[idx];
+                    let label, color;
+                    let weight = 'normal';
+                    if (idx === 0) { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    else { label = (idx + 1) + '. ' + record; color = '#ffe0a8'; }
+                    ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
+                    ctx.fillStyle = color;
+                    ctx.fillText(label + ' pts', col5X + colW / 2, colY + 90 + idx * 28);
                 }
             }
             ctx.textAlign = 'left';
@@ -6131,12 +6831,24 @@
                     ctx.shadowBlur = 0;
                     ctx.font = 'bold 40px Orbitron, sans-serif';
                     ctx.fillStyle = '#f1f5f9';
-                    ctx.fillText('CHOOSE BATTLE DIFFICULTY', canvas.width / 2, 100);
+                    ctx.fillText('CHOOSE BATTLE MODE', canvas.width / 2, 100);
 
-                    // --- Difficulty accent colours ---
+                    // --- Locked-click hint toast (BOSS FIGHT) ---
+                    // Flashes the three unlock requirements under the
+                    // header for ~3 s after a locked-card tap.
+                    if (bossLockHintUntil > Date.now()) {
+                        ctx.shadowBlur = 14;
+                        ctx.shadowColor = '#ffd84a';
+                        ctx.font = 'bold 15px Orbitron, sans-serif';
+                        ctx.fillStyle = '#ffd84a';
+                        ctx.fillText('🔒 Unlock: 1000⭐ CLASSIC · 60s SURVIVAL · 100 KILLS (NORMAL)', canvas.width / 2, 128);
+                        ctx.shadowBlur = 0;
+                    }
+
+                    // --- Mode accent colours ---
                     const ACCENT_EASY   = { border: 'rgba(46, 204, 113, 0.6)',  text: '#2ecc71' };
                     const ACCENT_NORMAL = { border: 'rgba(255, 191, 36, 0.6)',  text: '#ffbf24' };
-                    const ACCENT_HARD   = { border: 'rgba(231, 76, 60, 0.6)',   text: '#e74c3c' };
+                    const ACCENT_BOSS   = { border: 'rgba(255, 191, 36, 0.75)', text: '#ffd84a' };
 
                     // --- Glassmorphism card panel ---
                     const px = 80;                    // panel left edge
@@ -6159,10 +6871,13 @@
                     const cardsY = py + 35;
                     const easyX   = px + cardPad;
                     const normalX = px + cardPad * 2 + cardW;
-                    const hardX   = px + cardPad * 3 + cardW * 2;
+                    const bossX   = px + cardPad * 3 + cardW * 2;
 
-                    // Helper: draw one difficulty card
-                    function drawDiffCard(cx, cy, w, h, title, descLines, accent) {
+                    // Helper: draw one difficulty / mode card. `locked`
+                    // renders the card at ~45% opacity (the classic
+                    // greyed-out cue) with a 🔒 badge on the corner.
+                    function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked) {
+                        if (locked) ctx.globalAlpha = 0.45;
                         // Card fill
                         ctx.shadowBlur = 0;
                         ctx.fillStyle = 'rgba(26, 31, 44, 0.70)';
@@ -6199,16 +6914,34 @@
                             ctx.fillText(line, cx + w / 2, dy);
                             dy += 18;
                         }
+
+                        // Lock badge — drawn at full alpha so it stays
+                        // legible even over the greyed-out card.
+                        if (locked) {
+                            ctx.globalAlpha = 1;
+                            ctx.font = '32px Arial, sans-serif';
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                            ctx.fillText('🔒', cx + w - 24, cy + 40);
+                        }
+                        ctx.globalAlpha = 1;
                     }
 
                     drawDiffCard(easyX,   cardsY, cardW, cardH, 'EASY',   ['Original enemy cadence.', 'Best place to start.', 'Relaxed combat flow.'],     ACCENT_EASY);
                     drawDiffCard(normalX, cardsY, cardW, cardH, 'NORMAL', ['Enemies 2× faster.', 'Rare fast meteorites', 'also appear.'],                  ACCENT_NORMAL);
-                    drawDiffCard(hardX,   cardsY, cardW, cardH, 'HARD',   ['Normal rules for now —', 'Hard-only changes', 'coming in an update.'],           ACCENT_HARD);
+
+                    // BOSS FIGHT replaces the old HARD slot. Locked until
+                    // the three record achievements are met; greyed out
+                    // with a 🔒 until then (see isBossFightUnlocked).
+                    const bossUnlocked = isBossFightUnlocked();
+                    drawDiffCard(bossX, cardsY, cardW, cardH, '👑 BOSS FIGHT', bossUnlocked
+                        ? ['Defeat the alien king!', 'Fast missiles + meteorites', 'beam + healing stars.']
+                        : ['🔒 UNLOCK:', '⭐ 1000 Classic · ☠ 60s', '🎯 100 kills (Normal)'],
+                        ACCENT_BOSS, !bossUnlocked);
 
                     // --- Click targets ---
                     menuButtons.push({ rect: { x: easyX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy'   });
                     menuButtons.push({ rect: { x: normalX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_normal' });
-                    menuButtons.push({ rect: { x: hardX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_hard'   });
+                    menuButtons.push({ rect: { x: bossX,   y: cardsY, w: cardW, h: cardH }, action: 'pickBossFight'   });
 
                     // --- BACK button ---
                     const backW = 200;
@@ -6241,6 +6974,19 @@
                         drawMeteorites();        // Normal/Hard Battle spawns rare meteorites — must render them or they'd be invisible damage sources
                         drawPlayerBullets();
                         drawEnemyBullets();
+                    } else if (gameMode === GAME_MODES.BOSS) {
+                        // BOSS FIGHT scene: crowned king + Battle enemies
+                        // + meteorites + healing stars + both ray pools +
+                        // the survival monster's beam. Bottom → top so the
+                        // boss reads behind the action and the monster
+                        // face/beam paints over everything else.
+                        drawBoss();
+                        drawEnemies();
+                        drawMeteorites();
+                        drawHealStars();
+                        drawPlayerBullets();
+                        drawEnemyBullets();
+                        drawMonster();
                     } else if (gameMode === GAME_MODES.COOP) {
                         // CO-OP scene: BOTH stars (Blue) and enemies
                         // (Green) live on-screen together like the
@@ -6266,6 +7012,16 @@
                     if (gameMode === GAME_STATES.SURVIVAL || gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
                         drawSurvivalOverlay();
+                    } else if (gameMode === GAME_MODES.BOSS) {
+                        // BOSS FIGHT paused frame mirrors the PLAYING scene
+                        // so the frozen snapshot is byte-identical.
+                        drawBoss();
+                        drawEnemies();
+                        drawMeteorites();
+                        drawHealStars();
+                        drawPlayerBullets();
+                        drawEnemyBullets();
+                        drawMonster();
                     } else if (gameMode === GAME_MODES.COOP) {
                         // CO-OP paused frame: show both ships + the
                         // frozen enemy / star field so the player can
@@ -6337,11 +7093,15 @@
                     battleDifficulty = 'normal';
                     startGame(GAME_MODES.BATTLE);
                     break;
-                case 'pickDifficulty_hard':
-                    // Hard is currently a 1:1 mirror of Normal —
-                    // future rules will diverge here.
-                    battleDifficulty = 'hard';
-                    startGame(GAME_MODES.BATTLE);
+                case 'pickBossFight':
+                    // BOSS FIGHT only starts when the three record
+                    // achievements are met. A locked tap just flashes the
+                    // requirement toast and stays on the picker.
+                    if (isBossFightUnlocked()) {
+                        startGame(GAME_MODES.BOSS);
+                    } else {
+                        bossLockHintUntil = Date.now() + 3000;
+                    }
                     break;
                 case 'playCoop':
                     // CO-OP skips the Battle difficulty picker because
@@ -6413,6 +7173,8 @@
                                 delete allRecords[currentUser + '__survival'];
                                 delete allRecords[currentUser + '__missions'];
                                 delete allRecords[currentUser + '__playTime'];
+                                delete allRecords[currentUser + '__battleNormal'];
+                                delete allRecords[currentUser + '__boss'];
                                 saveAllRecords(allRecords);
                                 currentUser = newUser;
                                 getUserRecords(currentUser);
@@ -6805,6 +7567,12 @@
                         addSurvivalScoreToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.BATTLE) {
                         addBattleScoreToUser(currentUser, score);
+                        if (battleDifficulty === 'normal'
+                            && score > getBattleNormalBest(currentUser)) {
+                            setBattleNormalBest(currentUser, score);
+                        }
+                    } else if (gameMode === GAME_MODES.BOSS) {
+                        addBossScoreToUser(currentUser, score);
                     }
                 }
                 // ----- Trigger the screen-spanning overlay -----
@@ -7020,6 +7788,8 @@
                     delete allRecords[currentUser + '__survival'];
                     delete allRecords[currentUser + '__missions'];
                     delete allRecords[currentUser + '__playTime'];
+                    delete allRecords[currentUser + '__battleNormal'];
+                    delete allRecords[currentUser + '__boss'];
                     saveAllRecords(allRecords);
 
                     // Rimuovi l'ultimo utente salvato
@@ -7153,8 +7923,9 @@
         // registered near the top of the script, so this listener is
         // never interrupted by the pop-up menu.
         canvas.addEventListener('mousedown', (e) => {
+            // BOSS FIGHT reuses Battle's right-click shooting.
             if (e.button === 2 &&
-                gameMode === GAME_MODES.BATTLE &&
+                (gameMode === GAME_MODES.BATTLE || gameMode === GAME_MODES.BOSS) &&
                 gameState === GAME_STATES.PLAYING &&
                 !gameOver) {
                 e.preventDefault();
@@ -7195,7 +7966,7 @@
 
         fireButton.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            if (gameMode === GAME_MODES.BATTLE &&
+            if ((gameMode === GAME_MODES.BATTLE || gameMode === GAME_MODES.BOSS) &&
                 gameState === GAME_STATES.PLAYING &&
                 !gameOver) {
                 fireBullet();
@@ -7203,7 +7974,7 @@
         }, { passive: false });
         fireButton.addEventListener('mousedown', (e) => {
             e.preventDefault();
-            if (gameMode === GAME_MODES.BATTLE &&
+            if ((gameMode === GAME_MODES.BATTLE || gameMode === GAME_MODES.BOSS) &&
                 gameState === GAME_STATES.PLAYING &&
                 !gameOver) {
                 fireBullet();
@@ -7238,7 +8009,7 @@
             if (!fireButton) return;
             const shouldShow =
                 IS_MOBILE &&
-                gameMode === GAME_MODES.BATTLE &&
+                (gameMode === GAME_MODES.BATTLE || gameMode === GAME_MODES.BOSS) &&
                 gameState === GAME_STATES.PLAYING &&
                 !gameOver;
             // Set display FIRST; only then position. `positionFireButton`
