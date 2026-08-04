@@ -3422,7 +3422,15 @@
             // field never becomes unfair on slow devices.
             battleSpawnCooldown -= 1;
             if (battleSpawnCooldown <= 0 && battleEnemies.length < 4) {
-                battleEnemies.push(createEnemy());
+                // Orange elites join the rotation once the run passes the
+                // difficulty's kill threshold (50 on Easy, 20 on Normal) —
+                // then ~30% of spawn slots are elites so the field mixes
+                // red + orange instead of flipping over completely. Gated
+                // on BATTLE mode so CO-OP / BOSS keep their original casts.
+                const elite = gameMode === GAME_MODES.BATTLE
+                    && (battleDifficulty === 'normal' ? score >= 20 : score >= 50)
+                    && Math.random() < 0.30;
+                battleEnemies.push(createEnemy(elite));
                 // Re-arm: starts at 180, ticks down toward 60 as the
                 // player has been alive longer. Linear ease.
                 // Battle-Mode difficulty scaling: Normal/Hard halves
@@ -3463,15 +3471,33 @@
                         if (e.flashTimer > 0) {
                             // wait for telegraph to elapse before firing
                             if (e.flashTimer === 1) {
-                                enemyBullets.push({
-                                    x: e.x,
-                                    y: e.y + 28,
-                                    radius: 6,
-                                    vy: 5.0 + Math.min(2, battleElapsedMs / 30000),
-                                    dmg: 10 + Math.floor(Math.random() * 21)
-                                });
-                                playEnemyShootSound();
-                                e.fireTimer = 100 + Math.floor(Math.random() * 80);
+                                if (e.elite) {
+                                    // Elite volley: one wide orange missile
+                                    // that drifts DOWN more slowly (3.2 px/f
+                                    // vs ~5.0) but hits much harder (25-40
+                                    // dmg vs 10-30). Fire cadence is also
+                                    // slower (150-220 frames vs 100-180).
+                                    enemyBullets.push({
+                                        x: e.x,
+                                        y: e.y + 34,
+                                        radius: 6,
+                                        vy: 3.2 + Math.min(1.5, battleElapsedMs / 45000),
+                                        dmg: 25 + Math.floor(Math.random() * 16),
+                                        elite: true
+                                    });
+                                    playEnemyShootSound();
+                                    e.fireTimer = 150 + Math.floor(Math.random() * 70);
+                                } else {
+                                    enemyBullets.push({
+                                        x: e.x,
+                                        y: e.y + 28,
+                                        radius: 6,
+                                        vy: 5.0 + Math.min(2, battleElapsedMs / 30000),
+                                        dmg: 10 + Math.floor(Math.random() * 21)
+                                    });
+                                    playEnemyShootSound();
+                                    e.fireTimer = 100 + Math.floor(Math.random() * 80);
+                                }
                             }
                         }
                     }
@@ -3504,7 +3530,7 @@
                     const e = battleEnemies[j];
                     const dx = b.x - e.x;
                     const dy = b.y - e.y;
-                    if (dx * dx + dy * dy < 36 * 36) {
+                    if (dx * dx + dy * dy < e.hitRadius * e.hitRadius) {
                         // Apply damage; only increment the kill counter
                         // when this hit is the one that takes the enemy
                         // from positive hp to zero, so a stacked
@@ -3518,7 +3544,9 @@
                             break;
                         }
                         battleEnemies.splice(j, 1);
-                        score += 1;
+                        // Elites count double — one orange ship = 2 kills
+                        // on the scoreboard; standard red ships stay +1.
+                        score += e.elite ? 2 : 1;
                         playEnemyExplodeSound();
                         consumed = true;
                         break;
@@ -3868,16 +3896,24 @@
             if (bossDefeated) endGame();
         }
 
-        function createEnemy() {
+        function createEnemy(elite) {
             const anchorX = 80 + Math.random() * (canvas.width - 160);
             return {
                 x: anchorX,
                 y: -40,
                 anchorX: anchorX,
                 anchorY: 60 + Math.random() * 140,
-                width: 48,
-                height: 56,
-                hp: 100,
+                // Orange elites are a bit bigger than the standard red
+                // ships (58×68 vs 48×56), a little sturdier, and their
+                // kills count double.
+                width: elite ? 58 : 48,
+                height: elite ? 68 : 56,
+                maxHp: elite ? 120 : 100,
+                hp: elite ? 120 : 100,
+                // Hitbox half-extent for player bullets: slightly wider
+                // on elites so the bigger silhouette is fair to shoot.
+                hitRadius: elite ? 40 : 36,
+                elite: !!elite,
                 state: 'entering',
                 swayPhase: Math.random() * Math.PI * 2,
                 fireTimer: 30 + Math.floor(Math.random() * 30),
@@ -5114,9 +5150,10 @@
                 // HP bar: rendered ABOVE the enemy sprite so the player
                 // can read it without having to overlay onto the ship
                 // art. Colour-matches the player HP bar so the eye
-                // learns one colour → fraction mapping.
-                const hpRatio = Math.max(0, e.hp / 100);
-                const barW = 52;
+                // learns one colour → fraction mapping. Ratio is against
+                // each enemy's own maxHp (elites have 120).
+                const hpRatio = Math.max(0, e.hp / (e.maxHp || 100));
+                const barW = e.elite ? 64 : 52;
                 const barX = -barW / 2;
                 const barY = -42;
                 ctx.fillStyle = 'rgba(0,0,0,0.7)';
@@ -5128,34 +5165,73 @@
                 ctx.fillStyle = barColor;
                 ctx.fillRect(barX, barY, barW * hpRatio, 4);
 
-                // Body — angular red silhouette. While the pre-fire
-                // telegraph flash is active (flashTimer > 0) we swap
-                // red → white for a clearly visible "DODGE!" cue.
+                // While the pre-fire telegraph flash is active
+                // (flashTimer > 0) both silhouettes swap to white for a
+                // clearly visible "DODGE!" cue.
                 const isTelegraph = e.flashTimer > 0;
-                ctx.shadowBlur = isTelegraph ? 26 : 18;
-                ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff3030';
-                ctx.fillStyle = isTelegraph ? '#ffffff' : '#a01818';
-                ctx.beginPath();
-                ctx.moveTo(0, -22);
-                ctx.lineTo(20, 4);
-                ctx.lineTo(14, 18);
-                ctx.lineTo(-14, 18);
-                ctx.lineTo(-20, 4);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = isTelegraph ? '#ffffff' : '#ff5050';
-                ctx.lineWidth = isTelegraph ? 2 : 1.5;
-                ctx.stroke();
 
-                // Cockpit — inner ellipse with a glow that intensifies
-                // during telegraph so the cursor knows the shot is
-                // about to leave the bay.
-                ctx.shadowBlur = 14;
-                ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff8888';
-                ctx.fillStyle = isTelegraph ? '#ffffff' : '#ff8866';
-                ctx.beginPath();
-                ctx.ellipse(0, -2, 6, 4, 0, 0, Math.PI * 2);
-                ctx.fill();
+                if (e.elite) {
+                    // Orange elite — a bit bigger than the red ships,
+                    // with a squarer hull + twin engine pods so it reads
+                    // as a heavier class at a glance.
+                    ctx.shadowBlur = isTelegraph ? 30 : 22;
+                    ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff9a3c';
+                    ctx.fillStyle = isTelegraph ? '#ffffff' : '#c2601a';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -26);
+                    ctx.lineTo(24, 5);
+                    ctx.lineTo(17, 22);
+                    ctx.lineTo(-17, 22);
+                    ctx.lineTo(-24, 5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = isTelegraph ? '#ffffff' : '#ffb066';
+                    ctx.lineWidth = isTelegraph ? 2 : 1.5;
+                    ctx.stroke();
+
+                    // Twin engine pods (distinct from the red single-hull)
+                    ctx.fillStyle = isTelegraph ? '#ffffff' : '#8a3d0f';
+                    ctx.beginPath();
+                    ctx.arc(-15, 16, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(15, 16, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Cockpit — orange-tinted, glows on telegraph.
+                    ctx.shadowBlur = 14;
+                    ctx.shadowColor = isTelegraph ? '#ffffff' : '#ffb066';
+                    ctx.fillStyle = isTelegraph ? '#ffffff' : '#ffd9a8';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -2, 8, 5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Body — angular red silhouette.
+                    ctx.shadowBlur = isTelegraph ? 26 : 18;
+                    ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff3030';
+                    ctx.fillStyle = isTelegraph ? '#ffffff' : '#a01818';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -22);
+                    ctx.lineTo(20, 4);
+                    ctx.lineTo(14, 18);
+                    ctx.lineTo(-14, 18);
+                    ctx.lineTo(-20, 4);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = isTelegraph ? '#ffffff' : '#ff5050';
+                    ctx.lineWidth = isTelegraph ? 2 : 1.5;
+                    ctx.stroke();
+
+                    // Cockpit — inner ellipse with a glow that intensifies
+                    // during telegraph so the cursor knows the shot is
+                    // about to leave the bay.
+                    ctx.shadowBlur = 14;
+                    ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff8888';
+                    ctx.fillStyle = isTelegraph ? '#ffffff' : '#ff8866';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -2, 6, 4, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 ctx.restore();
             }
         }
@@ -5212,6 +5288,22 @@
                     ctx.lineTo(-10, 3.2);
                     ctx.closePath();
                     ctx.fill();
+                    ctx.restore();
+                    continue;
+                }
+                if (b.elite) {
+                    // Elite missile — a wide orange rectangle instead of
+                    // the normal red sphere: much broader horizontal span
+                    // (26 px vs the 9 px red orbs) so the player can see
+                    // the higher-damage threat from across the field.
+                    ctx.save();
+                    ctx.shadowBlur = 18;
+                    ctx.shadowColor = '#ff9a3c';
+                    ctx.fillStyle = '#ff7a1a';
+                    ctx.fillRect(b.x - 13, b.y - 5, 26, 10);
+                    ctx.shadowBlur = 8;
+                    ctx.fillStyle = '#ffd9a8';
+                    ctx.fillRect(b.x - 10, b.y - 2.5, 20, 5);
                     ctx.restore();
                     continue;
                 }

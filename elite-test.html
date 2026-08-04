@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>elite auto-test</title></head>
+<body>
+<script>
+localStorage.setItem('starCatcherLastUser', 'Tester');
+localStorage.setItem('starCatcherAllRecords', JSON.stringify({
+    'Tester': [100, 80, 50, 30, 0, 0, 0, 0, 0, 0],
+    'Tester__survival': [30, 20, 10, 5, 0, 0, 0, 0, 0, 0]
+}));
+</script>
+<iframe id="g" src="star-catcher-TEST.html" width="900" height="720" style="border:none"></iframe>
+<script>
+let pauseClear = false;
+setTimeout(() => {
+    const w = document.getElementById('g').contentWindow;
+    try {
+        w.handleMenuAction('playBattle');
+        setTimeout(() => { w.handleMenuAction('pickDifficulty_easy'); }, 600);
+        const keepAlive = setInterval(() => {
+            try { w.eval('meteoriteHitCooldown = 100000; battleSpawnCooldown = 1; hp = 100;' + (pauseClear ? '' : ' battleEnemies = [];')); } catch (e) {}
+        }, 800);
+        // Unlock elites at 50 kills, then poll until one is on screen.
+        setTimeout(() => {
+            w.eval('score = 50;');
+            const pollStart = Date.now();
+            const poll = setInterval(() => {
+                const hasElite = w.eval("battleEnemies.some(function(e){return e.elite;})");
+                if (hasElite || Date.now() - pollStart > 9000) {
+                    clearInterval(poll);
+                    if (!hasElite) {
+                        document.title = 'RESULT no elite found in 9s';
+                        clearInterval(keepAlive);
+                        return;
+                    }
+                    pauseClear = true;   // freeze the field during the kill
+                    const scoreBefore = w.eval('score');
+                    // Pin the elite to a safe depth (a fresh spawn sits at
+                    // y=-40 and any bullet pushed there gets culled as
+                    // off-screen before the collision loop runs).
+                    w.eval("(function(){ var e = battleEnemies.find(function(x){return x.elite;}); if (e) { e.state='hover'; e.y = 200; e.hp = 1; playerBullets.push({x:e.x, y:200, vy:0, dmg:50}); } })()");
+                    setTimeout(() => {
+                        const scoreAfter = w.eval('score');
+                        const delta = scoreAfter - scoreBefore;
+                        document.title = 'RESULT score ' + scoreBefore + '->' + scoreAfter + ' (delta=' + delta + ')';
+                        clearInterval(keepAlive);
+                    }, 700);
+                }
+            }, 300);
+        }, 4200);
+    } catch (e) { document.title = 'HARNESS ERROR: ' + e.message; }
+}, 2500);
+</script>
+</body></html>
