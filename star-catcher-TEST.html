@@ -468,8 +468,7 @@
             // BOSS FIGHT: a Battle-style duel against the crowned alien
             // UFO king. HP, kills and the HUD behave exactly like Battle;
             // on top of the usual enemies the field also carries fast
-            // boss missiles, meteorites, healing stars and the Survival
-            // monster's beam (which drains HP here, not lives). The mode
+            // boss missiles, meteorites and healing stars. The mode
             // is unlocked only after the three record achievements.
             BOSS: 'boss'
         };
@@ -3868,30 +3867,6 @@
                 if (s.y > canvas.height + s.radius) healStars.splice(i, 1);
             }
 
-            // ----- Survival monster: the beam drains HP (not lives) -----
-            // updateMonster() handles spawn scheduling via survivalElapsedMs(),
-            // which returns battleElapsedMs while gameMode === BOSS.
-            updateMonster(nowMs);
-            if (!gameOver && monster.active && monster.beamActive) {
-                const inBeam = isPlayerInMonsterBeam();
-                if (inBeam) {
-                    if (playerInBeamSince === 0) {
-                        playerInBeamSince = Date.now();
-                    } else if (Date.now() - playerInBeamSince >= 1000) {
-                        // Sustained contact: -15 HP every 1 s.
-                        hp = Math.max(0, hp - 15);
-                        playLoseLifeSound();
-                        playerInBeamSince = Date.now();
-                        if (hp <= 0) {
-                            endGame();
-                            return;
-                        }
-                    }
-                } else if (playerInBeamSince > 0) {
-                    playerInBeamSince = 0;
-                }
-            }
-
             // ----- Victory check -----
             if (bossDefeated) endGame();
         }
@@ -5171,39 +5146,57 @@
                 const isTelegraph = e.flashTimer > 0;
 
                 if (e.elite) {
-                    // Orange elite — a bit bigger than the red ships,
-                    // with a squarer hull + twin engine pods so it reads
-                    // as a heavier class at a glance.
+                    // Orange elite — a hexagonal hull so it reads as a
+                    // completely different geometric class from the red
+                    // arrow-shaped ships, with twin engine pods + a
+                    // central diamond cockpit.
                     ctx.shadowBlur = isTelegraph ? 30 : 22;
                     ctx.shadowColor = isTelegraph ? '#ffffff' : '#ff9a3c';
                     ctx.fillStyle = isTelegraph ? '#ffffff' : '#c2601a';
                     ctx.beginPath();
-                    ctx.moveTo(0, -26);
-                    ctx.lineTo(24, 5);
-                    ctx.lineTo(17, 22);
-                    ctx.lineTo(-17, 22);
-                    ctx.lineTo(-24, 5);
+                    ctx.moveTo(0, -27);
+                    ctx.lineTo(24, -11);
+                    ctx.lineTo(24, 11);
+                    ctx.lineTo(0, 27);
+                    ctx.lineTo(-24, 11);
+                    ctx.lineTo(-24, -11);
                     ctx.closePath();
                     ctx.fill();
                     ctx.strokeStyle = isTelegraph ? '#ffffff' : '#ffb066';
                     ctx.lineWidth = isTelegraph ? 2 : 1.5;
                     ctx.stroke();
 
-                    // Twin engine pods (distinct from the red single-hull)
+                    // Horizontal band lines across the hexagon
+                    ctx.strokeStyle = isTelegraph ? '#ffffff' : 'rgba(255, 176, 102, 0.55)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(-18, -3);
+                    ctx.lineTo(18, -3);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-20, 8);
+                    ctx.lineTo(20, 8);
+                    ctx.stroke();
+
+                    // Twin engine pods at the lower corners
                     ctx.fillStyle = isTelegraph ? '#ffffff' : '#8a3d0f';
                     ctx.beginPath();
-                    ctx.arc(-15, 16, 5, 0, Math.PI * 2);
+                    ctx.arc(-16, 15, 5, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.beginPath();
-                    ctx.arc(15, 16, 5, 0, Math.PI * 2);
+                    ctx.arc(16, 15, 5, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Cockpit — orange-tinted, glows on telegraph.
+                    // Diamond cockpit in the centre
                     ctx.shadowBlur = 14;
                     ctx.shadowColor = isTelegraph ? '#ffffff' : '#ffb066';
                     ctx.fillStyle = isTelegraph ? '#ffffff' : '#ffd9a8';
                     ctx.beginPath();
-                    ctx.ellipse(0, -2, 8, 5, 0, 0, Math.PI * 2);
+                    ctx.moveTo(0, -9);
+                    ctx.lineTo(8, -2);
+                    ctx.lineTo(0, 5);
+                    ctx.lineTo(-8, -2);
+                    ctx.closePath();
                     ctx.fill();
                 } else {
                     // Body — angular red silhouette.
@@ -5292,18 +5285,21 @@
                     continue;
                 }
                 if (b.elite) {
-                    // Elite missile — a wide orange rectangle instead of
-                    // the normal red sphere: much broader horizontal span
-                    // (26 px vs the 9 px red orbs) so the player can see
-                    // the higher-damage threat from across the field.
+                    // Elite missile — a slightly LARGER yellow ball than
+                    // the normal red spheres (r14 vs r9) so the
+                    // higher-damage threat pops from across the field.
                     ctx.save();
-                    ctx.shadowBlur = 18;
-                    ctx.shadowColor = '#ff9a3c';
-                    ctx.fillStyle = '#ff7a1a';
-                    ctx.fillRect(b.x - 13, b.y - 5, 26, 10);
-                    ctx.shadowBlur = 8;
-                    ctx.fillStyle = '#ffd9a8';
-                    ctx.fillRect(b.x - 10, b.y - 2.5, 20, 5);
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = '#ffd84a';
+                    ctx.fillStyle = '#ffd84a';
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 10;
+                    ctx.fillStyle = '#fff3c4';
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, 8.5, 0, Math.PI * 2);
+                    ctx.fill();
                     ctx.restore();
                     continue;
                 }
@@ -5480,53 +5476,109 @@
             const isCoop = gameMode === GAME_MODES.COOP;
             // ----- Battle HUD overlay -----
             // Two visual elements render BEFORE anything else:
-            //   1) a 6 px-tall health strip across the very top edge
-            //      of the canvas, color-coded green/yellow/red so the
-            //      player can read their remaining HP at a glance.
-            //   2) a compact "KILLS / BEST" readout on the top so the
-            //      player can compare their current run to their
-            //      personal record without opening the Records screen.
-            // BOSS FIGHT reuses this exact HUD (same background and
-            // scoreboard per spec) and adds a gold BOSS HP readout below
-            // the player HP so both health pools are visible at once.
+            //   1) a big KILLS counter in the top-left (no POINTS / BEST
+            //      / COMBO clutter — kills are the only metric that
+            //      matters in Battle modes).
+            //   2) a detailed player HP bar pinned to the BOTTOM of the
+            //      screen, colour-coded green/yellow/red, with segment
+            //      ticks + a numeric readout so HP stays readable under
+            //      the action.
+            // BOSS FIGHT reuses this exact HUD and adds a gold BOSS HP
+            // readout in the top-right so both health pools stay visible.
             if (isBattle || isBoss) {
-                const hpMax = 100;
-                const ratio = Math.max(0, hp) / hpMax;
-                const barX = 0;
-                const barW = canvas.width;
-                const barY = 0;
-                const barH = 6;
-                ctx.fillStyle = 'rgba(0,0,0,0.72)';
-                ctx.fillRect(barX, barY, barW, barH);
-                const fillW = Math.max(0, barW * ratio);
-                let hpColor;
-                if (ratio > 0.5) hpColor = '#3ec46d';
-                else if (ratio > 0.25) hpColor = '#ffaa33';
-                else hpColor = '#ff6b6b';
-                ctx.fillStyle = hpColor;
-                ctx.fillRect(barX, barY, fillW, barH);
-                // KILLS + HP readouts in the same conditional block so
-                // the HUD has a single source of truth for "is this a
-                // battle HUD" — avoids the prior nested if(isBattle)
-                // that split the bar render from the readout render.
-                ctx.shadowBlur = 14;
+                // ----- Battle / BOSS FIGHT HUD -----
+                // A single large KILLS readout in the top-left (no
+                // POINTS / BEST / COMBO clutter — kills are the only
+                // metric that matters in Battle modes) plus a detailed
+                // player HP bar pinned to the BOTTOM of the screen so
+                // it stays readable even while the action rages.
+                ctx.shadowBlur = 18;
                 ctx.shadowColor = '#ff6b6b';
                 ctx.fillStyle = '#ff6b6b';
-                ctx.font = 'bold 16px Orbitron, sans-serif';
-                ctx.fillText(`🛡 KILLS: ${score}`, 20, 26);
-                const hpText = `❤ ${hp}/100`;
-                const hpTextWidth = ctx.measureText(hpText).width;
-                ctx.fillStyle = hpColor;
-                ctx.fillText(hpText, canvas.width - hpTextWidth - 20, 26);
+                ctx.font = 'bold 36px Orbitron, sans-serif';
+                ctx.fillText(`${score}`, 22, 46);
+                ctx.shadowBlur = 10;
+                ctx.font = 'bold 13px Orbitron, sans-serif';
+                ctx.fillStyle = 'rgba(255, 107, 107, 0.85)';
+                ctx.fillText('🛡 KILLS', 24, 66);
+                ctx.shadowBlur = 0;
+
+                // ----- Detailed player HP bar (bottom of screen) -----
+                const hpMax = 100;
+                const ratio = Math.max(0, hp) / hpMax;
+                const barW = 480;
+                const barH = 22;
+                const barX = (canvas.width - barW) / 2;
+                const barY = canvas.height - barH - 8;
+                let hpColor, hpShade;
+                if (ratio > 0.5) { hpColor = '#3ec46d'; hpShade = '#1f7a46'; }
+                else if (ratio > 0.25) { hpColor = '#ffaa33'; hpShade = '#b06d12'; }
+                else { hpColor = '#ff6b6b'; hpShade = '#b33333'; }
+                const fillW = Math.max(0, barW * ratio);
+
+                // Outer frame with colour-matched glow
+                ctx.save();
+                ctx.shadowColor = hpColor;
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = 'rgba(10, 14, 22, 0.92)';
+                ctx.beginPath();
+                ctx.roundRect(barX - 4, barY - 4, barW + 8, barH + 8, 10);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(barX - 4, barY - 4, barW + 8, barH + 8, 10);
+                ctx.stroke();
+                // Inner track
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, barW, barH, 7);
+                ctx.fill();
+                // Gradient fill + glass highlight
+                const grad = ctx.createLinearGradient(barX, barY, barX, barY + barH);
+                grad.addColorStop(0, hpColor);
+                grad.addColorStop(1, hpShade);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, fillW, barH, 7);
+                ctx.fill();
+                if (fillW > 4) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+                    ctx.beginPath();
+                    ctx.roundRect(barX + 1, barY + 1, Math.max(0, fillW - 2), barH / 3, 6);
+                    ctx.fill();
+                }
+                // Segment tick marks every 25 HP for the detailed read
+                ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+                ctx.lineWidth = 1;
+                for (let s = 1; s < 4; s++) {
+                    const sx = barX + (barW * s) / 4;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, barY + 3);
+                    ctx.lineTo(sx, barY + barH - 3);
+                    ctx.stroke();
+                }
+                // Numeric HP inside the bar
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 6;
+                ctx.textAlign = 'center';
+                ctx.fillText(`🛡 ${Math.max(0, Math.ceil(hp))}/${hpMax}`, barX + barW / 2, barY + barH / 2 + 5);
+                ctx.restore();
+                ctx.textAlign = 'left';
+
+                // ----- BOSS HP readout (top-right, gold) -----
                 if (isBoss && !bossDefeated) {
-                    // King's remaining HP in gold, stacked under the
-                    // player HP on the right.
                     ctx.fillStyle = '#ffd84a';
                     ctx.shadowColor = '#ffd84a';
+                    ctx.shadowBlur = 12;
+                    ctx.font = 'bold 16px Orbitron, sans-serif';
                     const bossHpText = `👑 ${Math.max(0, Math.ceil(boss.hp))}/${boss.maxHp}`;
-                    ctx.fillText(bossHpText, canvas.width - ctx.measureText(bossHpText).width - 20, 48);
+                    ctx.fillText(bossHpText, canvas.width - ctx.measureText(bossHpText).width - 20, 46);
+                    ctx.shadowBlur = 0;
                 }
-                ctx.shadowBlur = 0;
             }
             if (isCoop) {
                 // ----- CO-OP HUD overlay -----
@@ -5629,7 +5681,7 @@
                 ctx.shadowColor = '#ff5b5b';
                 ctx.fillStyle = '#ffcccc';
                 ctx.fillText(`${score}s`, 20, scoreValueY);
-            } else {
+            } else if (!isBattle && !isBoss) {
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = 'white';
                 ctx.fillText(`⭐ Points: ${score}`, 20, scoreValueY);
@@ -5648,11 +5700,16 @@
                 }
             }
 
-            ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = 'black';
-            ctx.fillStyle = '#ffd700';
-            ctx.fillText(`🏆 Best: ${highScore}${isSurvival ? 's' : ''}`, 20, highScoreY);
+            // POINTS / BEST readouts are Classic-mode info — Battle and
+            // BOSS FIGHT drop them (the big KILLS counter is the only
+            // metric they show), so skip the BEST line there too.
+            if (!isBattle && !isBoss) {
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.fillStyle = '#ffd700';
+                ctx.fillText(`🏆 Best: ${highScore}${isSurvival ? 's' : ''}`, 20, highScoreY);
+            }
 
             const recordBannerActive = inGameRecordShown
                 && gameState === GAME_STATES.PLAYING
@@ -5668,11 +5725,15 @@
                 ctx.shadowBlur = 0;
             }
 
-            ctx.fillStyle = isSurvival ? '#ff9999' : 'white';
-            ctx.font = 'bold 20px Orbitron, sans-serif';
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = 'black';
-            ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80);
+            // Heart / lives readout is pointless in Battle modes (HP bar
+            // replaces lives there) — hide it for BATTLE + BOSS FIGHT.
+            if (!isBattle && !isBoss) {
+                ctx.fillStyle = isSurvival ? '#ff9999' : 'white';
+                ctx.font = 'bold 20px Orbitron, sans-serif';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'black';
+                ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80);
+            }
 
             // Saved-overlay render LAST so it sits ON TOP of the
             // Battle HP bar and the rest of the HUD overlay — the
@@ -7068,17 +7129,16 @@
                         drawEnemyBullets();
                     } else if (gameMode === GAME_MODES.BOSS) {
                         // BOSS FIGHT scene: crowned king + Battle enemies
-                        // + meteorites + healing stars + both ray pools +
-                        // the survival monster's beam. Bottom → top so the
-                        // boss reads behind the action and the monster
-                        // face/beam paints over everything else.
+                        // + meteorites + healing stars + both ray pools.
+                        // (The Survival monster was removed from boss
+                        // fights — meteorites + the king's missiles are
+                        // the hazards here.)
                         drawBoss();
                         drawEnemies();
                         drawMeteorites();
                         drawHealStars();
                         drawPlayerBullets();
                         drawEnemyBullets();
-                        drawMonster();
                     } else if (gameMode === GAME_MODES.COOP) {
                         // CO-OP scene: BOTH stars (Blue) and enemies
                         // (Green) live on-screen together like the
@@ -7113,7 +7173,6 @@
                         drawHealStars();
                         drawPlayerBullets();
                         drawEnemyBullets();
-                        drawMonster();
                     } else if (gameMode === GAME_MODES.COOP) {
                         // CO-OP paused frame: show both ships + the
                         // frozen enemy / star field so the player can
