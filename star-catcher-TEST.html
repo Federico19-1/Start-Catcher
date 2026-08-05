@@ -446,6 +446,11 @@
             // `pickDifficulty_*` cases route through startGame() with
             // the chosen difficulty set on `battleDifficulty`.
             DIFFICULTY: 'difficulty',
+            // 'coopSelect' is the CO-OP equivalent of 'difficulty': a
+            // small picker between the menu and the run where the player
+            // chooses Same Device (the classic two-player CO-OP) or
+            // Separate Devices (currently a coming-soon placeholder).
+            COOP_SELECT: 'coop_select',
             PLAYING: 'playing',
             PAUSED: 'paused',
             SETTINGS: 'settings',
@@ -807,6 +812,10 @@
         // When > 0, the BOSS FIGHT card in the difficulty picker shows a
         // gold "unlock requirements" toast after a locked click.
         let bossLockHintUntil = 0;
+        // When > 0, the CO-OP picker's "Separate Devices" card flashes a
+        // teal "coming soon" toast after a tap (that mode isn't built
+        // yet — same-device CO-OP is the focus for now).
+        let coopSoonHintUntil = 0;
         // ----- Survival-mode monster -----
         // Only its face appears on screen — a dark-green cyclops with a
         // wide mouth and a small antenna with a glowing dot on its
@@ -7005,6 +7014,62 @@
             ctx.shadowBlur = 0;
         }
 
+        // Shared glassmorphism mode-card renderer used by BOTH the
+        // Battle difficulty picker and the CO-OP picker. `locked`
+        // renders the card at ~45% opacity with a status emoji badge
+        // drawn BELOW the description text (kept at full alpha so it
+        // stays legible over the greyed-out card).
+        function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge) {
+            if (locked) ctx.globalAlpha = 0.45;
+            // Card fill
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.70)';
+            ctx.strokeStyle = accent.border;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(cx, cy, w, h, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            // Top accent line
+            ctx.strokeStyle = accent.border;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx + 20, cy + 2);
+            ctx.lineTo(cx + w - 20, cy + 2);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+
+            // Title
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 28px Orbitron, sans-serif';
+            ctx.fillStyle = accent.text;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(title, cx + w / 2, cy + 50);
+
+            // Description
+            ctx.font = '12px Arial, sans-serif';
+            ctx.fillStyle = '#9aa6b2';
+            ctx.textBaseline = 'top';
+            let dy = cy + 90;
+            for (const line of descLines) {
+                ctx.fillText(line, cx + w / 2, dy);
+                dy += 18;
+            }
+
+            // Lock / status badge — drawn at full alpha so it stays
+            // legible even over the greyed-out card, and placed BELOW
+            // the description text for a cleaner look.
+            if (locked) {
+                ctx.globalAlpha = 1;
+                ctx.font = '32px Arial, sans-serif';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.fillText(badge || '🔒', cx + w / 2, dy + 18);
+            }
+            ctx.globalAlpha = 1;
+        }
+
         function draw() {
             updatePauseButton();
             // Battle mode ships a mobile FIRE pad positioned outside the
@@ -7087,59 +7152,6 @@
                     const normalX = px + cardPad * 2 + cardW;
                     const bossX   = px + cardPad * 3 + cardW * 2;
 
-                    // Helper: draw one difficulty / mode card. `locked`
-                    // renders the card at ~45% opacity (the classic
-                    // greyed-out cue) with a 🔒 badge on the corner.
-                    function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked) {
-                        if (locked) ctx.globalAlpha = 0.45;
-                        // Card fill
-                        ctx.shadowBlur = 0;
-                        ctx.fillStyle = 'rgba(26, 31, 44, 0.70)';
-                        ctx.strokeStyle = accent.border;
-                        ctx.lineWidth = 1;
-                        ctx.beginPath();
-                        ctx.roundRect(cx, cy, w, h, 12);
-                        ctx.fill();
-                        ctx.stroke();
-
-                        // Top accent line
-                        ctx.strokeStyle = accent.border;
-                        ctx.lineWidth = 2;
-                        ctx.beginPath();
-                        ctx.moveTo(cx + 20, cy + 2);
-                        ctx.lineTo(cx + w - 20, cy + 2);
-                        ctx.stroke();
-                        ctx.lineWidth = 1;
-
-                        // Title
-                        ctx.shadowBlur = 0;
-                        ctx.font = 'bold 28px Orbitron, sans-serif';
-                        ctx.fillStyle = accent.text;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(title, cx + w / 2, cy + 50);
-
-                        // Description
-                        ctx.font = '12px Arial, sans-serif';
-                        ctx.fillStyle = '#9aa6b2';
-                        ctx.textBaseline = 'top';
-                        let dy = cy + 90;
-                        for (const line of descLines) {
-                            ctx.fillText(line, cx + w / 2, dy);
-                            dy += 18;
-                        }
-
-                        // Lock badge — drawn at full alpha so it stays
-                        // legible even over the greyed-out card.
-                        if (locked) {
-                            ctx.globalAlpha = 1;
-                            ctx.font = '32px Arial, sans-serif';
-                            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                            ctx.fillText('🔒', cx + w - 24, cy + 40);
-                        }
-                        ctx.globalAlpha = 1;
-                    }
-
                     drawDiffCard(easyX,   cardsY, cardW, cardH, 'EASY',   ['Original enemy cadence.', 'Best place to start.', 'Relaxed combat flow.'],     ACCENT_EASY);
                     drawDiffCard(normalX, cardsY, cardW, cardH, 'NORMAL', ['Enemies 2× faster.', 'Rare fast meteorites', 'also appear.'],                  ACCENT_NORMAL);
 
@@ -7147,9 +7159,9 @@
                     // the three record achievements are met; greyed out
                     // with a 🔒 until then (see isBossFightUnlocked).
                     const bossUnlocked = isBossFightUnlocked();
-                    drawDiffCard(bossX, cardsY, cardW, cardH, '👑 BOSS FIGHT', bossUnlocked
+                    drawDiffCard(bossX, cardsY, cardW, cardH, 'BOSS FIGHT', bossUnlocked
                         ? ['Defeat the alien king!', 'Fast missiles + meteorites', 'beam + healing stars.']
-                        : ['🔒 UNLOCK:', '⭐ 1000 Classic · ☠ 60s', '🎯 100 kills (Normal)'],
+                        : ['UNLOCK:', '⭐ 1000 Classic · ☠ 60s', '🎯 100 kills (Normal)'],
                         ACCENT_BOSS, !bossUnlocked);
 
                     // --- Click targets ---
@@ -7166,6 +7178,89 @@
                         hoverStrength: hoverFor('difficultyBack')
                     });
                     menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'difficultyBack' });
+
+                    ctx.shadowBlur = 0;
+                    ctx.textAlign = 'start';
+                    ctx.textBaseline = 'alphabetic';
+                    break;
+                }
+                case GAME_STATES.COOP_SELECT: {
+                    // =================================================
+                    // CO-OP Picker — same glassmorphism style as the
+                    // Battle difficulty screen. Two cards:
+                    //   * SAME DEVICE      — classic two-player CO-OP
+                    //   * SEPARATE DEVICES — coming soon (locked card)
+                    // =================================================
+                    menuButtons = [];
+                    updateButtonHover();
+
+                    // --- Dark backdrop overlay (hides menu) ---
+                    ctx.fillStyle = 'rgba(11, 14, 20, 0.85)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                    // --- Header with blue-violet glow ---
+                    ctx.textAlign = 'center';
+                    ctx.shadowBlur = 0;
+                    ctx.font = 'bold 40px Orbitron, sans-serif';
+                    ctx.fillStyle = '#f1f5f9';
+                    ctx.fillText('CHOOSE CO-OP MODE', canvas.width / 2, 100);
+
+                    // --- Coming-soon hint toast (Separate Devices) ---
+                    if (coopSoonHintUntil > Date.now()) {
+                        ctx.shadowBlur = 14;
+                        ctx.shadowColor = '#49d7c8';
+                        ctx.font = 'bold 15px Orbitron, sans-serif';
+                        ctx.fillStyle = '#49d7c8';
+                        ctx.fillText('🔜 Separate-device play is coming soon!', canvas.width / 2, 128);
+                        ctx.shadowBlur = 0;
+                    }
+
+                    // --- Card accent colours ---
+                    const ACCENT_SHARED = { border: 'rgba(73, 215, 200, 0.6)', text: '#49d7c8' };
+                    const ACCENT_ONLINE = { border: 'rgba(255, 191, 36, 0.75)', text: '#ffd84a' };
+
+                    // --- Glassmorphism card panel ---
+                    const px = 80;
+                    const pw = canvas.width - px * 2;
+                    const py = 140;
+                    const ph = 330;
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(26, 31, 44, 0.60)';
+                    ctx.strokeStyle = 'rgba(138, 43, 226, 0.30)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.roundRect(px, py, pw, ph, 16);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // --- Two cards side-by-side ---
+                    const cardPad = 30;
+                    const cardW = (pw - cardPad * 3) / 2;
+                    const cardH = 210;
+                    const cardsY = py + 35;
+                    const sharedX = px + cardPad;
+                    const onlineX = px + cardPad * 2 + cardW;
+
+                    drawDiffCard(sharedX, cardsY, cardW, cardH, '🖥 SAME DEVICE',
+                        ['Blue: mouse · Green: arrows.', 'One screen, two players,', 'one shared health pool.'],
+                        ACCENT_SHARED, false);
+                    drawDiffCard(onlineX, cardsY, cardW, cardH, '📡 SEPARATE DEVICES',
+                        ['Not available yet.', 'Two-player online play', 'is on the roadmap.'],
+                        ACCENT_ONLINE, true, '🔜');
+
+                    // --- Click targets ---
+                    menuButtons.push({ rect: { x: sharedX, y: cardsY, w: cardW, h: cardH }, action: 'pickCoopShared' });
+                    menuButtons.push({ rect: { x: onlineX, y: cardsY, w: cardW, h: cardH }, action: 'pickCoopOnline' });
+
+                    // --- BACK button ---
+                    const backW = 200;
+                    const backH = 48;
+                    const backX = canvas.width / 2 - backW / 2;
+                    const backY = py + ph - backH - 20;
+                    drawGlassButton(backX, backY, backW, backH, 10, '← BACK', 'bold 18px Orbitron, sans-serif', {
+                        hoverStrength: hoverFor('coopSelectBack')
+                    });
+                    menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'coopSelectBack' });
 
                     ctx.shadowBlur = 0;
                     ctx.textAlign = 'start';
@@ -7316,19 +7411,31 @@
                     }
                     break;
                 case 'playCoop':
-                    // CO-OP skips the Battle difficulty picker because
-                    // the player spec says the cadence is the same as
-                    // Battle (one enemy on screen at a time, telegraph
-                    // before each shot). If a future difficulty picker
-                    // is needed, lift CO-OP into its own DIFFICULTY
-                    // state the same way Battle already does it.
+                    // CO-OP now routes through its own picker (same
+                    // style as the Battle difficulty screen) so the
+                    // player chooses Same Device or Separate Devices
+                    // before the run starts.
                     if (!currentUser) {
                         gameState = GAME_STATES.ACCOUNT;
                         accountInput = '';
                         showMobileInput(true);
                     } else {
-                        startGame(GAME_MODES.COOP);
+                        gameState = GAME_STATES.COOP_SELECT;
                     }
+                    break;
+                case 'pickCoopShared':
+                    // Classic same-device CO-OP: one keyboard, two
+                    // players (Blue = mouse, Green = arrows).
+                    startGame(GAME_MODES.COOP);
+                    break;
+                case 'pickCoopOnline':
+                    // Separate-device play isn't implemented yet — flash
+                    // the coming-soon toast and stay on the picker.
+                    coopSoonHintUntil = Date.now() + 3000;
+                    break;
+                case 'coopSelectBack':
+                    // User changed their mind; drop back to the menu.
+                    gameState = GAME_STATES.MENU;
                     break;
                 case 'difficultyBack':
                     // User changed their mind; drop back to the main
