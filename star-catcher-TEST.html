@@ -782,6 +782,10 @@
             hitFlash: 0          // red flash after taking a hit
         };
         let bossDefeated = false;   // true = victory (boss HP reached 0)
+        // Completion clock for BOSS FIGHT records: battleElapsedMs at the
+        // exact moment the king falls. Records are stored as "seconds to
+        // win" (lower = better) and are only ever saved on victory.
+        let bossCompletionMs = 0;
         // Healing stars: green medical crosses that restore one third of
         // the player's total HP on catch. Only spawn in BOSS FIGHT.
         let healStars = [];
@@ -1606,7 +1610,9 @@
         }
 
         // ----- BOSS FIGHT Mode records -----
-        // Top-10 best boss-fight runs (kills + the +100 boss-down bonus).
+        // Top-10 best boss-fight runs stored as the completion TIME in
+        // seconds (lower = better). They are ONLY written when the boss
+        // is actually defeated — a loss leaves the bucket untouched.
         // Mirrors the `${user}__battle` bucket shape so the Records
         // screen and drawGameOver can iterate it uniformly.
         function getBossRecords(username) {
@@ -1626,27 +1632,30 @@
             saveAllRecords(all);
         }
 
-        function addBossScoreToUser(username, newScore) {
-            if (newScore <= 0) return -1;
+        function addBossTimeToUser(username, seconds) {
+            if (!seconds || seconds <= 0) return -1;
 
-            let records = getBossRecords(username);
-            const previousMin = records.length >= 10 ? records[9] : 0;
-
-            records.push(newScore);
-            records.sort((a, b) => b - a);
+            // Drop the placeholder 0s (the bucket is seeded with
+            // Array(10).fill(0)) BEFORE sorting ascending — otherwise
+            // the zeros would sink to the front and records[0] (the
+            // "best time") would read 0 until the bucket was full.
+            let records = getBossRecords(username).filter(r => r > 0);
+            records.push(seconds);
+            // Fastest (lowest) first — unlike the score buckets, a lower
+            // value is a better record here.
+            records.sort((a, b) => a - b);
             records = records.slice(0, 10);
             setBossRecords(username, records);
 
-            if (newScore <= previousMin && records.length >= 10) {
-                return -1;
-            }
-
-            return records.indexOf(newScore);
+            // -1 when the new time did not make the top-10, otherwise its
+            // rank position in the (ascending) leaderboard.
+            return records.indexOf(seconds);
         }
 
-        function getMaxBossScore(username) {
+        function getBestBossTime(username) {
             if (!username) return 0;
             const records = getBossRecords(username);
+            // records[0] is the fastest (best) completion time.
             return records.length > 0 ? records[0] : 0;
         }
 
@@ -2548,6 +2557,7 @@
             boss.flashTimer = 0;
             boss.hitFlash = 0;
             bossDefeated = false;
+            bossCompletionMs = 0;
             healStars = [];
             // Battle spawn cadence resets each new run too — the
             // `battleSpawnCooldown` initial value (90 frames) keeps the
@@ -2560,6 +2570,7 @@
             score = 0;
             lives = 3;
             gameOver = false;
+            quickSaveEndedRun = false;
             comboStreak = 0;
             comboBest = 0;
             luckyStarsCaught = 0;
@@ -3761,6 +3772,10 @@
                         consumed = true;
                         if (boss.hp <= 0) {
                             bossDefeated = true;
+                            // Freeze the fight clock the moment the king
+                            // falls so the record reflects the true time
+                            // to win (a few extra frames must not count).
+                            bossCompletionMs = battleElapsedMs;
                             score += 100;      // BOSS DOWN bonus
                             playEnemyExplodeSound();
                         }
@@ -4198,11 +4213,17 @@
                         setBattleNormalBest(currentUser, score);
                     }
                 } else if (gameMode === GAME_MODES.BOSS) {
-                    const pos = addBossScoreToUser(currentUser, score);
-                    if (pos !== -1) {
-                        isNewRecord = true;
-                        newRecordPosition = pos;
-                        playRecordSound();
+                    // BOSS FIGHT records are the time taken to win, and
+                    // are saved ONLY when the king actually falls — a
+                    // loss leaves the boss leaderboard untouched.
+                    if (bossDefeated) {
+                        const bossSeconds = Math.max(1, Math.round(bossCompletionMs / 1000));
+                        const pos = addBossTimeToUser(currentUser, bossSeconds);
+                        if (pos !== -1) {
+                            isNewRecord = true;
+                            newRecordPosition = pos;
+                            playRecordSound();
+                        }
                     }
                 } else if (gameMode === GAME_MODES.COOP) {
                     // CO-OP writes to its own bucket (`${user}__coop`)
@@ -5640,7 +5661,7 @@
             const highScore = currentUser
                 ? (isSurvival
                     ? getMaxSurvivalScore(currentUser)
-                    : (isBoss ? getMaxBossScore(currentUser) : getMaxScore(currentUser)))
+                    : (isBoss ? getBestBossTime(currentUser) : getMaxScore(currentUser)))
                 : 0;
 
             ctx.font = 'bold 20px Orbitron, sans-serif';
@@ -5847,7 +5868,7 @@
                 ? (isSurvival
                     ? getMaxSurvivalScore(currentUser)
                     : (isBoss
-                        ? getMaxBossScore(currentUser)
+                        ? getBestBossTime(currentUser)
                         : (isBattle ? getMaxBattleScore(currentUser) : (isCoop ? getMaxCoopScore(currentUser) : getMaxScore(currentUser)))))
                 : 0;
 
@@ -5861,11 +5882,12 @@
             ctx.shadowBlur = 30;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#f1f5f9';
+            const titleText = isBattle ? '💥 BATTLE OVER'
+                : (isBoss ? (bossDefeated ? '👑 BOSS DEFEATED!' : '👑 BOSS FIGHT OVER')
+                    : (isSurvival ? '☠ SURVIVAL OVER'
+                        : (isCoop ? '🤝 CO-OP OVER' : 'GAME OVER')));
             ctx.fillText(
-                isBattle ? '💥 BATTLE OVER'
-                    : (isBoss ? (bossDefeated ? '👑 BOSS DEFEATED!' : '👑 BOSS FIGHT OVER')
-                        : (isSurvival ? '☠ SURVIVAL OVER'
-                            : (isCoop ? '🤝 CO-OP OVER' : 'GAME OVER'))),
+                quickSaveEndedRun ? '✓ SAVED' : titleText,
                 canvas.width / 2, 100
             );
 
@@ -5874,7 +5896,10 @@
             ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
             ctx.fillText(
-                isSurvival ? `☠ Survived ${score}s` : `Score: ${score}`,
+                isSurvival ? `☠ Survived ${score}s`
+                    : (isBoss && bossDefeated
+                        ? `👑 Time: ${Math.max(1, Math.round(bossCompletionMs / 1000))}s · Score: ${score}`
+                        : `Score: ${score}`),
                 canvas.width / 2, 150
             );
 
@@ -5931,23 +5956,9 @@
                 ctx.font = '20px Orbitron, sans-serif';
                 ctx.fillStyle = '#aaa';
                 ctx.fillText(
-                    `Best${isSurvival ? ' Survival Time' : ' Record'}: ${highScore}${isSurvival ? 's' : ''}`,
+                    `Best${isSurvival ? ' Survival Time' : (isBoss ? ' Time' : ' Record')}: ${highScore}${(isSurvival || isBoss) ? 's' : ''}`,
                     canvas.width / 2, 200
                 );
-            }
-
-            if (!isSurvival) {
-                ctx.shadowColor = '#ffd56a';
-                ctx.shadowBlur = 18;
-                ctx.font = '18px Orbitron, sans-serif';
-                ctx.fillStyle = '#ffd56a';
-                ctx.fillText(`Best combo: x${comboBest}`, canvas.width / 2, 228);
-                if (luckyStarsCaught > 0) {
-                    ctx.shadowBlur = 8;
-                    ctx.font = '14px Orbitron, sans-serif';
-                    ctx.fillStyle = '#f5d488';
-                    ctx.fillText(`Lucky stars caught: ${luckyStarsCaught}`, canvas.width / 2, 252);
-                }
             }
 
             const leftColX = 60;
@@ -5984,7 +5995,7 @@
 
                 if (validRecords.length > 0) {
                     ctx.shadowBlur = 5;
-                    const suffix = isSurvival ? 's' : ' pts';
+                    const suffix = (isSurvival || isBoss) ? 's' : ' pts';
                     for (let i = 0; i < Math.min(10, validRecords.length); i++) {
                         const colX = i < 5 ? leftColX : col2X;
                         const rowIndex = i < 5 ? i : i - 5;
@@ -6102,6 +6113,23 @@
             ctx.font = 'bold 16px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff9999' : '#66dd88';
             ctx.fillText(isSurvival ? '☠ YOU' : '★ YOU', shipX, shipY + 125);
+
+            // End-of-run summary phrases (best combo, lucky stars) sit
+            // directly BELOW the "YOU" label, anchored to the ship, so
+            // they never collide with the centred record medal emoji.
+            if (!isSurvival) {
+                ctx.shadowColor = '#ffd56a';
+                ctx.shadowBlur = 12;
+                ctx.font = '18px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd56a';
+                ctx.fillText(`Best combo: x${comboBest}`, shipX, shipY + 155);
+                if (luckyStarsCaught > 0) {
+                    ctx.shadowBlur = 6;
+                    ctx.font = '14px Orbitron, sans-serif';
+                    ctx.fillStyle = '#f5d488';
+                    ctx.fillText(`Lucky stars caught: ${luckyStarsCaught}`, shipX, shipY + 182);
+                }
+            }
 
             const btnY = 500;
             const btnW = 170;
@@ -6406,7 +6434,7 @@
             ctx.shadowBlur = 0;
             ctx.font = '12px Orbitron, sans-serif';
             ctx.fillStyle = '#9aa6b2';
-            ctx.fillText('Best score', col5X + colW / 2, colY + 52);
+            ctx.fillText('Best time (sec)', col5X + colW / 2, colY + 52);
 
             if (bossRecords.length === 0) {
                 ctx.font = 'bold 14px Orbitron, sans-serif';
@@ -6424,7 +6452,7 @@
                     else { label = (idx + 1) + '. ' + record; color = '#ffe0a8'; }
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
-                    ctx.fillText(label + ' pts', col5X + colW / 2, colY + 90 + idx * 28);
+                    ctx.fillText(label + 's', col5X + colW / 2, colY + 90 + idx * 28);
                 }
             }
             ctx.textAlign = 'left';
@@ -7381,9 +7409,10 @@
                 case 'pauseSave':
                     // Triggers the text-flash path inside
                     // saveCurrentRun (button reads "✓ SAVED" for 1.5 s
-                    // then reverts). Pressing S has the same effect.
-                    // The pause overlay stays open so the player can
-                    // see the flash and then choose RESUME / MENU.
+                    // then reverts). Unlike the S hotkey (quick save,
+                    // which ends the run), this pause-menu save keeps
+                    // playing — the overlay stays open so the player
+                    // can see the flash and then choose RESUME / MENU.
                     saveCurrentRun(true /* fromMenuButton */);
                     break;
                 case 'pauseSettings':
@@ -7591,6 +7620,11 @@
         // (so it sits on top of the pause backdrop when saved from
         // the pause overlay).
         let savedOverlayUntil = 0;
+        // True after a quick save (S hotkey) ends the run: drawGameOver
+        // then swaps the "GAME OVER"-style title for "✓ SAVED" so the
+        // player recognises the screen as a save confirmation. Reset in
+        // resetGame() so the next run's overlay shows the normal title.
+        let quickSaveEndedRun = false;
 
         // Render the centred ✓ Saved confirmation. Single source of
         // truth for the overlay's appearance so PLAYING and PAUSED
@@ -7657,6 +7691,12 @@
             // and resuming a dead run would let the player dodge a
             // death by saving mid-damage-frame then reloading.
             if (gameOver) return;
+            // Rank of the just-saved run on its mode's top-10: -1 when
+            // the save did not place, 0..9 when it did (0 = new best).
+            // Returned to callers so quickSaveGame can flash the NEW
+            // RECORD badge on the review screen; the pause-menu save
+            // path simply ignores it.
+            let savedRank = -1;
             try {
                 const all = getAllRecords();
                 // Survival absolute Date.now() so resume can copy
@@ -7708,22 +7748,37 @@
                 // current run's score is additionally pushed into the
                 // per-mode top-10 via the same helper gameOver uses.
                 // addScoreToUser / addSurvivalScoreToUser /
-                // addBattleScoreToUser silently no-op on score <= 0
+                // addBattleScoreToUser / addCoopScoreToUser /
+                // addBossTimeToUser silently no-op on score <= 0
                 // (e.g. saving before catching anything), so a
                 // 0-score save doesn't bloat the records bucket.
                 if (score > 0) {
                     if (gameMode === GAME_MODES.CLASSIC) {
-                        addScoreToUser(currentUser, score);
+                        savedRank = addScoreToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.SURVIVAL) {
-                        addSurvivalScoreToUser(currentUser, score);
+                        savedRank = addSurvivalScoreToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.BATTLE) {
-                        addBattleScoreToUser(currentUser, score);
+                        savedRank = addBattleScoreToUser(currentUser, score);
                         if (battleDifficulty === 'normal'
                             && score > getBattleNormalBest(currentUser)) {
                             setBattleNormalBest(currentUser, score);
                         }
                     } else if (gameMode === GAME_MODES.BOSS) {
-                        addBossScoreToUser(currentUser, score);
+                        // Boss records only count a WIN (bossDefeated), so
+                        // a quick-save mid-fight never adds a time.
+                        if (bossDefeated) {
+                            savedRank = addBossTimeToUser(
+                                currentUser,
+                                Math.max(1, Math.round(bossCompletionMs / 1000))
+                            );
+                        }
+                    } else if (gameMode === GAME_MODES.COOP) {
+                        // CO-OP save parity: the pause-menu save and the
+                        // quick save write to the `${user}__coop` bucket
+                        // exactly like endGame() does, so a saved CO-OP run
+                        // shows up on the Records screen like every other
+                        // mode (previously only the game-over path did).
+                        savedRank = addCoopScoreToUser(currentUser, score);
                     }
                 }
                 // ----- Trigger the screen-spanning overlay -----
@@ -7737,6 +7792,39 @@
                 // The audio cue is INSIDE the try so a quota error
                 // also skips the click-sound false-positive.
             }
+            return savedRank;
+        }
+
+        // Quick save = save & review. Saves the run (snapshot + records,
+        // exactly like saveCurrentRun) and then ENDS the run so the full
+        // game-over review screen appears. drawGameOver replaces the
+        // "GAME OVER"-style title with "✓ SAVED" via quickSaveEndedRun.
+        function quickSaveGame() {
+            if (!currentUser) return;
+            if (gameOver) return;
+            const savedRank = saveCurrentRun(false /* fromMenuButton */);
+            // The title itself is now the confirmation, so suppress the
+            // redundant centred "✓ Saved" toast.
+            savedOverlayUntil = 0;
+            quickSaveEndedRun = true;
+            flushPlayTime();
+            if (gameState === GAME_STATES.PAUSED) {
+                // Leave the pause overlay so the game-over screen can
+                // render (drawGameOver lives in the PLAYING case).
+                gameState = GAME_STATES.PLAYING;
+                isPaused = false;
+            }
+            // Surface the save's record rank to the review screen: if the
+            // run being quick-saved placed on its mode's top-10, drawGameOver
+            // lights up the 🏆 NEW RECORD badge + medal. drawGameOver's own
+            // `score > 0` gate keeps the badge off for 0-score saves, and
+            // BOSS never reaches here with a rank (a win ends the run via
+            // endGame() before the player can press S).
+            if (typeof savedRank === 'number' && savedRank >= 0) {
+                isNewRecord = true;
+                newRecordPosition = savedRank;
+            }
+            gameOver = true;
         }
 
         window.addEventListener('keydown', (event) => {
@@ -7781,16 +7869,16 @@
             // ----- Save-game hotkey (S / s) -----
             // Same state gate as the P hotkey (PLAYING or PAUSED) plus
             // an extra !gameOver guard so saving after death doesn't
-            // dodge the just-rolled game-over screen. saveCurrentRun()
-            // itself is a no-op when currentUser is null, so logged-out
-            // users pressing S get a silent skip plus the in-game
-            // audio still fires (the playRecordSound() inside the
-            // function is guarded behind currentUser, so truly
-            // logged-out users get nothing — by design).
+            // dodge the just-rolled game-over screen. The hotkey doubles
+            // as a "quick save": it saves the run AND ends it, showing
+            // the full game-over review screen with the title swapped to
+            // "✓ SAVED" (quickSaveGame handles both). quickSaveGame()
+            // is a no-op when currentUser is null, so logged-out users
+            // pressing S get a silent skip.
             if ((event.key === 's' || event.key === 'S')
                 && (gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED)
                 && !gameOver) {
-                saveCurrentRun(false /* fromMenuButton */);
+                quickSaveGame();
                 event.preventDefault();
             }
 
