@@ -623,6 +623,24 @@ let gameState = GAME_STATES.MENU;
                     ctx.closePath();
                     ctx.fill();
                     break;
+                case 'chevron': { // solid right-pointing chevron (nav arrows)
+                    ctx.beginPath();
+                    ctx.moveTo(-5, -7);
+                    ctx.lineTo(4, 0);
+                    ctx.lineTo(-5, 7);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
+                case 'chevronLeft': { // solid left-pointing chevron (back arrows)
+                    ctx.beginPath();
+                    ctx.moveTo(5, -7);
+                    ctx.lineTo(-4, 0);
+                    ctx.lineTo(5, 7);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
                 case 'account': // head + shoulders
                     ctx.beginPath();
                     ctx.arc(0, -4, 4.2, 0, Math.PI * 2);
@@ -1273,6 +1291,24 @@ let stars = [];
         let battleEnemies = [];
         let playerBullets = [];
         let enemyBullets = [];
+        // ----- STARDANCE + Super Star state (Classic mode) -----
+        // Catching the Super Star triggers a 20-second rainbow feast
+        // ("STARDANCE"): the screen tints like Survival's red filter but
+        // in rainbow, and a strip of stars as wide as the player's catch
+        // bubble falls in a continuous zigzag. Frame counters (not
+        // Date.now) are used so pausing the game freezes the feast.
+        let superSpawnCooldown = 540;      // frames before the next Super Star may appear
+        let starDanceFramesLeft = 0;       // >0 → rainbow feast running (1200 = 20 s at 60 fps)
+        let starDanceFlashFramesLeft = 0;  // >0 → STARDANCE banner flashing (120 = 2 s)
+        let starDanceBaseX = 0;            // random "wide spot" column the strip starts from
+        let starDanceX = 0;                // current zigzag strip centre
+        let starDanceDir = 1;              // +1 sweeping right / -1 sweeping left
+        let starDanceBound = 0;            // zigzag travel distance around starDanceBaseX
+        const STAR_DANCE_FRAMES = 1200;    // 20 s of rainbow + zigzag strip
+        const STAR_DANCE_FLASH_FRAMES = 120; // 2 s STARDANCE banner flash
+        const STAR_DANCE_STRIP_WIDTH = 100;  // ≈ player.radius — the catch bubble (the "hitbox")
+        const STAR_DANCE_SWEEP_SPEED = 2.2;  // px/frame the strip centre sweeps
+        let survivalEnemySpawnCooldown = 0;  // frames between red ships (Survival, once ≥ 30 s)
         // ----- CO-OP mode (Player 2 = Green) -----
         // Green is a fully independent ship above Blue. The green
         // ship moves exclusively with the LEFT and RIGHT arrow keys
@@ -1843,7 +1879,7 @@ let starSound = null;
                         starSound = new Audio(URL.createObjectURL(blob));
                     })
                     .catch(e => {
-                        // Fallback: crea un suono sintetico se il file non è disponibile
+                        // Fallback: synthesize a beep when the sound file is unavailable
                         console.log('Star sound file not available, using synthesized sound');
                         starSound = null;
                     });
@@ -1854,7 +1890,7 @@ let starSound = null;
             if (!settings.sfx) return;
             try {
                 initAudio();
-                // Prova a usare il suono caricato, altrimenti genera un suono sintetico
+                // Play the loaded sample when available, otherwise synthesize a beep
                 if (starSound) {
                     starSound.currentTime = 0;
                     starSound.play().catch(() => { });
@@ -3017,10 +3053,9 @@ function drawMissionsScreen() {
             ctx.fillStyle = '#f1f5f9';
             ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
 
-            // Hit rects for the ◀ / − navigation buttons drawn beside the
-            // first daily mission card (null until the cards render below).
+            // Hit rect for the → arrow button drawn beside the first daily
+            // mission card (null until the cards render below).
             let bossNavArrowRect = null;
-            let bossNavMinusRect = null;
 
             if (m.missionsForDay && m.missionsForDay.length > 0) {
                 const cardW = 440, cardH = 54;
@@ -3083,42 +3118,32 @@ function drawMissionsScreen() {
                     ctx.fillText(progressText, cardX + 62, y + 42);
                 });
 
-                // ----- BOSS objectives access (◀ + −) -----
-                // Two small round buttons on the LEFT of the first daily
-                // mission card: the "−" button (sitting next to the left
-                // arrow) opens the BOSS FIGHT unlock objectives page.
+                // ----- BOSS objectives access (single → arrow) -----
+                // ONE round arrow button on the RIGHT of the first daily
+                // mission card, pointing RIGHT toward the BOSS FIGHT unlock
+                // objectives page. Replaces the old two-button (◀ + −) pair
+                // on the left; the chevron is drawn in the same gold-on-
+                // violet-glow glass style as every other arrow in the game.
                 const navSize = 30;
                 const navY = missionsY + (cardH - navSize) / 2;
-                const navGap = 8;
-                const arrowX = cardX - navGap - navSize - navGap - navSize;
-                const minusX = arrowX + navSize + navGap;
-
-                const navButtons = [
-                    { glyph: '\u25c0', x: arrowX, action: 'bossObjectives' },
-                    { glyph: '\u2212', x: minusX, action: 'bossObjectivesMinus' }
-                ];
-                for (const nb of navButtons) {
-                    const hs = hoverFor(nb.action);
-                    ctx.save();
-                    ctx.shadowBlur = 8 + hs * 10;
-                    ctx.shadowColor = 'rgba(138, 43, 226, ' + (0.3 + hs * 0.5).toFixed(2) + ')';
-                    ctx.fillStyle = 'rgba(26, 31, 44, ' + (0.72 + hs * 0.25).toFixed(2) + ')';
-                    ctx.beginPath();
-                    ctx.roundRect(nb.x, navY, navSize, navSize, 9);
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.strokeStyle = 'rgba(138, 43, 226, ' + (0.5 + hs * 0.4).toFixed(2) + ')';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-                    ctx.font = 'bold 16px Orbitron, sans-serif';
-                    ctx.fillStyle = '#ffd84a';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(nb.glyph, nb.x + navSize / 2, navY + navSize / 2 + 1);
-                    ctx.restore();
-                }
-                bossNavArrowRect = { x: arrowX, y: navY, w: navSize, h: navSize };
-                bossNavMinusRect = { x: minusX, y: navY, w: navSize, h: navSize };
+                const navGap = 10;
+                const arrowX = cardX + cardW + navGap;
+                const arrowY = navY;
+                const arrowHover = hoverFor('bossObjectives');
+                ctx.save();
+                ctx.shadowBlur = 8 + arrowHover * 10;
+                ctx.shadowColor = 'rgba(138, 43, 226, ' + (0.3 + arrowHover * 0.5).toFixed(2) + ')';
+                ctx.fillStyle = 'rgba(26, 31, 44, ' + (0.72 + arrowHover * 0.25).toFixed(2) + ')';
+                ctx.beginPath();
+                ctx.roundRect(arrowX, arrowY, navSize, navSize, 9);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(138, 43, 226, ' + (0.5 + arrowHover * 0.4).toFixed(2) + ')';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                drawVectorIcon('chevron', arrowX + navSize / 2, arrowY + navSize / 2 + 1, '#ffd84a', 1.1);
+                ctx.restore();
+                bossNavArrowRect = { x: arrowX, y: arrowY, w: navSize, h: navSize };
             }
 
             // BACK button + swipe hint
@@ -3156,9 +3181,8 @@ function drawMissionsScreen() {
                 menuButtons.push({ rect: { x: superClaimX, y: claimY, w: superClaimW, h: claimH }, action: 'claimSuperStreak' });
             }
 
-            // BOSS objectives nav buttons (only present when the cards drew)
+            // BOSS objectives arrow (only present when the cards drew)
             if (bossNavArrowRect) menuButtons.push({ rect: bossNavArrowRect, action: 'bossObjectives' });
-            if (bossNavMinusRect) menuButtons.push({ rect: bossNavMinusRect, action: 'bossObjectivesMinus' });
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
@@ -3201,7 +3225,29 @@ function drawBossObjectivesScreen() {
                 ctx.font = '18px Orbitron, sans-serif';
                 ctx.textBaseline = 'middle';
                 ctx.fillText('\u2190 BACK', canvas.width / 2, backY + backH / 2);
-                menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'bossObjectivesBack' }];
+                // Narrow ← arrow back to Missions (matches the main flow).
+                const navSize = 30;
+                const navGap = 10;
+                const navX = 100 - navGap - navSize;
+                const navY = 130 + (98 - navSize) / 2;
+                const backHover = hoverFor('bossObjectivesBack');
+                ctx.save();
+                ctx.shadowBlur = 8 + backHover * 10;
+                ctx.shadowColor = 'rgba(138, 43, 226, ' + (0.3 + backHover * 0.5).toFixed(2) + ')';
+                ctx.fillStyle = 'rgba(26, 31, 44, ' + (0.72 + backHover * 0.25).toFixed(2) + ')';
+                ctx.beginPath();
+                ctx.roundRect(navX, navY, navSize, navSize, 9);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(138, 43, 226, ' + (0.5 + backHover * 0.4).toFixed(2) + ')';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                drawVectorIcon('chevronLeft', navX + navSize / 2, navY + navSize / 2 + 1, '#ffd84a', 1.1);
+                ctx.restore();
+                menuButtons = [
+                    { rect: { x: backX, y: backY, w: backW, h: backH }, action: 'bossObjectivesBack' },
+                    { rect: { x: navX, y: navY, w: navSize, h: navSize }, action: 'bossObjectivesBack' }
+                ];
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'alphabetic';
                 ctx.shadowBlur = 0;
@@ -3286,6 +3332,30 @@ function drawBossObjectivesScreen() {
                 ctx.fillText(Math.round(pct * 100) + '%', cardX + cardW - 22, barY + barH + 16);
             });
 
+            // ----- Narrow ← arrow back to the Missions screen -----
+            // Mirrors the missions arrow: one chevron on the LEFT of the
+            // first objective card, pointing LEFT back to where the player
+            // came from. Same gold-on-violet-glass tile.
+            const navSize = 30;
+            const navGap = 10;
+            const navX = cardX - navGap - navSize;
+            const navY = startY + (cardH - navSize) / 2;
+            const backHover = hoverFor('bossObjectivesBack');
+            ctx.save();
+            ctx.shadowBlur = 8 + backHover * 10;
+            ctx.shadowColor = 'rgba(138, 43, 226, ' + (0.3 + backHover * 0.5).toFixed(2) + ')';
+            ctx.fillStyle = 'rgba(26, 31, 44, ' + (0.72 + backHover * 0.25).toFixed(2) + ')';
+            ctx.beginPath();
+            ctx.roundRect(navX, navY, navSize, navSize, 9);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(138, 43, 226, ' + (0.5 + backHover * 0.4).toFixed(2) + ')';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            drawVectorIcon('chevronLeft', navX + navSize / 2, navY + navSize / 2 + 1, '#ffd84a', 1.1);
+            ctx.restore();
+            const bossBackArrowRect = { x: navX, y: navY, w: navSize, h: navSize };
+
             const bannerY = startY + 3 * (cardH + gap) + 4;
             ctx.textAlign = 'center';
             if (unlocked) {
@@ -3331,6 +3401,7 @@ function drawBossObjectivesScreen() {
             ctx.textBaseline = 'middle';
             ctx.fillText('\u2190 BACK', canvas.width / 2, backY + backH / 2);
             menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'bossObjectivesBack' });
+            menuButtons.push({ rect: bossBackArrowRect, action: 'bossObjectivesBack' });
 
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
@@ -3356,6 +3427,88 @@ function createStar() {
 
         function getComboMultiplier() {
             return 1 + Math.min(3, Math.floor(comboStreak / 5));
+        }
+
+        // ----- Flashing red poison star (Classic) -----
+        // Catching it costs a life; unlike every other star in the mode,
+        // MISSING it costs nothing — the penalty lives on the catch.
+        function createRedStar() {
+            return {
+                x: 20 + Math.random() * (canvas.width - 40),
+                y: -12,
+                radius: 10 + Math.random() * 5,
+                speed: 2.5 + Math.random() * 2,
+                color: '#ff3b30',
+                kind: 'red',
+                spin: (Math.random() - 0.5) * 0.08,
+                pointValue: 0
+            };
+        }
+
+        // ----- Super Star (Classic) -----
+        // Catching it begins the STARDANCE feast: rainbow filter + a
+        // zigzag strip of stars for 20 seconds.
+        function createSuperStar() {
+            return {
+                x: 30 + Math.random() * (canvas.width - 60),
+                y: -14,
+                radius: 15,
+                speed: 1.6 + Math.random() * 0.8,
+                color: '#ffffff',   // rainbow is drawn live in drawFallingStars
+                kind: 'super',
+                spin: 0.02,
+                pointValue: 5
+            };
+        }
+
+        function startStarDance() {
+            starDanceFramesLeft = STAR_DANCE_FRAMES;
+            starDanceFlashFramesLeft = STAR_DANCE_FLASH_FRAMES;
+            // A single random, wide spot — the strip's starting column —
+            // then it sweeps back and forth in a triangle wave (a literal
+            // zigzag) between two bounds around that base x.
+            starDanceBaseX = 80 + Math.random() * (canvas.width - 160);
+            starDanceX = starDanceBaseX;
+            starDanceDir = Math.random() < 0.5 ? -1 : 1;
+            // The zigzag travel is clamped so the strip (≈100 px wide) can
+            // never sweep fully off-canvas — at least half the band always
+            // stays visible on screen.
+            const half = STAR_DANCE_STRIP_WIDTH / 2;
+            starDanceBound = Math.min(
+                40 + Math.random() * 140,
+                Math.max(0, starDanceBaseX - half - 20),
+                Math.max(0, canvas.width - starDanceBaseX - half - 20)
+            );
+        }
+
+        function updateStarDanceSpawner() {
+            // The strip centre travels continuously in a triangle wave.
+            starDanceX += STAR_DANCE_SWEEP_SPEED * starDanceDir;
+            if (starDanceX > starDanceBaseX + starDanceBound) {
+                starDanceX = starDanceBaseX + starDanceBound;
+                starDanceDir = -1;
+            }
+            if (starDanceX < starDanceBaseX - starDanceBound) {
+                starDanceX = starDanceBaseX - starDanceBound;
+                starDanceDir = 1;
+            }
+            // Dense band of rainbow stars as wide as the player's catch
+            // bubble (± half the strip width around the centre).
+            const half = STAR_DANCE_STRIP_WIDTH / 2;
+            for (let k = 0; k < (IS_MOBILE ? 1 : 2); k++) {
+                if (Math.random() < 0.85) {
+                    stars.push({
+                        x: starDanceX + (Math.random() * 2 - 1) * half * 0.85,
+                        y: -10 - Math.random() * 30,
+                        radius: 8 + Math.random() * 5,
+                        speed: 2 + Math.random() * 1.6,
+                        color: 'hsl(' + Math.floor(Math.random() * 360) + ', 100%, 62%)',
+                        kind: 'strip',
+                        spin: (Math.random() - 0.5) * 0.05,
+                        pointValue: 1
+                    });
+                }
+            }
         }
 
         function createMeteorite() {
@@ -3439,6 +3592,10 @@ function resetGame() {
             playerHitFlash = 0;
             survivalStartTime = 0;
             survivalScorePerSecondTick = 0;
+            superSpawnCooldown = 540;      // first Super Star after ~9 s
+            starDanceFramesLeft = 0;
+            starDanceFlashFramesLeft = 0;
+            survivalEnemySpawnCooldown = 0;
             player.x = 400;
             player.y = 550;
             player.targetX = 400;
@@ -3798,6 +3955,10 @@ function update() {
             // Tick the blue-player damage flash down every frame so the
             // red hurt tint in drawShip() fades out naturally.
             if (playerHitFlash > 0) playerHitFlash--;
+            // STARDANCE timers live in FRAMES (not wall-clock) so pausing
+            // the game freezes the feast instead of eating its 20 seconds.
+            if (starDanceFramesLeft > 0) starDanceFramesLeft--;
+            if (starDanceFlashFramesLeft > 0) starDanceFlashFramesLeft--;
 
             // Movement has two branches:
             //
@@ -3835,8 +3996,29 @@ function update() {
             if (gameMode === GAME_MODES.CLASSIC) {
                 // Classic: stars fall; catching them gives points, missing
                 // them costs a life.
-                if (Math.random() < 0.05) {
-                    stars.push(createStar());
+                if (starDanceFramesLeft > 0) {
+                    // STARDANCE: the normal spawner is replaced by the
+                    // rainbow zigzag strip (missed strip stars are free).
+                    updateStarDanceSpawner();
+                } else {
+                    if (Math.random() < 0.05) {
+                        stars.push(createStar());
+                    }
+                    // Flashing red poison star — catching it costs a life,
+                    // but (unlike every other star) MISSING it costs nothing.
+                    if (Math.random() < 0.003) {
+                        stars.push(createRedStar());
+                    }
+                }
+
+                // Rare Super Star — catching it starts the 20 s STARDANCE
+                // feast. Independent of the dance state so the next star
+                // can drift in mid-feast and queue up the one after.
+                if (superSpawnCooldown > 0) superSpawnCooldown--;
+                if (superSpawnCooldown <= 0 && !stars.some(s => s.kind === 'super')
+                    && Math.random() < 0.02) {
+                    stars.push(createSuperStar());
+                    superSpawnCooldown = 2400; // ~40 s between Super Stars
                 }
 
                 for (let i = stars.length - 1; i >= 0; i--) {
@@ -3849,6 +4031,26 @@ function update() {
                     const collisionDistance = player.radius + star.radius;
 
                     if (distance < collisionDistance) {
+                        if (star.kind === 'super') {
+                            // Super Star caught → the rainbow STARDANCE begins.
+                            comboStreak++;
+                            comboBest = Math.max(comboBest, comboStreak);
+                            score += 5;
+                            playRecordSound();
+                            startStarDance();
+                            stars.splice(i, 1);
+                            continue;
+                        }
+                        if (star.kind === 'red') {
+                            // Poison star caught → lose a life.
+                            comboStreak = 0;
+                            lives--;
+                            playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
+                            playLoseLifeSound();
+                            stars.splice(i, 1);
+                            if (lives <= 0) endGame();
+                            continue;
+                        }
                         comboStreak++;
                         comboBest = Math.max(comboBest, comboStreak);
                         const comboBonus = Math.min(3, Math.floor(comboStreak / 5));
@@ -3868,6 +4070,13 @@ function update() {
                     }
 
                     if (star.y > canvas.height + star.radius) {
+                        // Red, strip + super stars never punish a miss —
+                        // only the normal (and lucky) stars cost a life
+                        // when missed.
+                        if (star.kind === 'red' || star.kind === 'strip' || star.kind === 'super') {
+                            stars.splice(i, 1);
+                            continue;
+                        }
                         comboStreak = 0;
                         lives--;
                         playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
@@ -3878,8 +4087,11 @@ function update() {
                     }
                 }
 
-                if (stars.length > 100) {
-                    stars.splice(0, stars.length - 100);
+                // During STARDANCE the strip fills the field with rainbow
+                // stars, so the cull cap opens right up for the feast.
+                const starCap = starDanceFramesLeft > 0 ? 300 : 100;
+                if (stars.length > starCap) {
+                    stars.splice(0, stars.length - starCap);
                 }
 
                 // In-game NEW RECORD banner (classic only)
@@ -4239,6 +4451,75 @@ function updateSurvival() {
                     meteorites.splice(i, 1);
                 }
             }
+            // ----- Red Battle ships join after 30 seconds -----
+            // Once the player has survived 30 s, the red arrow-shaped
+            // opponents from Battle mode start dropping in — same enter →
+            // hover → telegraph → fire loop, but their bolts cost a LIFE
+            // (Survival has no HP bar). The count stays small so the mode
+            // keeps reading as dodge-first.
+            if (score >= 30) {
+                if (survivalEnemySpawnCooldown > 0) survivalEnemySpawnCooldown--;
+                if (survivalEnemySpawnCooldown <= 0 && battleEnemies.length < 3) {
+                    battleEnemies.push(createEnemy(false));  // red ships only — no elites
+                    survivalEnemySpawnCooldown = 130 + Math.floor(Math.random() * 110);
+                }
+
+                for (let i = battleEnemies.length - 1; i >= 0; i--) {
+                    const e = battleEnemies[i];
+                    if (e.state === 'entering') {
+                        e.y += 1.2;
+                        if (e.y >= e.anchorY) {
+                            e.y = e.anchorY;
+                            e.state = 'hover';
+                            e.fireTimer = 90 + Math.floor(Math.random() * 60);
+                        }
+                    } else {
+                        e.swayPhase += 0.05;
+                        e.x = e.anchorX + Math.sin(e.swayPhase) * 12;
+                        e.flashTimer = Math.max(0, e.flashTimer - 1);
+                        e.fireTimer -= 1;
+                        if (e.fireTimer <= 0) {
+                            if (e.flashTimer === 0) e.flashTimer = 30;
+                            if (e.flashTimer === 1) {
+                                enemyBullets.push({
+                                    x: e.x,
+                                    y: e.y + 28,
+                                    radius: 6,
+                                    vy: 4.0 + Math.min(1.5, score / 60),
+                                    dmg: 0   // dmg unused — Survival runs on lives
+                                });
+                                playEnemyShootSound();
+                                e.fireTimer = 110 + Math.floor(Math.random() * 80);
+                            }
+                        }
+                    }
+                }
+
+                // Enemy bolts vs the player — same 80 px hit test as Battle,
+                // sharing the meteorite i-frame window.
+                for (let i = enemyBullets.length - 1; i >= 0; i--) {
+                    const b = enemyBullets[i];
+                    b.y += b.vy;
+                    if (b.y > canvas.height + 20) {
+                        enemyBullets.splice(i, 1);
+                        continue;
+                    }
+                    if (meteoriteHitCooldown === 0) {
+                        const dx = b.x - player.x;
+                        const dy = b.y - player.y;
+                        if (dx * dx + dy * dy < 80 * 80) {
+                            lives--;
+                            meteoriteHitCooldown = SURVIVAL_I_FRAMES;
+                            playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
+                            playLoseLifeSound();
+                            enemyBullets.splice(i, 1);
+                            if (lives <= 0) endGame();
+                            if (gameOver) break;
+                        }
+                    }
+                }
+            }
+
             // ----- Survival monster update + beam damage gate -----
             // The monster state machine runs every survival frame so
             // warp-in / active / fade-out animations progress
@@ -5788,6 +6069,69 @@ function drawFallingStars() {
                     ctx.fill();
                 }
 
+                if (star.kind === 'red') {
+                    // Flashing poison star — a bright/dim pulse driven by
+                    // the star's own height + time so each one flashes out
+                    // of sync with its neighbours.
+                    const pulse = 0.5 + 0.5 * Math.sin(star.y * 0.22 + performance.now() * 0.02);
+                    ctx.shadowColor = '#ff2d2d';
+                    ctx.shadowBlur = 16 + pulse * 18;
+                    ctx.fillStyle = 'rgb(255,' + Math.round(40 + pulse * 50) + ',' + Math.round(38 + pulse * 40) + ')';
+                    ctx.strokeStyle = pulse > 0.55 ? '#ffe0e0' : '#ff9090';
+                    ctx.lineWidth = 1.4;
+                    const redSpikes = 5;
+                    const redOuter = star.radius;
+                    const redInner = star.radius * 0.42;
+                    ctx.beginPath();
+                    for (let i = 0; i < redSpikes * 2; i++) {
+                        const radius = i % 2 === 0 ? redOuter : redInner;
+                        const angle = (i * Math.PI) / redSpikes - Math.PI / 2;
+                        const x = radius * Math.cos(angle);
+                        const y = radius * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                    continue;
+                }
+
+                if (star.kind === 'super') {
+                    // Super Star — big pulsing rainbow star that triggers
+                    // the STARDANCE feast when caught.
+                    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 130);
+                    const hue = (performance.now() / 22) % 360;
+                    ctx.shadowColor = 'hsl(' + hue + ', 100%, 70%)';
+                    ctx.shadowBlur = 26 + pulse * 16;
+                    ctx.strokeStyle = 'hsla(' + hue + ', 100%, 72%, ' + (0.55 + pulse * 0.4).toFixed(2) + ')';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, star.radius * (1.3 + pulse * 0.3), 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.fillStyle = 'hsl(' + ((hue + 45) % 360) + ', 100%, 66%)';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.2;
+                    const superSpikes = 8;
+                    const superOuter = star.radius;
+                    const superInner = star.radius * 0.38;
+                    ctx.beginPath();
+                    for (let i = 0; i < superSpikes * 2; i++) {
+                        const radius = i % 2 === 0 ? superOuter : superInner;
+                        const angle = (i * Math.PI) / superSpikes - Math.PI / 2;
+                        const x = radius * Math.cos(angle);
+                        const y = radius * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                    continue;
+                }
+
                 ctx.fillStyle = star.color;
                 ctx.strokeStyle = lucky ? '#fff4c0' : '#fff';
                 ctx.lineWidth = lucky ? 1.5 : 1;
@@ -5906,6 +6250,61 @@ function drawFallingStars() {
             for (let y = 0; y < canvas.height; y += scanStride) {
                 ctx.fillRect(0, y, canvas.width, 2);
             }
+        }
+
+        function drawStarDanceOverlay() {
+            // Rainbow filter over the Classic scene while STARDANCE runs —
+            // the same draw-after-the-field approach as the Survival red
+            // overlay, just in rainbow instead of red.
+            if (starDanceFramesLeft <= 0) return;
+            const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            const stops = [
+                'rgba(255, 60, 60, 0.22)',
+                'rgba(255, 160, 40, 0.20)',
+                'rgba(255, 220, 60, 0.20)',
+                'rgba(80, 220, 120, 0.20)',
+                'rgba(70, 140, 255, 0.20)',
+                'rgba(180, 90, 255, 0.22)'
+            ];
+            stops.forEach((c, i) => g.addColorStop(i / (stops.length - 1), c));
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Soft pulsing centre glow so the whole screen feels alive.
+            const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+            const rg = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, 40,
+                canvas.width / 2, canvas.height / 2, canvas.height * 0.8
+            );
+            rg.addColorStop(0, 'rgba(255, 255, 255, ' + (0.04 + pulse * 0.05).toFixed(2) + ')');
+            rg.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = rg;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawStarDanceBanner() {
+            // "STARDANCE" flashes in rainbow for the first two seconds of
+            // the feast (alpha blinks via performance.now — the 2-second
+            // WINDOW itself is governed by the frame counter so pause
+            // freezes it).
+            if (starDanceFlashFramesLeft <= 0) return;
+            const alpha = 0.55 + 0.45 * Math.sin(performance.now() / 90);
+            const g = ctx.createLinearGradient(canvas.width / 2 - 220, 0, canvas.width / 2 + 220, 0);
+            g.addColorStop(0, '#ff5c5c');
+            g.addColorStop(0.25, '#ffb13d');
+            g.addColorStop(0.5, '#ffe95c');
+            g.addColorStop(0.75, '#5ce0a0');
+            g.addColorStop(1, '#7a9dff');
+            ctx.save();
+            ctx.globalAlpha = Math.max(0.12, alpha);
+            ctx.font = 'bold 54px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowBlur = 26;
+            ctx.fillStyle = g;
+            ctx.fillText('STARDANCE', canvas.width / 2, canvas.height / 2 - 40);
+            ctx.restore();
         }
 
                 // ===== 6.6 Ships (blue + green) + beams =====
@@ -6113,19 +6512,24 @@ function drawShip() {
                 // can read it without having to overlay onto the ship
                 // art. Colour-matches the player HP bar so the eye
                 // learns one colour → fraction mapping. Ratio is against
-                // each enemy's own maxHp (elites have 120).
-                const hpRatio = Math.max(0, e.hp / (e.maxHp || 100));
-                const barW = e.elite ? 64 : 52;
-                const barX = -barW / 2;
-                const barY = -42;
-                ctx.fillStyle = 'rgba(0,0,0,0.7)';
-                ctx.fillRect(barX, barY, barW, 4);
-                let barColor;
-                if (hpRatio > 0.5) barColor = '#3ec46d';
-                else if (hpRatio > 0.25) barColor = '#ffaa33';
-                else barColor = '#ff4060';
-                ctx.fillStyle = barColor;
-                ctx.fillRect(barX, barY, barW * hpRatio, 4);
+                // each enemy's own maxHp (elites have 120). Skipped in
+                // Survival, where these ships are pure dodge-hazards (no
+                // player bullets) — a full green bar would wrongly imply
+                // they can be destroyed.
+                if (gameMode !== GAME_MODES.SURVIVAL) {
+                    const hpRatio = Math.max(0, e.hp / (e.maxHp || 100));
+                    const barW = e.elite ? 64 : 52;
+                    const barX = -barW / 2;
+                    const barY = -42;
+                    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    ctx.fillRect(barX, barY, barW, 4);
+                    let barColor;
+                    if (hpRatio > 0.5) barColor = '#3ec46d';
+                    else if (hpRatio > 0.25) barColor = '#ffaa33';
+                    else barColor = '#ff4060';
+                    ctx.fillStyle = barColor;
+                    ctx.fillRect(barX, barY, barW * hpRatio, 4);
+                }
 
                 // While the pre-fire telegraph flash is active
                 // (flashTimer > 0) both silhouettes swap to white for a
@@ -8243,6 +8647,8 @@ function draw() {
                         drawMeteorites();
                         drawSurvivalOverlay();   // red filter on top of bg + meteorites
                         drawMonster();          // cyclops face + beam drawn AFTER vignette so the dark green reads true
+                        drawEnemies();          // red Battle ships once the run passes 30 s
+                        drawEnemyBullets();     // and the red bolts they fire
                     } else if (gameMode === GAME_MODES.BATTLE) {
                         // Battle mode owns its own scene: red enemy
                         // ships with HP bars, blue ray bullets, red
@@ -8279,6 +8685,11 @@ function draw() {
                         drawEnemyBullets();
                     } else {
                         drawFallingStars();
+                        // STARDANCE rainbow filter + banner (Classic feast)
+                        if (starDanceFramesLeft > 0) {
+                            drawStarDanceOverlay();
+                            if (starDanceFlashFramesLeft > 0) drawStarDanceBanner();
+                        }
                     }
                     drawShip();
                     if (gameMode === GAME_MODES.COOP) drawGreenShip();
@@ -8290,6 +8701,9 @@ function draw() {
                     if (gameMode === GAME_STATES.SURVIVAL || gameMode === GAME_MODES.SURVIVAL) {
                         drawMeteorites();
                         drawSurvivalOverlay();
+                        drawMonster();          // keep the frozen frame identical to PLAYING
+                        drawEnemies();
+                        drawEnemyBullets();
                     } else if (gameMode === GAME_MODES.BOSS) {
                         // BOSS FIGHT paused frame mirrors the PLAYING scene
                         // so the frozen snapshot is byte-identical.
@@ -8314,6 +8728,11 @@ function draw() {
                         drawEnemyBullets();
                     } else {
                         drawFallingStars();
+                        // STARDANCE rainbow filter + banner (Classic feast)
+                        if (starDanceFramesLeft > 0) {
+                            drawStarDanceOverlay();
+                            if (starDanceFlashFramesLeft > 0) drawStarDanceBanner();
+                        }
                     }
                     drawShip();
                     if (gameMode === GAME_MODES.COOP) drawGreenShip();
@@ -8441,8 +8860,9 @@ function handleMenuAction(action) {
                     break;
                 case 'bossObjectives':
                 case 'bossObjectivesMinus':
-                    // Open the BOSS FIGHT unlock objectives page (the '◀'
-                    // / '−' buttons beside the first daily mission card).
+                    // Open the BOSS FIGHT unlock objectives page (the '→'
+                    // arrow beside the first daily mission card). The
+                    // 'bossObjectivesMinus' alias is kept for old saves.
                     playClickSound();
                     gameState = GAME_STATES.BOSS_UNLOCK;
                     break;
@@ -8472,7 +8892,7 @@ function handleMenuAction(action) {
                             alert('The name must be at most 12 characters!');
                             return;
                         }
-                        // Se è un nuovo nome diverso da currentUser, azzera i record
+                        // A new name different from currentUser resets the old account's records
                         if (newUser !== currentUser && currentUser) {
                             if (confirm(`Changing account from "${currentUser}" to "${newUser}".\nYour previous records will be reset. Continue?`)) {
                                 // Remove the previous account's records
@@ -8490,10 +8910,10 @@ function handleMenuAction(action) {
                                 settings = loadSettings();
                                 resetGame();
                                 gameState = GAME_STATES.MENU;
-                                accountInput = newUser; // Mantieni il nuovo nome
+                                accountInput = newUser; // keep the new name visible
                                 showMobileInput(false);
                             }
-                            // Se l'utente annulla, rimane nella schermata account
+                            // If the user cancels, stay on the account screen
                         } else {
                             currentUser = newUser;
                             getUserRecords(currentUser);
@@ -8501,7 +8921,7 @@ function handleMenuAction(action) {
                             settings = loadSettings();
                             resetGame();
                             gameState = GAME_STATES.MENU;
-                            accountInput = newUser; // Mantieni il nome
+                            accountInput = newUser; // keep the name visible
                             showMobileInput(false);
                         }
                     } else {
@@ -9150,7 +9570,7 @@ const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
             });
         }
 
-        // Gestore per cancellare il nome corrente
+        // Handler for clearing the current name
         const mobileClearNameBtn = document.getElementById('mobileClearNameBtn');
         if (mobileClearNameBtn) {
             mobileClearNameBtn.addEventListener('click', () => {
@@ -9161,7 +9581,7 @@ const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
             });
         }
 
-        // Gestore per cancellare l'account
+        // Handler for deleting the account
         const mobileClearAccountBtn = document.getElementById('mobileClearAccountBtn');
         if (mobileClearAccountBtn) {
             mobileClearAccountBtn.addEventListener('click', () => {
@@ -9260,7 +9680,7 @@ const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
             }
         }
 
-        // Inizializza l'audio alla prima interazione dell'utente (richiesto da Web API)
+        // Initialise audio on the first user interaction (required by the Web Audio API)
         function initAudioOnUserInteraction() {
             initAudio();
             initMenuAudio();
