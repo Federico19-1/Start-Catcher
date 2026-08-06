@@ -217,6 +217,10 @@
         }
 
         .account-card__button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
             flex: 1 1 112px;
             min-height: 40px;
             border-radius: 14px;
@@ -314,14 +318,19 @@
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
     <button id="pauseButton" class="hud-button hud-button--pause" aria-label="Game Pause" aria-keyshortcuts="P"
-        title="Pause / Resume (press P)" style="display: none;">⏸</button>
+        title="Pause / Resume (press P)" style="display: none;">
+        <svg id="pauseIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="5" y="4" width="5" height="16" rx="1.5"/>
+            <rect x="14" y="4" width="5" height="16" rx="1.5"/>
+        </svg>
+    </button>
 
     <!-- Small "P" key hint pill that sits BESIDE the pause button so the
          player sees that the keyboard shortcut exists. Hidden by default
          (display:none) and shown only during PLAYING / PAUSED via JS. The
          same gold palette as the menu's "M KEY" pill keeps it on-brand and
          gives the indicator visual weight without competing with the
-         pause ⏸ icon for attention. -->
+         pause icon for attention. -->
     <span id="pauseKeyHint" class="key-hint" aria-hidden="true">P</span>
     <!-- S key hint pill — stacked directly below the P pill by the
          modified positionPauseKeyHint function so the player sees
@@ -332,18 +341,16 @@
     <span id="saveKeyHint" class="key-hint" aria-hidden="true">S</span>
 
     <div id="mobileAccountInput" class="account-card">
-        <div class="account-card__title">👤 NEW ACCOUNT</div>
+        <div class="account-card__title"><svg width="16" height="16" viewBox="-9 -9 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="0" cy="-3.5" r="3.2"/><path d="M-7 7a7 7 0 0 1 14 0"/></svg> NEW ACCOUNT</div>
         <input type="text" id="accountMobileInput" maxlength="12" placeholder="Name (max 12 char)"
             class="account-card__input">
         <div class="account-card__actions">
-            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost">🗑️ Clear
-                Name</button>
-            <button id="mobileConfirmBtn" class="account-card__button account-card__button--primary">✅ CONFIRM</button>
-            <button id="mobileCancelBtn" class="account-card__button account-card__button--secondary">✖ CANCEL</button>
+            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h8M3.5 3.5l.6 7a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-7"/><path d="M5.5 3V2.2a.8.8 0 0 1 .8-.7h1.4a.8.8 0 0 1 .8.7V3"/></svg> Clear Name</button>
+            <button id="mobileConfirmBtn" class="account-card__button account-card__button--primary"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7l3 3L12 3"/></svg> CONFIRM</button>
+            <button id="mobileCancelBtn" class="account-card__button account-card__button--secondary"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg> CANCEL</button>
         </div>
         <div style="margin-top: 15px;">
-            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger">🗑️ Clear
-                Account</button>
+            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h8M3.5 3.5l.6 7a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-7"/><path d="M5.5 3V2.2a.8.8 0 0 1 .8-.7h1.4a.8.8 0 0 1 .8.7V3"/></svg> Clear Account</button>
         </div>
     </div>
 
@@ -591,9 +598,16 @@ let gameState = GAME_STATES.MENU;
         // Draws a small geometric icon (no emoji) inside a 22 x 22 box
         // centred on (x, y). Vector icons render pixel-identically on every
         // device (emoji does not) and read as deliberately designed.
-        function drawVectorIcon(type, x, y, color) {
+        function drawVectorIcon(type, x, y, color, scale) {
             ctx.save();
             ctx.translate(x, y);
+            // 'trophy' is an alias for the 'records' trophy artwork so
+            // screens can name the icon semantically.
+            if (type === 'trophy') type = 'records';
+            // Optional uniform scale lets one 22x22 box serve both small
+            // badges (scale ~0.6) and large hero glyphs (scale ~2.4).
+            const s = scale || 1;
+            if (s !== 1) ctx.scale(s, s);
             ctx.strokeStyle = color;
             ctx.fillStyle = color;
             ctx.lineWidth = 1.8;
@@ -712,7 +726,389 @@ let gameState = GAME_STATES.MENU;
                     ctx.stroke();
                     break;
                 }
+                case 'shield': { // shield outline (HUD)
+                    ctx.beginPath();
+                    ctx.moveTo(0, -8);
+                    ctx.lineTo(6.5, -5.5);
+                    ctx.lineTo(6.5, 2);
+                    ctx.quadraticCurveTo(6.5, 6.5, 0, 9);
+                    ctx.quadraticCurveTo(-6.5, 6.5, -6.5, 2);
+                    ctx.lineTo(-6.5, -5.5);
+                    ctx.closePath();
+                    ctx.stroke();
+                    break;
+                }
+                case 'star': { // 4-point sparkle star
+                    ctx.beginPath();
+                    ctx.moveTo(0, -8);
+                    ctx.quadraticCurveTo(1.8, -1.8, 8, 0);
+                    ctx.quadraticCurveTo(1.8, 1.8, 0, 8);
+                    ctx.quadraticCurveTo(-1.8, 1.8, -8, 0);
+                    ctx.quadraticCurveTo(-1.8, -1.8, 0, -8);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
+                case 'skull': { // skull: cranium + eyes + jaw
+                    ctx.beginPath();
+                    ctx.arc(0, -2, 6.5, Math.PI, 0);
+                    ctx.lineTo(6.5, 4);
+                    ctx.quadraticCurveTo(6.5, 8, 4, 8);
+                    ctx.lineTo(-4, 8);
+                    ctx.quadraticCurveTo(-6.5, 8, -6.5, 4);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(-2.6, 0.5, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(2.6, 0.5, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                case 'target': { // concentric rings + centre dot
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 4.2, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 1.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                case 'lock': { // padlock: shackle + body
+                    ctx.beginPath();
+                    ctx.arc(0, -3.5, 4, Math.PI, 0);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.roundRect(-6.5, -1, 13, 9, 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(0, 2.5, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                case 'crown': { // three-point crown
+                    ctx.beginPath();
+                    ctx.moveTo(-8, 6.5);
+                    ctx.lineTo(-8, -1.5);
+                    ctx.lineTo(-3.5, 3);
+                    ctx.lineTo(0, -6);
+                    ctx.lineTo(3.5, 3);
+                    ctx.lineTo(8, -1.5);
+                    ctx.lineTo(8, 6.5);
+                    ctx.closePath();
+                    ctx.stroke();
+                    break;
+                }
+                case 'flame': { // teardrop flame
+                    ctx.beginPath();
+                    ctx.moveTo(0, -8);
+                    ctx.quadraticCurveTo(7, 1, 4.5, 5);
+                    ctx.quadraticCurveTo(0, 9, -4.5, 5);
+                    ctx.quadraticCurveTo(-7, 1, 0, -8);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
+                case 'calendar': { // calendar: header + rings
+                    ctx.beginPath();
+                    ctx.roundRect(-8, -6, 16, 13, 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-8, -2);
+                    ctx.lineTo(8, -2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(-4.5, -8.5, 1.4, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(4.5, -8.5, 1.4, 0, Math.PI * 2);
+                    ctx.stroke();
+                    break;
+                }
+                case 'check': { // check mark
+                    ctx.beginPath();
+                    ctx.moveTo(-6.5, 0.5);
+                    ctx.lineTo(-2, 5.5);
+                    ctx.lineTo(6.5, -4.5);
+                    ctx.stroke();
+                    break;
+                }
+                case 'box': { // empty rounded box (un-checked)
+                    ctx.beginPath();
+                    ctx.roundRect(-6.5, -6.5, 13, 13, 3);
+                    ctx.stroke();
+                    break;
+                }
+                case 'heart': { // heart
+                    ctx.beginPath();
+                    ctx.moveTo(0, 7);
+                    ctx.bezierCurveTo(-9, 1, -6, -7, 0, -2);
+                    ctx.bezierCurveTo(6, -7, 9, 1, 0, 7);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
+                case 'medal': { // medal: ribbon + coin
+                    ctx.beginPath();
+                    ctx.arc(0, 2.5, 5.5, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-3.5, -0.5);
+                    ctx.lineTo(-6, -8);
+                    ctx.lineTo(-1.5, -5);
+                    ctx.moveTo(3.5, -0.5);
+                    ctx.lineTo(6, -8);
+                    ctx.lineTo(1.5, -5);
+                    ctx.stroke();
+                    break;
+                }
+                case 'boom': { // explosion starburst
+                    ctx.beginPath();
+                    ctx.moveTo(0, -9);
+                    for (let i = 1; i < 8; i++) {
+                        const a = i * Math.PI / 4 - Math.PI / 2;
+                        const r = i % 2 === 0 ? 9 : 4.2;
+                        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
+                case 'home': { // house: roof + body + door
+                    ctx.beginPath();
+                    ctx.moveTo(-9, 2);
+                    ctx.lineTo(0, -8);
+                    ctx.lineTo(9, 2);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.roundRect(-6, 1.5, 12, 7, 1.5);
+                    ctx.stroke();
+                    ctx.fillRect(-2, 4.5, 4, 4);
+                    break;
+                }
+                case 'save': { // floppy disk
+                    ctx.beginPath();
+                    ctx.roundRect(-8, -7, 16, 14, 1.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.roundRect(-6, 4, 7, 3, 1);
+                    ctx.stroke();
+                    ctx.fillRect(3.5, -5, 3, 3);
+                    break;
+                }
+                case 'note': { // music note
+                    ctx.beginPath();
+                    ctx.ellipse(-4, 4.5, 2.8, 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(-1.2, 4.5);
+                    ctx.lineTo(-1.2, -5.5);
+                    ctx.lineTo(6, -3.5);
+                    ctx.lineTo(6, 3);
+                    ctx.stroke();
+                    break;
+                }
+                case 'speaker': { // speaker: box + cone + waves
+                    ctx.beginPath();
+                    ctx.roundRect(-8, -6, 5, 12, 1.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-3, -6);
+                    ctx.lineTo(3, -9);
+                    ctx.lineTo(3, 9);
+                    ctx.lineTo(-3, 6);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(5, 0, 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(8.5, 0, 3, -0.9, 0.9);
+                    ctx.stroke();
+                    break;
+                }
+                case 'gamepad': { // gamepad: body + d-pad + buttons
+                    ctx.beginPath();
+                    ctx.roundRect(-9, -5, 18, 10, 5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-4.5, -2);
+                    ctx.lineTo(-4.5, 2);
+                    ctx.moveTo(-6.5, 0);
+                    ctx.lineTo(-2.5, 0);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(4.5, -1.5, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(6.5, 1.5, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                case 'mouse': { // computer mouse
+                    ctx.beginPath();
+                    ctx.roundRect(-5, -8, 10, 16, 5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, -8);
+                    ctx.lineTo(0, -2.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, 8);
+                    ctx.lineTo(0, 11);
+                    ctx.stroke();
+                    break;
+                }
+                case 'monitor': { // desktop monitor
+                    ctx.beginPath();
+                    ctx.roundRect(-9, -8, 18, 12, 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-3, 4);
+                    ctx.lineTo(3, 4);
+                    ctx.moveTo(0, 4);
+                    ctx.lineTo(0, 8);
+                    ctx.moveTo(-4.5, 8);
+                    ctx.lineTo(4.5, 8);
+                    ctx.stroke();
+                    break;
+                }
+                case 'antenna': { // satellite dish + signal
+                    ctx.beginPath();
+                    ctx.arc(0, -3, 6, Math.PI * 0.8, Math.PI * 0.2, true);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-2.5, -7.5);
+                    ctx.lineTo(2.5, -7.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, 2);
+                    ctx.lineTo(0, 9);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(-8, 2, 1.5, 0, Math.PI * 2);
+                    ctx.stroke();
+                    break;
+                }
+                case 'clock': { // stopwatch / timer
+                    ctx.beginPath();
+                    ctx.arc(0, -1, 7, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, -1);
+                    ctx.lineTo(0, -5);
+                    ctx.moveTo(0, -1);
+                    ctx.lineTo(4, 1.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-3, -8);
+                    ctx.lineTo(-3, -11);
+                    ctx.moveTo(3, -8);
+                    ctx.lineTo(3, -11);
+                    ctx.stroke();
+                    break;
+                }
+                case 'rocket': { // rocket: nose + body + window
+                    ctx.beginPath();
+                    ctx.moveTo(0, -9);
+                    ctx.quadraticCurveTo(5.5, -2, 5.5, 3);
+                    ctx.lineTo(5.5, 5);
+                    ctx.lineTo(2.5, 4);
+                    ctx.lineTo(2.5, 8);
+                    ctx.lineTo(-2.5, 8);
+                    ctx.lineTo(-2.5, 4);
+                    ctx.lineTo(-5.5, 5);
+                    ctx.lineTo(-5.5, 3);
+                    ctx.quadraticCurveTo(-5.5, -2, 0, -9);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(0, -2, 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                    break;
+                }
+                case 'refresh': { // circular retry arrow
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 7, -0.6, 4.7, true);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-4.5, -7);
+                    ctx.lineTo(-1.5, -2.5);
+                    ctx.lineTo(3.5, -4.5);
+                    ctx.stroke();
+                    break;
+                }
+                case 'pause': { // two vertical bars
+                    ctx.fillRect(-6.5, -7, 4.5, 14);
+                    ctx.fillRect(2, -7, 4.5, 14);
+                    break;
+                }
             }
+            ctx.restore();
+        }
+
+        // ----- Icon + text label helpers -----
+        // drawIconLabel* draw a vector icon immediately LEFT of a text
+        // label (left / centre / right-aligned variants), replacing the
+        // old emoji-prefix style ('Points: 100') so every screen
+        // uses the same geometric icon language as the main menu. The
+        // icon is vertically centred on the text's optical middle and
+        // sits ~22 px wide + 7 px gap, matching drawGlassButton's own
+        // icon+label grouping. Each helper saves/restores the context
+        // so callers keep their own textAlign / fillStyle.
+        function drawIconLabel(iconType, text, x, y, font, color, iconColor, iconSize) {
+            const size = iconSize || 16;
+            const m = /(\d+(?:\.\d+)?)px/.exec(font);
+            const fontPx = m ? parseFloat(m[1]) : 18;
+            ctx.save();
+            ctx.font = font;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            const gap = Math.round(size * 0.35);
+            drawVectorIcon(iconType, x + size / 2, y - fontPx * 0.36, iconColor || color, size / 22);
+            ctx.fillText(text, x + size + gap, y);
+            ctx.restore();
+        }
+
+        function drawIconLabelCenter(iconType, text, cx, y, font, color, iconColor, iconSize) {
+            const size = iconSize || 18;
+            const m = /(\d+(?:\.\d+)?)px/.exec(font);
+            const fontPx = m ? parseFloat(m[1]) : 18;
+            ctx.save();
+            ctx.font = font;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            const tw = ctx.measureText(text).width;
+            const gap = Math.round(size * 0.35);
+            const groupW = tw + gap + size;
+            const startX = cx - groupW / 2;
+            drawVectorIcon(iconType, startX + size / 2, y - fontPx * 0.36, iconColor || color, size / 22);
+            ctx.fillText(text, startX + size + gap, y);
+            ctx.restore();
+        }
+
+        function drawIconLabelRight(iconType, text, x, y, font, color, iconColor, iconSize) {
+            const size = iconSize || 16;
+            const m = /(\d+(?:\.\d+)?)px/.exec(font);
+            const fontPx = m ? parseFloat(m[1]) : 18;
+            ctx.save();
+            ctx.font = font;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'alphabetic';
+            const tw = ctx.measureText(text).width;
+            const gap = Math.round(size * 0.35);
+            const groupW = tw + gap + size;
+            const startX = x - groupW;
+            drawVectorIcon(iconType, startX + size / 2, y - fontPx * 0.36, iconColor || color, size / 22);
+            ctx.fillText(text, x, y);
             ctx.restore();
         }
 
@@ -2243,7 +2639,7 @@ function showMobileInput(show) {
             const m = refreshMissionsForUser(currentUser);
             const today = m.currentDayKey;
             // Locked-state guard: the button is always rendered under
-            // the SUPER STREAK counter (greyed-out "🔒 LOCKED" until all
+            // the SUPER STREAK counter (greyed-out "LOCKED" until all
             // 3 daily missions are done), so a click on the locked
             // version MUST be a no-op here. Once _lastAllCompleteDayKey
             // matches today, this guard lets the click through to bump
@@ -2451,7 +2847,7 @@ function drawMissionsScreen() {
             ctx.shadowColor = '#ffd84a';
             ctx.font = 'bold 38px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd84a';
-            ctx.fillText('\u{1f4cb} MISSIONS', canvas.width / 2, 60);
+            drawIconLabelCenter('missions', 'MISSIONS', canvas.width / 2, 60, 'bold 38px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 22);
 
             if (!currentUser) {
                 ctx.shadowBlur = 10;
@@ -2484,7 +2880,7 @@ function drawMissionsScreen() {
             ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9cd3ff';
             const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-            ctx.fillText('\u{1f4c5} ' + dateStr, canvas.width / 2, 92);
+            drawIconLabelCenter('calendar', dateStr, canvas.width / 2, 92, '13px Orbitron, sans-serif', '#9cd3ff', '#9cd3ff', 14);
 
             // Streak panel
             const streakY = 125, streakH = 110, streakW = 360;
@@ -2522,7 +2918,7 @@ function drawMissionsScreen() {
             ctx.font = 'bold 38px Arial';
             ctx.shadowColor = '#ff7300';
             ctx.shadowBlur = 22;
-            ctx.fillText('\u{1f525}', dailyX, streakY + 60);
+            drawVectorIcon('flame', dailyX, streakY + 44, '#ff9933', 1.8);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = '#ff9933';
@@ -2536,7 +2932,7 @@ function drawMissionsScreen() {
             ctx.font = 'bold 38px Arial';
             ctx.shadowColor = '#8a0303';
             ctx.shadowBlur = 22;
-            ctx.fillText('\u{1f525}', superX, streakY + 60);
+            drawVectorIcon('flame', superX, streakY + 44, '#cc4040', 1.8);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = '#cc4040';
@@ -2572,7 +2968,7 @@ function drawMissionsScreen() {
             // sees it the whole day. Three visual states, in priority order:
             //   1) claimed (green ✓) — already collected today's super bonus
             //   2) ready     (red glow) — all 3 daily missions are done; clickable
-            //   3) locked    (dim grey) — default; render shows "🔒 LOCKED"
+            //   3) locked    (dim grey) — default; render shows "LOCKED"
             // Mirrors the daily claim button on the right side of the streak
             // panel so the two stay visually symmetric.
             const allMissionsDone = m._lastAllCompleteDayKey === m.currentDayKey;
@@ -2581,7 +2977,7 @@ function drawMissionsScreen() {
             const superClaimed = m.superClaimedDate === m.currentDayKey;
             const superLabel = superClaimed
                 ? '\u2713 CLAIMED'
-                : (allMissionsDone ? 'SUPER CLAIM!' : '\ud83d\udd12 LOCKED');
+                : (allMissionsDone ? 'SUPER CLAIM!' : 'LOCKED');
             ctx.shadowBlur = 12;
             if (superClaimed) {
                 ctx.shadowColor = 'rgba(120,255,120,0.6)';
@@ -2606,7 +3002,11 @@ function drawMissionsScreen() {
             ctx.stroke();
             ctx.font = 'bold 12px Orbitron, sans-serif';
             ctx.fillStyle = superClaimed ? '#aaffaa' : (allMissionsDone ? '#ffcccc' : '#777');
-            ctx.fillText(superLabel, superClaimX + superClaimW / 2, claimY + 19);
+            if (superClaimed || allMissionsDone) {
+                ctx.fillText(superLabel, superClaimX + superClaimW / 2, claimY + 19);
+            } else {
+                drawIconLabelCenter('lock', 'LOCKED', superClaimX + superClaimW / 2, claimY + 19, 'bold 12px Orbitron, sans-serif', '#777', '#8a93a5', 13);
+            }
 
             // ----- Today's mission cards -----
             const missionsY = claimY + 60;
@@ -2645,7 +3045,7 @@ function drawMissionsScreen() {
                     ctx.shadowBlur = 12;
                     ctx.shadowColor = done ? 'rgba(120,255,120,0.7)' : 'rgba(255,255,255,0.18)';
                     ctx.fillStyle = done ? '#9eff9e' : 'rgba(255,255,255,0.35)';
-                    ctx.fillText(done ? '\u2705' : '\u26d5', cardX + 30, y + 38);
+                    drawVectorIcon(done ? 'check' : 'box', cardX + 30, y + 28, done ? '#9eff9e' : 'rgba(255,255,255,0.35)', 1.1);
 
                     ctx.shadowBlur = 0;
                     ctx.font = 'bold 14px Orbitron, sans-serif';
@@ -2657,9 +3057,9 @@ function drawMissionsScreen() {
                     ctx.fillStyle = done ? '#a2e6a2' : '#88aaff';
                     let progressText = '';
                     if (mission.type === 'classic_score') {
-                        progressText = `Best today: ${m.bestClassicScoreToday} / ${mission.target} \u2b50`;
+                        progressText = `Best today: ${m.bestClassicScoreToday} / ${mission.target} stars`;
                     } else if (mission.type === 'survival_time') {
-                        progressText = `Best today: ${m.bestSurvivalTimeToday}s / ${mission.target}s \u2620`;
+                        progressText = `Best today: ${m.bestSurvivalTimeToday}s / ${mission.target}s`;
                     } else if (mission.type === 'no_death_run') {
                         progressText = m.noDeathClassicToday ? 'No-death run complete!' : 'Survive Classic with all 3 lives';
                     } else if (mission.type === 'visit_settings') {
@@ -2667,16 +3067,16 @@ function drawMissionsScreen() {
                     } else if (mission.type === 'toggle_setting') {
                         progressText = `Toggled ${m.settingsToggledCountToday || 0} time(s)`;
                     } else if (mission.type === 'both_modes') {
-                        const parts = [m.modesPlayedToday.classic ? '\u2b50 Classic \u2713' : '\u2606 Classic',
-                        m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival'];
+                        const parts = [m.modesPlayedToday.classic ? 'Classic \u2713' : 'Classic',
+                        m.modesPlayedToday.survival ? 'Survival \u2713' : 'Survival'];
                         progressText = parts.join('   \u00b7   ');
                     } else if (mission.type === 'all_modes') {
                         // Mirrors the `all_modes` completion check so the
                         // card shows live status for all three modes.
                         const parts = [
-                            m.modesPlayedToday.classic ? '\u2b50 Classic \u2713' : '\u2606 Classic',
-                            m.modesPlayedToday.survival ? '\u2620 Survival \u2713' : '\u2620 Survival',
-                            m.modesPlayedToday.battle ? '\u26d4 Battle \u2713' : '\u26d4 Battle'
+                            m.modesPlayedToday.classic ? 'Classic \u2713' : 'Classic',
+                            m.modesPlayedToday.survival ? 'Survival \u2713' : 'Survival',
+                            m.modesPlayedToday.battle ? 'Battle \u2713' : 'Battle'
                         ];
                         progressText = parts.join('   \u00b7   ');
                     }
@@ -2774,7 +3174,7 @@ function drawBossObjectivesScreen() {
             ctx.shadowColor = '#ffd84a';
             ctx.font = 'bold 34px Orbitron, sans-serif';
             ctx.fillStyle = '#ffd84a';
-            ctx.fillText('\u{1f451} BOSS OBJECTIVES', canvas.width / 2, 58);
+            drawIconLabelCenter('crown', 'BOSS OBJECTIVES', canvas.width / 2, 58, 'bold 34px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 20);
 
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'black';
@@ -2810,11 +3210,11 @@ function drawBossObjectivesScreen() {
 
             const unlocked = isBossFightUnlocked();
             const objectives = [
-                { icon: '\u2b50', name: 'CLASSIC', goal: 'Catch 1000 stars in a single Classic run',
+                { icon: 'star', name: 'CLASSIC', goal: 'Catch 1000 stars in a single Classic run',
                     cur: getMaxScore(currentUser), target: 1000, unit: 'stars', bar: 'rgba(255, 216, 74, 0.9)', track: 'rgba(255, 216, 74, 0.18)' },
-                { icon: '\u2620', name: 'SURVIVAL', goal: 'Survive 60 seconds in Survival mode',
+                { icon: 'skull', name: 'SURVIVAL', goal: 'Survive 60 seconds in Survival mode',
                     cur: getMaxSurvivalScore(currentUser), target: 60, unit: 's', bar: 'rgba(255, 107, 107, 0.9)', track: 'rgba(255, 107, 107, 0.18)' },
-                { icon: '\u{1f3af}', name: 'BATTLE (NORMAL)', goal: 'Destroy 100 enemies in Battle Normal',
+                { icon: 'target', name: 'BATTLE (NORMAL)', goal: 'Destroy 100 enemies in Battle Normal',
                     cur: getBattleNormalBest(currentUser), target: 100, unit: 'kills', bar: 'rgba(73, 215, 200, 0.9)', track: 'rgba(73, 215, 200, 0.18)' }
             ];
 
@@ -2846,7 +3246,7 @@ function drawBossObjectivesScreen() {
                 ctx.fillStyle = done ? '#9eff9e' : o.bar;
                 ctx.shadowBlur = 8;
                 ctx.shadowColor = 'black';
-                ctx.fillText(o.icon, cardX + 22, y + 34);
+                drawVectorIcon(o.icon, cardX + 34, y + 26, done ? '#9eff9e' : o.bar, 1.05);
                 ctx.shadowBlur = 0;
                 ctx.font = 'bold 15px Orbitron, sans-serif';
                 ctx.fillStyle = '#f1f5f9';
@@ -2893,15 +3293,16 @@ function drawBossObjectivesScreen() {
                 ctx.shadowColor = 'rgba(120, 255, 120, 0.7)';
                 ctx.font = 'bold 19px Orbitron, sans-serif';
                 ctx.fillStyle = '#9eff9e';
-                ctx.fillText('\u{1f451} BOSS FIGHT UNLOCKED!', canvas.width / 2, bannerY);
+                drawIconLabelCenter('crown', 'BOSS FIGHT UNLOCKED!', canvas.width / 2, bannerY, 'bold 19px Orbitron, sans-serif', '#9eff9e', '#9eff9e', 15);
                 ctx.shadowBlur = 0;
 
                 const playW = 250, playH = 44;
                 const playX = canvas.width / 2 - playW / 2;
                 const playY = bannerY + 16;
-                drawGlassButton(playX, playY, playW, playH, 10, '\u25b6 PLAY BOSS FIGHT', 'bold 16px Orbitron, sans-serif', {
+                drawGlassButton(playX, playY, playW, playH, 10, 'PLAY BOSS FIGHT', 'bold 16px Orbitron, sans-serif', {
                     isPrimary: true,
-                    hoverStrength: hoverFor('bossObjectivesPlay')
+                    hoverStrength: hoverFor('bossObjectivesPlay'),
+                    icon: 'play'
                 });
                 menuButtons = [{ rect: { x: playX, y: playY, w: playW, h: playH }, action: 'bossObjectivesPlay' }];
             } else {
@@ -2909,7 +3310,7 @@ function drawBossObjectivesScreen() {
                 ctx.shadowColor = 'black';
                 ctx.font = '12px Orbitron, sans-serif';
                 ctx.fillStyle = '#7eaad6';
-                ctx.fillText('\ud83d\udd12 Keep playing — every record counts toward the unlock!', canvas.width / 2, bannerY + 10);
+                drawIconLabelCenter('lock', 'Keep playing — every record counts toward the unlock!', canvas.width / 2, bannerY + 10, '12px Orbitron, sans-serif', '#7eaad6', '#8a93a5', 13);
                 ctx.shadowBlur = 0;
                 menuButtons = [];
             }
@@ -3138,7 +3539,12 @@ function resetGame() {
             const showable = gameState === GAME_STATES.PLAYING || gameState === GAME_STATES.PAUSED;
             if (showable) {
                 pauseButton.style.display = 'flex';
-                pauseButton.textContent = gameState === GAME_STATES.PAUSED ? '▶' : '⏸';
+                const pauseSvg = pauseButton.querySelector('svg');
+                if (pauseSvg) {
+                    pauseSvg.innerHTML = gameState === GAME_STATES.PAUSED
+                        ? '<path d="M8 5v14l11-7z"/>'
+                        : '<rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/>';
+                }
                 pauseButton.setAttribute('aria-label', gameState === GAME_STATES.PAUSED ? 'Resume Game' : 'Pause Game');
                 // Pin the S-pill reference once per call so the
                 // display / opacity bookkeeping for both pills is in
@@ -4660,7 +5066,7 @@ function fireBullet() {
                 // consistent value (noDamageBattleToday was already set the
                 // first time hp dropped below 100; if a finished Battle
                 // survived with hp === 100, noDamageBattleToday stayed
-                // true and the daily mission flips to ✅ below).
+                // true and the daily mission flips to the drawn check badge below).
                 if (gameMode === GAME_MODES.CLASSIC) {
                     recordMissionEvent('finished_classic', score);
                 } else if (gameMode === GAME_MODES.SURVIVAL) {
@@ -5052,7 +5458,7 @@ function drawMenu() {
             ctx.textBaseline = 'middle';
             ctx.shadowColor = '#ff6b35';
             ctx.shadowBlur = 30;
-            ctx.fillText('🚀', 0, 0);
+            drawVectorIcon('rocket', 0, 0, '#ff6b35', 2.6);
             ctx.restore();
 
             ctx.shadowBlur = 10;
@@ -5186,7 +5592,7 @@ function drawMenu() {
                 ctx.shadowBlur = 0;
                 ctx.font = '15px sans-serif';
             }
-            ctx.fillText('🔥', seg3X + 14, barY + barH / 2);
+            drawVectorIcon('flame', seg3X + 14, barY + barH / 2, flameOn ? '#ff9f43' : '#555', 0.9);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 13px Orbitron, sans-serif';
             ctx.fillStyle = flameOn ? '#ff9f43' : '#555';
@@ -5208,7 +5614,7 @@ function drawMenu() {
                 ctx.shadowBlur = 0;
                 ctx.font = '15px sans-serif';
             }
-            ctx.fillText('🔥', seg4X + 14, barY + barH / 2);
+            drawVectorIcon('flame', seg4X + 14, barY + barH / 2, ssOn ? '#e74c3c' : '#555', 0.9);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 13px Orbitron, sans-serif';
             ctx.fillStyle = ssOn ? '#e74c3c' : '#555';
@@ -5345,7 +5751,7 @@ function drawAccountScreen() {
             ctx.fillStyle = 'white';
             // Baseline nudged down (was 62) so the 44px title's glow isn't
             // clipped by the canvas top edge.
-            ctx.fillText('👤 ACCOUNT', canvas.width / 2, 74);
+            drawIconLabelCenter('account', 'ACCOUNT', canvas.width / 2, 74, 'bold 44px Orbitron, sans-serif', 'white', 'white', 24);
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
@@ -5903,7 +6309,7 @@ function drawShip() {
         // ----- BOSS FIGHT renderers -----
         // The crowned alien king: a translucent green dome over a grey
         // saucer with a ring of blinking belly lights, a gold crown on
-        // top and a small green alien peeking out. HP bar + '👑 BOSS'
+        // top and a small green alien peeking out. HP bar + 'BOSS'
         // label sit above the crown. hitFlash tints the saucer red so
         // landed shots read instantly.
         function drawBoss() {
@@ -5927,10 +6333,9 @@ function drawShip() {
             else barColor = '#ff4060';
             ctx.fillStyle = barColor;
             ctx.fillRect(barX, barY, barW * hpRatio, 6);
-            ctx.font = 'bold 12px Orbitron, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#ffd84a';
-            ctx.fillText('\ud83d\udc51 BOSS', 0, barY - 9);
+            // Crown icon + 'BOSS' label, centred above the HP bar.
+            drawIconLabelCenter('crown', 'BOSS', 0, barY - 9,
+                'bold 12px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 13);
 
             // Crown (gold, three points + twin gem studs)
             ctx.shadowBlur = isTelegraph ? 30 : 16;
@@ -6082,7 +6487,7 @@ function drawGameUI() {
                 ctx.shadowBlur = 10;
                 ctx.font = 'bold 13px Orbitron, sans-serif';
                 ctx.fillStyle = 'rgba(255, 107, 107, 0.85)';
-                ctx.fillText('🛡 KILLS', 24, 66);
+                drawIconLabel('shield', 'KILLS', 24, 66, 'bold 13px Orbitron, sans-serif', 'rgba(255, 107, 107, 0.85)', '#ff6b6b', 14);
                 ctx.shadowBlur = 0;
 
                 // ----- Detailed player HP bar (bottom of screen) -----
@@ -6147,7 +6552,7 @@ function drawGameUI() {
                 ctx.shadowColor = 'black';
                 ctx.shadowBlur = 6;
                 ctx.textAlign = 'center';
-                ctx.fillText(`🛡 ${Math.max(0, Math.ceil(hp))}/${hpMax}`, barX + barW / 2, barY + barH / 2 + 5);
+                drawIconLabelCenter('shield', `${Math.max(0, Math.ceil(hp))}/${hpMax}`, barX + barW / 2, barY + barH / 2 + 5, 'bold 14px Orbitron, sans-serif', '#ffffff', '#ffffff', 13);
                 ctx.restore();
                 ctx.textAlign = 'left';
 
@@ -6157,8 +6562,8 @@ function drawGameUI() {
                     ctx.shadowColor = '#ffd84a';
                     ctx.shadowBlur = 12;
                     ctx.font = 'bold 16px Orbitron, sans-serif';
-                    const bossHpText = `👑 ${Math.max(0, Math.ceil(boss.hp))}/${boss.maxHp}`;
-                    ctx.fillText(bossHpText, canvas.width - ctx.measureText(bossHpText).width - 20, 46);
+                    const bossHpText = `${Math.max(0, Math.ceil(boss.hp))}/${boss.maxHp}`;
+                    drawIconLabelRight('crown', bossHpText, canvas.width - 20, 46, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
                     ctx.shadowBlur = 0;
                 }
             }
@@ -6196,18 +6601,15 @@ function drawGameUI() {
                 // SHARED HP on the left — one number both players watch.
                 ctx.fillStyle = grColor;
                 ctx.shadowColor = grColor;
-                const hpText = `🤝 ${Math.max(0, Math.ceil(coopHp))}/100`;
-                ctx.fillText(hpText, 16, 32);
+                drawIconLabel('coop', `${Math.max(0, Math.ceil(coopHp))}/100`, 16, 32, 'bold 16px Orbitron, sans-serif', grColor, grColor, 15);
                 // SCORE in the centre
-                const scoreLabel = `⭐ SCORE: ${score}`;
-                const scoreWidth = ctx.measureText(scoreLabel).width;
                 ctx.fillStyle = '#ffd84a';
                 ctx.shadowColor = '#ffd84a';
-                ctx.fillText(scoreLabel, canvas.width / 2 - scoreWidth / 2, 32);
+                drawIconLabelCenter('star', `SCORE: ${score}`, canvas.width / 2, 32, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
                 // Heal legend on the right — the duo's lifeline: Blue's
                 // catches patch +2, Green's kills patch +5, and a missed
                 // star (Blue's side) costs −10 from the shared pool.
-                const legend = '⭐ +2 · ⚔ +5 · miss −10';
+                const legend = 'catch +2 · kill +5 · miss −10';
                 const legendWidth = ctx.measureText(legend).width;
                 ctx.fillStyle = '#9bd9ff';
                 ctx.shadowColor = 'black';
@@ -6234,14 +6636,14 @@ function drawGameUI() {
                 ctx.font = 'bold 16px Orbitron, sans-serif';
                 ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
                 ctx.shadowBlur = 12;
-                ctx.fillText('☠ SURVIVAL', 20, 20);
+                drawIconLabel('skull', 'SURVIVAL', 20, 20, 'bold 16px Orbitron, sans-serif', '#ff6b6b', '#ff6b6b', 15);
                 ctx.shadowBlur = 10;
             }
 
             if (currentUser) {
                 ctx.fillStyle = '#66dd88';
                 ctx.textAlign = 'right';
-                ctx.fillText(`👤 ${currentUser}`, canvas.width - 20, 30);
+                drawIconLabelRight('account', currentUser, canvas.width - 20, 30, 'bold 20px Orbitron, sans-serif', '#66dd88', '#66dd88', 16);
                 ctx.textAlign = 'left';
             }
 
@@ -6255,7 +6657,7 @@ function drawGameUI() {
                 ctx.font = '14px Orbitron, sans-serif';
                 ctx.fillStyle = '#ff9999';
                 ctx.shadowBlur = 4;
-                ctx.fillText('☠ SURVIVED', 20, scoreLabelY);
+                drawIconLabel('skull', 'SURVIVED', 20, scoreLabelY, '14px Orbitron, sans-serif', '#ff9999', '#ff9999', 14);
                 ctx.font = 'bold 26px Orbitron, sans-serif';
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = '#ff5b5b';
@@ -6264,7 +6666,7 @@ function drawGameUI() {
             } else if (!isBattle && !isBoss) {
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = 'white';
-                ctx.fillText(`⭐ Points: ${score}`, 20, scoreValueY);
+                drawIconLabel('star', `Points: ${score}`, 20, scoreValueY, 'bold 20px Orbitron, sans-serif', 'white', '#ffd84a', 16);
 
                 // Combo / gold-star hints are Classic mechanics — BOSS
                 // FIGHT has neither (score = kills, heal stars restore
@@ -6289,7 +6691,7 @@ function drawGameUI() {
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
                 ctx.fillStyle = '#ffd700';
-                ctx.fillText(`🏆 Best: ${highScore}${isSurvival ? 's' : ''}`, 20, highScoreY);
+                drawIconLabel('trophy', `Best: ${highScore}${isSurvival ? 's' : ''}`, 20, highScoreY, 'bold 20px Orbitron, sans-serif', '#ffd700', '#ffd700', 16);
             }
 
             const recordBannerActive = inGameRecordShown
@@ -6313,7 +6715,7 @@ function drawGameUI() {
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
-                ctx.fillText(`❤️ x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80);
+                drawIconLabel('heart', `x ${lives}`, canvas.width - 120, isSurvival ? 110 : 80, 'bold 20px Orbitron, sans-serif', isSurvival ? '#ff9999' : 'white', isSurvival ? '#ff6b6b' : '#ff4d6d', 15);
             }
 
             // Saved-overlay render LAST so it sits ON TOP of the
@@ -6339,7 +6741,7 @@ function drawPauseScreen() {
 
             ctx.font = 'bold 78px Orbitron, sans-serif';
             ctx.fillStyle = '#f1f5f9';
-            ctx.fillText('⏸ PAUSED', canvas.width / 2, 175);
+            drawIconLabelCenter('pause', 'PAUSED', canvas.width / 2, 175, 'bold 78px Orbitron, sans-serif', '#f1f5f9', '#f1f5f9', 28);
 
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'black';
@@ -6359,24 +6761,27 @@ function drawPauseScreen() {
             const menuPauseX = rowLeftX + (btnW + gap) * 2;
 
             // ----- RESUME button (primary CTA → amber-gold glow) -----
-            drawGlassButton(resumeX, btnY, btnW, btnH, 12, '▶ RESUME', 'bold 22px Orbitron, sans-serif', {
+            drawGlassButton(resumeX, btnY, btnW, btnH, 12, 'RESUME', 'bold 22px Orbitron, sans-serif', {
                 isPrimary: true,
-                hoverStrength: hoverFor('pauseResume')
+                hoverStrength: hoverFor('pauseResume'),
+                icon: 'play'
             });
 
             // ----- SETTINGS button -----
-            drawGlassButton(settingsPauseX, btnY, btnW, btnH, 12, '⚙ SETTINGS', 'bold 20px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('pauseSettings')
+            drawGlassButton(settingsPauseX, btnY, btnW, btnH, 12, 'SETTINGS', 'bold 20px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('pauseSettings'),
+                icon: 'settings'
             });
 
             // ----- MENU button -----
-            drawGlassButton(menuPauseX, btnY, btnW, btnH, 12, '🏠 MENU', 'bold 22px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('pauseMenu')
+            drawGlassButton(menuPauseX, btnY, btnW, btnH, 12, 'MENU', 'bold 22px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('pauseMenu'),
+                icon: 'home'
             });
 
             // ----- SAVE button (second row, centred below the
             // RESUME/SETTINGS/MENU row). Width bumped to 220 so the
-            // 'menuSaveBtnText' string ("💾 SAVE" / "✓ SAVED") has
+            // 'menuSaveBtnText' string ("SAVE" / "SAVED") has
             // room to render without truncation. Distinct gold/teal
             // accent palette — uses the project's --accent-alt teal
             // (#49d7c8) for the frame so it reads as a meta / data
@@ -6393,12 +6798,13 @@ function drawPauseScreen() {
             // ----- SAVE button -----
             // Revert the cached text after the 1.5 s flash window
             if (menuSaveBtnFlashUntil !== 0 && Date.now() > menuSaveBtnFlashUntil) {
-                menuSaveBtnText = '\ud83d\udcbe SAVE';
+                menuSaveBtnText = 'SAVE';
                 menuSaveBtnFlashUntil = 0;
             }
             drawGlassButton(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12, menuSaveBtnText, 'bold 22px Orbitron, sans-serif', {
                 isPrimary: true,
-                hoverStrength: hoverFor('pauseSave')
+                hoverStrength: hoverFor('pauseSave'),
+                icon: menuSaveBtnText === 'SAVED' ? 'check' : 'save'
             });
 
             menuButtons = [
@@ -6444,26 +6850,36 @@ function drawGameOver() {
             ctx.shadowBlur = 30;
             ctx.font = 'bold 60px Orbitron, sans-serif';
             ctx.fillStyle = '#f1f5f9';
-            const titleText = isBattle ? '💥 BATTLE OVER'
-                : (isBoss ? (bossDefeated ? '👑 BOSS DEFEATED!' : '👑 BOSS FIGHT OVER')
-                    : (isSurvival ? '☠ SURVIVAL OVER'
-                        : (isCoop ? '🤝 CO-OP OVER' : 'GAME OVER')));
-            ctx.fillText(
-                quickSaveEndedRun ? '✓ SAVED' : titleText,
-                canvas.width / 2, 100
-            );
+            const titleIcon = isBattle ? 'boom'
+                : (isBoss ? 'crown'
+                    : (isSurvival ? 'skull'
+                        : (isCoop ? 'coop' : null)));
+            const titleText = isBattle ? 'BATTLE OVER'
+                : (isBoss ? (bossDefeated ? 'BOSS DEFEATED!' : 'BOSS FIGHT OVER')
+                    : (isSurvival ? 'SURVIVAL OVER'
+                        : (isCoop ? 'CO-OP OVER' : 'GAME OVER')));
+            if (quickSaveEndedRun) {
+                ctx.fillText('✓ SAVED', canvas.width / 2, 100);
+            } else if (titleIcon) {
+                drawIconLabelCenter(titleIcon, titleText, canvas.width / 2, 100, 'bold 60px Orbitron, sans-serif', '#f1f5f9', '#f1f5f9', 26);
+            } else {
+                ctx.fillText(titleText, canvas.width / 2, 100);
+            }
 
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 15;
             ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
-            ctx.fillText(
-                isSurvival ? `☠ Survived ${score}s`
-                    : (isBoss && bossDefeated
-                        ? `👑 Time: ${Math.max(1, Math.round(bossCompletionMs / 1000))}s · Score: ${score}`
-                        : `Score: ${score}`),
-                canvas.width / 2, 150
-            );
+            const subIcon = isSurvival ? 'skull' : (isBoss && bossDefeated ? 'crown' : null);
+            const subText = isSurvival ? `Survived ${score}s`
+                : (isBoss && bossDefeated
+                    ? `Time: ${Math.max(1, Math.round(bossCompletionMs / 1000))}s · Score: ${score}`
+                    : `Score: ${score}`);
+            if (subIcon) {
+                drawIconLabelCenter(subIcon, subText, canvas.width / 2, 150, 'bold 28px Orbitron, sans-serif', 'white', 'white', 16);
+            } else {
+                ctx.fillText(subText, canvas.width / 2, 150);
+            }
 
             if (isBoss && bossDefeated) {
                 // Victory flourish: the +100 BOSS DOWN bonus is already
@@ -6472,46 +6888,58 @@ function drawGameOver() {
                 ctx.shadowBlur = 30;
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd84a';
-                ctx.fillText('👑 BOSS DOWN! +100', canvas.width / 2, 178);
+                drawIconLabelCenter('crown', 'BOSS DOWN! +100', canvas.width / 2, 178, 'bold 20px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
             }
 
             if (isNewRecord && currentUser && score > 0) {
                 let label = '';
+                let labelIcon = null;
                 const pos = newRecordPosition;
                 if (isSurvival) {
                     // Survival uses a red-ish badge to stay on-brand with
                     // the mode's colour scheme.
+                    labelIcon = 'skull';
                     if (pos === 0) {
-                        label = '☠ BEST SURVIVAL TIME ☠';
+                        label = 'BEST SURVIVAL TIME';
                     } else if (pos === 1) {
-                        label = '☠ NEW SURVIVAL RECORD! (2nd)';
+                        label = 'NEW SURVIVAL RECORD! (2nd)';
                     } else if (pos === 2) {
-                        label = '☠ NEW SURVIVAL RECORD! (3rd)';
+                        label = 'NEW SURVIVAL RECORD! (3rd)';
                     } else {
-                        label = `☠ NEW SURVIVAL RECORD! (${pos + 1}th)`;
+                        label = `NEW SURVIVAL RECORD! (${pos + 1}th)`;
                     }
                 } else if (pos === 0) {
-                    label = '🏆 NEW BEST RECORD! 🏆';
+                    labelIcon = 'trophy';
+                    label = 'NEW BEST RECORD!';
                 } else if (pos === 1) {
-                    label = '🥈 NEW RECORD! (2nd place)';
+                    labelIcon = 'medal';
+                    label = 'NEW RECORD! (2nd place)';
                 } else if (pos === 2) {
-                    label = '🥉 NEW RECORD! (3rd place)';
+                    labelIcon = 'medal';
+                    label = 'NEW RECORD! (3rd place)';
                 } else {
-                    label = `🎯 NEW RECORD! (${pos + 1}th place)`;
+                    labelIcon = 'target';
+                    label = `NEW RECORD! (${pos + 1}th place)`;
                 }
 
                 ctx.shadowColor = isSurvival ? '#ff6b6b' : '#ffd700';
                 ctx.shadowBlur = 50;
                 ctx.font = 'bold 30px Orbitron, sans-serif';
                 ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
-                ctx.fillText(label, canvas.width / 2, 200);
+                if (labelIcon) {
+                    const labelColor = isSurvival ? '#ff8a8a' : (pos === 1 ? '#c0c0c0' : pos === 2 ? '#cd7f32' : '#ffd700');
+                    drawIconLabelCenter(labelIcon, label, canvas.width / 2, 200, 'bold 30px Orbitron, sans-serif', isSurvival ? '#ff8a8a' : '#ffd700', labelColor, 20);
+                } else {
+                    ctx.fillText(label, canvas.width / 2, 200);
+                }
 
                 ctx.font = '50px Arial';
                 ctx.shadowBlur = 60;
-                const medal = isSurvival
-                    ? '☠'
-                    : (pos === 0 ? '🏆' : pos === 1 ? '🥈' : pos === 2 ? '🥉' : '🎯');
-                ctx.fillText(medal, canvas.width / 2, 260);
+                const medalIcon = isSurvival ? 'skull'
+                    : (pos === 0 ? 'trophy' : pos === 1 ? 'medal' : pos === 2 ? 'medal' : 'target');
+                const medalColor = isSurvival ? '#ff8a8a'
+                    : (pos === 0 ? '#ffd700' : pos === 1 ? '#c0c0c0' : pos === 2 ? '#cd7f32' : '#ffd700');
+                drawVectorIcon(medalIcon, canvas.width / 2, 248, medalColor, 2.4);
             } else {
                 ctx.shadowColor = 'black';
                 ctx.shadowBlur = 10;
@@ -6543,9 +6971,11 @@ function drawGameOver() {
             ctx.shadowBlur = 20;
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
-            ctx.fillText(isSurvival ? '☠ TOP 10 SURVIVAL'
-                : (isBoss ? '👑 TOP 10 BOSS'
-                    : (isCoop ? '🤝 TOP 10 CO-OP' : '🏆 TOP 10')), leftColX, top5Y);
+            const top10Icon = isSurvival ? 'skull' : (isBoss ? 'crown' : (isCoop ? 'coop' : 'trophy'));
+            const top10Text = isSurvival ? 'TOP 10 SURVIVAL'
+                : (isBoss ? 'TOP 10 BOSS'
+                    : (isCoop ? 'TOP 10 CO-OP' : 'TOP 10'));
+            drawIconLabel(top10Icon, top10Text, leftColX, top5Y, 'bold 24px Orbitron, sans-serif', isSurvival ? '#ff8a8a' : '#ffd700', isSurvival ? '#ff8a8a' : '#ffd700', 18);
             // (Previously a '⚔ BATTLE BEST' inline badge sat here as
             // a placeholder for the third column. It has been replaced
             // by the dedicated Battle column on drawRecordsScreen —
@@ -6565,7 +6995,7 @@ function drawGameOver() {
                     for (let i = 0; i < Math.min(10, validRecords.length); i++) {
                         const colX = i < 5 ? leftColX : col2X;
                         const rowIndex = i < 5 ? i : i - 5;
-                        const medalEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                        const medalEmoji = `${i + 1}.`;
                         const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ccc';
                         ctx.fillStyle = color;
                         ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
@@ -6678,7 +7108,11 @@ function drawGameOver() {
             ctx.shadowColor = 'black';
             ctx.font = 'bold 16px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff9999' : '#66dd88';
-            ctx.fillText(isSurvival ? '☠ YOU' : '★ YOU', shipX, shipY + 125);
+            if (isSurvival) {
+                drawIconLabelCenter('skull', 'YOU', shipX, shipY + 125, 'bold 16px Orbitron, sans-serif', '#ff9999', '#ff6b6b', 14);
+            } else {
+                ctx.fillText('★ YOU', shipX, shipY + 125);
+            }
 
             // End-of-run summary phrases (best combo, lucky stars) sit
             // directly BELOW the "YOU" label, anchored to the ship, so
@@ -6705,15 +7139,17 @@ function drawGameOver() {
 
             const playAgainX = canvas.width / 2 - btnW - gap / 2;
             const playAgainCenterX = playAgainX + btnW / 2;
-            drawGlassButton(playAgainX, btnY, btnW, btnH, btnRadius, isSurvival ? '☠ RETRY' : '▶ PLAY AGAIN', 'bold 22px Orbitron, sans-serif', {
+            drawGlassButton(playAgainX, btnY, btnW, btnH, btnRadius, isSurvival ? 'RETRY' : 'PLAY AGAIN', 'bold 22px Orbitron, sans-serif', {
                 isPrimary: true,
-                hoverStrength: hoverFor('playAgain')
+                hoverStrength: hoverFor('playAgain'),
+                icon: isSurvival ? 'refresh' : 'play'
             });
 
             const menuX = canvas.width / 2 + gap / 2;
             const menuCenterX = menuX + btnW / 2;
-            drawGlassButton(menuX, btnY, btnW, btnH, btnRadius, '🏠 MENU', 'bold 22px Orbitron, sans-serif', {
-                hoverStrength: hoverFor('menu')
+            drawGlassButton(menuX, btnY, btnW, btnH, btnRadius, 'MENU', 'bold 22px Orbitron, sans-serif', {
+                hoverStrength: hoverFor('menu'),
+                icon: 'home'
             });
 
             menuButtons = [
@@ -6742,7 +7178,7 @@ function drawRecordsScreen() {
             ctx.shadowColor = 'rgba(138, 43, 226, 0.6)';
             ctx.font = 'bold 38px Orbitron, sans-serif';
             ctx.fillStyle = '#f1f5f9';
-            ctx.fillText('🏆 RECORDS', canvas.width / 2, 60);
+            drawIconLabelCenter('trophy', 'RECORDS', canvas.width / 2, 60, 'bold 38px Orbitron, sans-serif', '#f1f5f9', '#ffd700', 22);
 
             // ----- Auth gate + shared back button -----
             // Render the BACK button first so it is always present — both
@@ -6821,7 +7257,7 @@ function drawRecordsScreen() {
             ctx.fillStyle = '#f1f5f9';
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.shadowBlur = 15;
-            ctx.fillText('⭐ CLASSIC', leftColX + colW / 2, colY + 30);
+            drawIconLabelCenter('star', 'CLASSIC', leftColX + colW / 2, colY + 30, 'bold 20px Orbitron, sans-serif', '#f1f5f9', '#ffd84a', 15);
 
             ctx.font = '14px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
@@ -6838,7 +7274,7 @@ function drawRecordsScreen() {
                 ctx.fillText('No records yet', leftColX + colW / 2, classicStartY + 10);
             } else {
                 for (let i = 0; i < Math.min(5, classicRecords.length); i++) {
-                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+                    const medal = (i + 1) + '.';
                     const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#aac8ff';
                     ctx.fillStyle = color;
                     ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
@@ -6863,7 +7299,7 @@ function drawRecordsScreen() {
             ctx.fillStyle = '#f1f5f9';
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
             ctx.shadowBlur = 10;
-            ctx.fillText('☠ SURVIVAL', rightColX + colW / 2, colY + 30);
+            drawIconLabelCenter('skull', 'SURVIVAL', rightColX + colW / 2, colY + 30, 'bold 20px Orbitron, sans-serif', '#f1f5f9', '#ff6b6b', 15);
 
             ctx.font = '14px Orbitron, sans-serif';
             ctx.shadowBlur = 4;
@@ -6879,7 +7315,7 @@ function drawRecordsScreen() {
                 ctx.fillText('No records yet', rightColX + colW / 2, survivalStartY + 10);
             } else {
                 for (let i = 0; i < Math.min(5, survivalRecords.length); i++) {
-                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + '.';
+                    const medal = (i + 1) + '.';
                     const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ffb0b0';
                     ctx.fillStyle = color;
                     ctx.font = i < 3 ? 'bold 18px Orbitron, sans-serif' : '15px Orbitron, sans-serif';
@@ -6904,7 +7340,7 @@ function drawRecordsScreen() {
             ctx.fillStyle = '#f1f5f9';
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.fillText('🎯 BATTLE', col3X + colW / 2, colY + 32);
+            drawIconLabelCenter('target', 'BATTLE', col3X + colW / 2, colY + 32, 'bold 22px Orbitron, sans-serif', '#f1f5f9', '#ffbf24', 15);
             ctx.shadowBlur = 0;
             ctx.font = '13px Orbitron, sans-serif';
             ctx.fillStyle = '#9aa6b2';
@@ -6925,9 +7361,9 @@ function drawRecordsScreen() {
                     const record = battleRecords[idx];
                     let label, color;
                     let weight = 'normal';
-                    if (idx === 0) { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
-                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
-                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    if (idx === 0) { label = '1. ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '2. ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '3. ' + record; color = '#cd7f32'; weight = 'bold'; }
                     else { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
@@ -6952,7 +7388,7 @@ function drawRecordsScreen() {
             ctx.fillStyle = '#f1f5f9';
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.fillText('🤝 CO-OP', col4X + colW / 2, colY + 32);
+            drawIconLabelCenter('coop', 'CO-OP', col4X + colW / 2, colY + 32, 'bold 20px Orbitron, sans-serif', '#f1f5f9', '#49d7c8', 15);
             ctx.shadowBlur = 0;
             ctx.font = '12px Orbitron, sans-serif';
             ctx.fillStyle = '#9aa6b2';
@@ -6971,9 +7407,9 @@ function drawRecordsScreen() {
                     const record = coopRecords[idx];
                     let label, color;
                     let weight = 'normal';
-                    if (idx === 0) { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
-                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
-                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    if (idx === 0) { label = '1. ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '2. ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '3. ' + record; color = '#cd7f32'; weight = 'bold'; }
                     else { label = (idx + 1) + '. ' + record; color = '#a8e8c8'; }
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
@@ -6997,7 +7433,7 @@ function drawRecordsScreen() {
             ctx.fillStyle = '#f1f5f9';
             ctx.shadowBlur = 8;
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.fillText('👑 BOSS', col5X + colW / 2, colY + 32);
+            drawIconLabelCenter('crown', 'BOSS', col5X + colW / 2, colY + 32, 'bold 20px Orbitron, sans-serif', '#f1f5f9', '#ffd84a', 15);
             ctx.shadowBlur = 0;
             ctx.font = '12px Orbitron, sans-serif';
             ctx.fillStyle = '#9aa6b2';
@@ -7013,9 +7449,9 @@ function drawRecordsScreen() {
                     const record = bossRecords[idx];
                     let label, color;
                     let weight = 'normal';
-                    if (idx === 0) { label = '🥇 ' + record; color = '#ffd700'; weight = 'bold'; }
-                    else if (idx === 1) { label = '🥈 ' + record; color = '#c0c0c0'; weight = 'bold'; }
-                    else if (idx === 2) { label = '🥉 ' + record; color = '#cd7f32'; weight = 'bold'; }
+                    if (idx === 0) { label = '1. ' + record; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '2. ' + record; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '3. ' + record; color = '#cd7f32'; weight = 'bold'; }
                     else { label = (idx + 1) + '. ' + record; color = '#ffe0a8'; }
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
@@ -7051,7 +7487,7 @@ function drawRecordsScreen() {
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 4;
             ctx.fillStyle = '#9cd3ff';
-            ctx.fillText('⏱  HOW MUCH TIME DID YOU PLAY', cardX + 22, cardY + 26);
+            drawIconLabel('clock', 'HOW MUCH TIME DID YOU PLAY', cardX + 22, cardY + 26, 'bold 13px Orbitron, sans-serif', '#9cd3ff', '#9cd3ff', 14);
 
             ctx.font = '11px Orbitron, sans-serif';
             ctx.shadowBlur = 3;
@@ -7207,14 +7643,20 @@ function drawRecordsScreen() {
             ctx.shadowBlur = 0;
         }
 
-        function drawSettingsRow(x, y, w, h, title, description, value, action) {
-            // Label (left)
+        function drawSettingsRow(x, y, w, h, iconType, title, description, value, action) {
+            // Label (left) — a small vector icon sits left of the title
             ctx.textAlign = 'left';
             ctx.font = 'bold 22px Orbitron, sans-serif';
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 6;
             ctx.fillStyle = '#ffffff';
-            ctx.fillText(title, x, y + 30);
+            if (iconType) {
+                const iconGap = 28;
+                drawVectorIcon(iconType, x + 11, y + 22, '#ffffff', 1.0);
+                ctx.fillText(title, x + iconGap, y + 30);
+            } else {
+                ctx.fillText(title, x, y + 30);
+            }
 
             // Description (left, smaller)
             ctx.font = '12px Orbitron, sans-serif';
@@ -7285,7 +7727,7 @@ function drawSettingsScreen() {
             ctx.shadowBlur = 20;
             // Phase-2A title text glow
             ctx.fillStyle = '#f1f5f9';
-            ctx.fillText('⚙ SETTINGS', canvas.width / 2, 70);
+            drawIconLabelCenter('settings', 'SETTINGS', canvas.width / 2, 70, 'bold 44px Orbitron, sans-serif', '#f1f5f9', '#f1f5f9', 24);
 
             // Subtitle
             ctx.shadowBlur = 0;
@@ -7388,7 +7830,7 @@ function drawSettingsScreen() {
             const rowX = panelX + padX;
 
             drawSettingsRow(rowX, panelY + 15, innerW, 56,
-                '🎵 MUSIC',
+                'note', 'MUSIC',
                 'Background song in the main menu',
                 settings.music, 'toggleMusic');
 
@@ -7396,12 +7838,12 @@ function drawSettingsScreen() {
                 settings.menuVolume, 'menuVolDown', 'menuVolUp');
 
             drawSettingsRow(rowX, panelY + 127, innerW, 56,
-                '🔊 SFX',
+                'speaker', 'SFX',
                 'All other sounds during gameplay',
                 settings.sfx, 'toggleSfx');
 
             drawSettingsRow(rowX, panelY + 198, innerW, 56,
-                '⭐ CLASSIC MUSIC',
+                'star', 'CLASSIC MUSIC',
                 'Plays during Classic Mode runs',
                 settings.classicMusic, 'toggleClassicMusic');
 
@@ -7409,14 +7851,14 @@ function drawSettingsScreen() {
                 settings.classicVolume, 'classicVolDown', 'classicVolUp');
 
             drawSettingsRow(rowX, panelY + 310, innerW, 56,
-                '💀 SURVIVAL MUSIC',
+                'skull', 'SURVIVAL MUSIC',
                 'Plays during Survival Mode runs',
                 settings.survivalMusic, 'toggleSurvivalMusic');
 
             drawVolumeRow(rowX, panelY + 371, innerW, 36,
                 settings.survivalVolume, 'survivalVolDown', 'survivalVolUp');
 
-            // ----- 🎮 GAME CONTROLS section (closes with ctx.restore below) -
+            // ----- GAME CONTROLS section (closes with ctx.restore below) -
             // Visually separate from the SOUNDS controls above so the new
             // gameplay-affecting toggle is clearly its own category.
             ctx.save();
@@ -7425,11 +7867,11 @@ function drawSettingsScreen() {
             ctx.shadowBlur = 6;
             ctx.font = 'bold 14px Orbitron, sans-serif';
             ctx.textAlign = 'left';
-            ctx.fillText('🎮 GAME CONTROLS', rowX, panelY + 425);
+            drawIconLabel('gamepad', 'GAME CONTROLS', rowX, panelY + 425, 'bold 14px Orbitron, sans-serif', 'rgba(73, 215, 200, 0.9)', '#49d7c8', 14);
             ctx.restore();
 
             drawSettingsRow(rowX, panelY + 440, innerW, 56,
-                '🖱 FREE MOVEMENT (Survival)',
+                'mouse', 'FREE MOVEMENT (Survival)',
                 'Ship follows the cursor exactly — no smoothing, full screen.',
                 settings.survivalFreeMovement, 'toggleSurvivalFreeMovement');
 
@@ -7546,7 +7988,7 @@ function drawSettingsScreen() {
         // drawn BELOW the description text (kept at full alpha so it
         // stays legible over the greyed-out card).
                 // ===== 6.13 Difficulty / CO-OP picker cards =====
-function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge) {
+function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge, titleIcon) {
             if (locked) ctx.globalAlpha = 0.45;
             // Card fill
             ctx.shadowBlur = 0;
@@ -7567,13 +8009,22 @@ function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge) {
             ctx.stroke();
             ctx.lineWidth = 1;
 
-            // Title
+            // Title — optional vector icon sits left of the label
             ctx.shadowBlur = 0;
             ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = accent.text;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(title, cx + w / 2, cy + 50);
+            if (titleIcon) {
+                const iconW = 24, gap = 8;
+                const tw = ctx.measureText(title).width;
+                const groupW = tw + gap + iconW;
+                const startX = cx + w / 2 - groupW / 2;
+                drawVectorIcon(titleIcon, startX + iconW / 2, cy + 50, accent.text, 1.0);
+                ctx.fillText(title, startX + iconW + gap, cy + 50);
+            } else {
+                ctx.fillText(title, cx + w / 2, cy + 50);
+            }
 
             // Description
             ctx.font = '12px Arial, sans-serif';
@@ -7592,7 +8043,7 @@ function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge) {
                 ctx.globalAlpha = 1;
                 ctx.font = '32px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                ctx.fillText(badge || '🔒', cx + w / 2, dy + 18);
+                drawVectorIcon(badge || 'lock', cx + w / 2, dy + 10, 'rgba(255,255,255,0.95)', 1.4);
             }
             ctx.globalAlpha = 1;
         }
@@ -7676,12 +8127,12 @@ function draw() {
 
                     // BOSS FIGHT replaces the old HARD slot. Locked until
                     // the three record achievements are met; greyed out
-                    // with a 🔒 until then (see isBossFightUnlocked).
+                    // with a lock icon until then (see isBossFightUnlocked).
                     const bossUnlocked = isBossFightUnlocked();
                     drawDiffCard(bossX, cardsY, cardW, cardH, 'BOSS FIGHT', bossUnlocked
                         ? ['Defeat the alien king!', 'Fast missiles + meteorites', 'beam + healing stars.']
-                        : ['UNLOCK:', '⭐ 1000 Classic · ☠ 60s', '🎯 100 kills (Normal)'],
-                        ACCENT_BOSS, !bossUnlocked);
+                        : ['UNLOCK:', '1000 Classic stars · 60 s Survival', '100 kills (Battle Normal)'],
+                        ACCENT_BOSS, !bossUnlocked, 'lock', 'crown');
 
                     // --- Click targets ---
                     menuButtons.push({ rect: { x: easyX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy'   });
@@ -7730,7 +8181,7 @@ function draw() {
                         ctx.shadowColor = '#49d7c8';
                         ctx.font = 'bold 15px Orbitron, sans-serif';
                         ctx.fillStyle = '#49d7c8';
-                        ctx.fillText('🔜 Separate-device play is coming soon!', canvas.width / 2, 128);
+                        drawIconLabelCenter('antenna', 'Separate-device play is coming soon!', canvas.width / 2, 128, 'bold 15px Orbitron, sans-serif', '#49d7c8', '#49d7c8', 14);
                         ctx.shadowBlur = 0;
                     }
 
@@ -7760,12 +8211,12 @@ function draw() {
                     const sharedX = px + cardPad;
                     const onlineX = px + cardPad * 2 + cardW;
 
-                    drawDiffCard(sharedX, cardsY, cardW, cardH, '🖥 SAME DEVICE',
+                    drawDiffCard(sharedX, cardsY, cardW, cardH, 'SAME DEVICE',
                         ['Blue: mouse · Green: arrows.', 'One screen, two players,', 'one shared health pool.'],
-                        ACCENT_SHARED, false);
-                    drawDiffCard(onlineX, cardsY, cardW, cardH, '📡 SEPARATE DEVICES',
+                        ACCENT_SHARED, false, null, 'monitor');
+                    drawDiffCard(onlineX, cardsY, cardW, cardH, 'SEPARATE DEVICES',
                         ['Not available yet.', 'Two-player online play', 'is on the roadmap.'],
-                        ACCENT_ONLINE, true, '🔜');
+                        ACCENT_ONLINE, true, 'antenna', 'antenna');
 
                     // --- Click targets ---
                     menuButtons.push({ rect: { x: sharedX, y: cardsY, w: cardW, h: cardH }, action: 'pickCoopShared' });
@@ -8278,11 +8729,11 @@ canvas.addEventListener('mousemove', (event) => {
         //   * false (hotkey) → the S pill in the HUD briefly lights
         //                      up at full opacity for 1.5 s.
         //   * true  (button) → the pause-menu button text changes
-        //                      from "💾 SAVE" to "✓ SAVED" for 1.5 s,
+        //                      from "SAVE" to "SAVED" for 1.5 s,
         //                      then reverts, so the player still gets
         //                      confirmation even though the pause
         //                      overlay already covers the HUD pills.
-        let menuSaveBtnText = '\ud83d\udcbe SAVE';
+        let menuSaveBtnText = 'SAVE';
         let menuSaveBtnFlashUntil = 0;
 
         // ----- Centered "Saved" overlay state -----
@@ -8415,7 +8866,7 @@ function drawSavedOverlay() {
                 // (pill or button text) so audio + visual never miss.
                 playClickSound();
                 if (fromMenuButton) {
-                    menuSaveBtnText = '\u2713 SAVED';
+                    menuSaveBtnText = 'SAVED';
                     menuSaveBtnFlashUntil = Date.now() + 1500;
                     playRecordSound();
                 } else {
@@ -8497,7 +8948,7 @@ function drawSavedOverlay() {
             }
             // Surface the save's record rank to the review screen: if the
             // run being quick-saved placed on its mode's top-10, drawGameOver
-            // lights up the 🏆 NEW RECORD badge + medal. drawGameOver's own
+            // lights up the drawn-trophy NEW RECORD badge + medal. drawGameOver's own
             // `score > 0` gate keeps the badge off for 0-score saves, and
             // BOSS never reaches here with a rank (a win ends the run via
             // endGame() before the player can press S).
@@ -8904,7 +9355,7 @@ const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
             'box-shadow:0 0 24px rgba(255,138,61,0.4)',
             'transition:transform 0.12s ease'
         ].join(';');
-        fireButton.textContent = '🎯';
+        fireButton.innerHTML = '<svg width="44" height="44" viewBox="-11 -11 22 22" fill="none" stroke="#ffd2a8" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="0" cy="0" r="5"/><path d="M-11 0H11M0 -11V11"/></svg>';
         document.body.appendChild(fireButton);
 
         fireButton.addEventListener('touchstart', (e) => {
