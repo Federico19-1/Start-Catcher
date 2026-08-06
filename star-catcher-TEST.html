@@ -160,7 +160,9 @@
         .account-card {
             display: none;
             position: absolute;
-            top: 50%;
+            /* Dropped from 50% so the card sits clearly below the
+               account title/subtitle drawn at the top of the canvas. */
+            top: 56%;
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 30;
@@ -455,7 +457,14 @@
             PAUSED: 'paused',
             SETTINGS: 'settings',
             RECORDS: 'records',
-            MISSIONS: 'missions'
+            MISSIONS: 'missions',
+            // 'bossUnlock' is a second page INSIDE the MISSION section:
+            // a dedicated screen listing the three record achievements
+            // that unlock BOSS FIGHT mode, with live progress and how
+            // much is still missing. Opened via the '−' button on the
+            // Missions screen, or automatically when a locked BOSS FIGHT
+            // card is tapped in the Battle difficulty picker.
+            BOSS_UNLOCK: 'boss_unlock'
         };
 
         const GAME_MODES = {
@@ -780,6 +789,12 @@
         // Both modes use it the same way: if > 0 the player cannot take
         // damage; the value counts down to zero each frame.
         let meteoriteHitCooldown = 0; // frames of i-frames after a hit in survival
+        // Blue-player damage flash (frames). Set whenever the player takes
+        // damage in ANY mode (Classic / Survival / Battle / BOSS / CO-OP)
+        // and ticks down each frame; while > 0 drawShip() renders the same
+        // red hurt tint the green CO-OP ship uses, so the main ship gets
+        // identical "just got hit" feedback everywhere.
+        let playerHitFlash = 0;
 
         // ----- BOSS FIGHT state -----
         // The crowned alien king sits at the top of the canvas, sways
@@ -809,9 +824,6 @@
         // Healing stars: green medical crosses that restore one third of
         // the player's total HP on catch. Only spawn in BOSS FIGHT.
         let healStars = [];
-        // When > 0, the BOSS FIGHT card in the difficulty picker shows a
-        // gold "unlock requirements" toast after a locked click.
-        let bossLockHintUntil = 0;
         // When > 0, the CO-OP picker's "Separate Devices" card flashes a
         // teal "coming soon" toast after a tap (that mode isn't built
         // yet — same-device CO-OP is the focus for now).
@@ -2405,6 +2417,11 @@
             ctx.fillStyle = '#f1f5f9';
             ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
 
+            // Hit rects for the ◀ / − navigation buttons drawn beside the
+            // first daily mission card (null until the cards render below).
+            let bossNavArrowRect = null;
+            let bossNavMinusRect = null;
+
             if (m.missionsForDay && m.missionsForDay.length > 0) {
                 const cardW = 440, cardH = 54;
                 const cardX = canvas.width / 2 - cardW / 2;
@@ -2465,6 +2482,43 @@
                     }
                     ctx.fillText(progressText, cardX + 62, y + 42);
                 });
+
+                // ----- BOSS objectives access (◀ + −) -----
+                // Two small round buttons on the LEFT of the first daily
+                // mission card: the "−" button (sitting next to the left
+                // arrow) opens the BOSS FIGHT unlock objectives page.
+                const navSize = 30;
+                const navY = missionsY + (cardH - navSize) / 2;
+                const navGap = 8;
+                const arrowX = cardX - navGap - navSize - navGap - navSize;
+                const minusX = arrowX + navSize + navGap;
+
+                const navButtons = [
+                    { glyph: '\u25c0', x: arrowX, action: 'bossObjectives' },
+                    { glyph: '\u2212', x: minusX, action: 'bossObjectivesMinus' }
+                ];
+                for (const nb of navButtons) {
+                    const hs = hoverFor(nb.action);
+                    ctx.save();
+                    ctx.shadowBlur = 8 + hs * 10;
+                    ctx.shadowColor = 'rgba(138, 43, 226, ' + (0.3 + hs * 0.5).toFixed(2) + ')';
+                    ctx.fillStyle = 'rgba(26, 31, 44, ' + (0.72 + hs * 0.25).toFixed(2) + ')';
+                    ctx.beginPath();
+                    ctx.roundRect(nb.x, navY, navSize, navSize, 9);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = 'rgba(138, 43, 226, ' + (0.5 + hs * 0.4).toFixed(2) + ')';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    ctx.font = 'bold 16px Orbitron, sans-serif';
+                    ctx.fillStyle = '#ffd84a';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(nb.glyph, nb.x + navSize / 2, navY + navSize / 2 + 1);
+                    ctx.restore();
+                }
+                bossNavArrowRect = { x: arrowX, y: navY, w: navSize, h: navSize };
+                bossNavMinusRect = { x: minusX, y: navY, w: navSize, h: navSize };
             }
 
             // BACK button + swipe hint
@@ -2502,7 +2556,182 @@
                 menuButtons.push({ rect: { x: superClaimX, y: claimY, w: superClaimW, h: claimH }, action: 'claimSuperStreak' });
             }
 
+            // BOSS objectives nav buttons (only present when the cards drew)
+            if (bossNavArrowRect) menuButtons.push({ rect: bossNavArrowRect, action: 'bossObjectives' });
+            if (bossNavMinusRect) menuButtons.push({ rect: bossNavMinusRect, action: 'bossObjectivesMinus' });
+
             ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBossObjectivesScreen() {
+            drawBackground();
+            updateButtonHover();
+
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd84a';
+            ctx.font = 'bold 34px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd84a';
+            ctx.fillText('\u{1f451} BOSS OBJECTIVES', canvas.width / 2, 58);
+
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'black';
+            ctx.font = '13px Orbitron, sans-serif';
+            ctx.fillStyle = '#9cd3ff';
+            ctx.fillText('Complete these challenges to unlock BOSS FIGHT mode', canvas.width / 2, 90);
+
+            if (!currentUser) {
+                ctx.font = '19px Orbitron, sans-serif';
+                ctx.fillStyle = '#aaa';
+                ctx.fillText('Create an account to track your progress!', canvas.width / 2, 150);
+
+                const backY = 540, backW = 160, backH = 35;
+                const backX = canvas.width / 2 - backW / 2;
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+                ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.roundRect(backX, backY, backW, backH, 10);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#f1f5f9';
+                ctx.font = '18px Orbitron, sans-serif';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('\u2190 BACK', canvas.width / 2, backY + backH / 2);
+                menuButtons = [{ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'bossObjectivesBack' }];
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.shadowBlur = 0;
+                return;
+            }
+
+            const unlocked = isBossFightUnlocked();
+            const objectives = [
+                { icon: '\u2b50', name: 'CLASSIC', goal: 'Catch 1000 stars in a single Classic run',
+                    cur: getMaxScore(currentUser), target: 1000, unit: 'stars', bar: 'rgba(255, 216, 74, 0.9)', track: 'rgba(255, 216, 74, 0.18)' },
+                { icon: '\u2620', name: 'SURVIVAL', goal: 'Survive 60 seconds in Survival mode',
+                    cur: getMaxSurvivalScore(currentUser), target: 60, unit: 's', bar: 'rgba(255, 107, 107, 0.9)', track: 'rgba(255, 107, 107, 0.18)' },
+                { icon: '\u{1f3af}', name: 'BATTLE (NORMAL)', goal: 'Destroy 100 enemies in Battle Normal',
+                    cur: getBattleNormalBest(currentUser), target: 100, unit: 'kills', bar: 'rgba(73, 215, 200, 0.9)', track: 'rgba(73, 215, 200, 0.18)' }
+            ];
+
+            const cardX = 100, cardW = 600, cardH = 98, gap = 14;
+            const startY = 130;
+            const maxBarW = cardW - 160;
+
+            objectives.forEach((o, i) => {
+                const y = startY + i * (cardH + gap);
+                const pct = Math.min(1, o.cur / o.target);
+                const remaining = Math.max(0, o.target - o.cur);
+                const done = remaining <= 0;
+
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = done ? 'rgba(120, 255, 120, 0.5)' : 'rgba(74, 140, 255, 0.3)';
+                ctx.fillStyle = done ? 'rgba(30, 70, 40, 0.9)' : 'rgba(15, 25, 50, 0.9)';
+                ctx.beginPath();
+                ctx.roundRect(cardX, y, cardW, cardH, 12);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = done ? 'rgba(140, 255, 140, 0.65)' : 'rgba(138, 43, 226, 0.4)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Icon + name + goal
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.font = '26px Arial, sans-serif';
+                ctx.fillStyle = done ? '#9eff9e' : o.bar;
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = 'black';
+                ctx.fillText(o.icon, cardX + 22, y + 34);
+                ctx.shadowBlur = 0;
+                ctx.font = 'bold 15px Orbitron, sans-serif';
+                ctx.fillStyle = '#f1f5f9';
+                ctx.fillText(o.name, cardX + 58, y + 26);
+                ctx.font = '11px Orbitron, sans-serif';
+                ctx.fillStyle = done ? '#a2e6a2' : '#88aaff';
+                ctx.fillText(o.goal, cardX + 58, y + 44);
+
+                // Right-aligned numbers: current/target + how much is left
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 13px Orbitron, sans-serif';
+                ctx.fillStyle = done ? '#9eff9e' : '#ffffff';
+                ctx.fillText(o.cur + ' / ' + o.target + ' ' + o.unit, cardX + cardW - 22, y + 26);
+                ctx.font = '11px Orbitron, sans-serif';
+                ctx.fillStyle = done ? '#9eff9e' : '#ff9f43';
+                ctx.fillText(done ? '\u2713 COMPLETE' : remaining + ' ' + o.unit + ' left', cardX + cardW - 22, y + 44);
+
+                // Progress bar
+                const barX = cardX + 58, barY = y + 60;
+                const barH = 12;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, maxBarW, barH, 6);
+                ctx.fill();
+                if (pct > 0) {
+                    ctx.fillStyle = o.bar;
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = o.bar;
+                    ctx.beginPath();
+                    ctx.roundRect(barX, barY, Math.max(barH, maxBarW * pct), barH, 6);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 11px Orbitron, sans-serif';
+                ctx.fillStyle = done ? '#9eff9e' : '#9aa6b2';
+                ctx.fillText(Math.round(pct * 100) + '%', cardX + cardW - 22, barY + barH + 16);
+            });
+
+            const bannerY = startY + 3 * (cardH + gap) + 4;
+            ctx.textAlign = 'center';
+            if (unlocked) {
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = 'rgba(120, 255, 120, 0.7)';
+                ctx.font = 'bold 19px Orbitron, sans-serif';
+                ctx.fillStyle = '#9eff9e';
+                ctx.fillText('\u{1f451} BOSS FIGHT UNLOCKED!', canvas.width / 2, bannerY);
+                ctx.shadowBlur = 0;
+
+                const playW = 250, playH = 44;
+                const playX = canvas.width / 2 - playW / 2;
+                const playY = bannerY + 16;
+                drawGlassButton(playX, playY, playW, playH, 10, '\u25b6 PLAY BOSS FIGHT', 'bold 16px Orbitron, sans-serif', {
+                    isPrimary: true,
+                    hoverStrength: hoverFor('bossObjectivesPlay')
+                });
+                menuButtons = [{ rect: { x: playX, y: playY, w: playW, h: playH }, action: 'bossObjectivesPlay' }];
+            } else {
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = 'black';
+                ctx.font = '12px Orbitron, sans-serif';
+                ctx.fillStyle = '#7eaad6';
+                ctx.fillText('\ud83d\udd12 Keep playing — every record counts toward the unlock!', canvas.width / 2, bannerY + 10);
+                ctx.shadowBlur = 0;
+                menuButtons = [];
+            }
+
+            // Back to the Missions screen
+            const backY = 560, backW = 160, backH = 35;
+            const backX = canvas.width / 2 - backW / 2;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(backX, backY, backW, backH, 10);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#f1f5f9';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('\u2190 BACK', canvas.width / 2, backY + backH / 2);
+            menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'bossObjectivesBack' });
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
             ctx.shadowBlur = 0;
         }
 
@@ -2603,6 +2832,7 @@
             inGameRecordShown = false;
             inGameRecordShownAt = 0;
             meteoriteHitCooldown = 0;
+            playerHitFlash = 0;
             survivalStartTime = 0;
             survivalScorePerSecondTick = 0;
             player.x = 400;
@@ -2954,6 +3184,10 @@
         function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
+            // Tick the blue-player damage flash down every frame so the
+            // red hurt tint in drawShip() fades out naturally.
+            if (playerHitFlash > 0) playerHitFlash--;
+
             // Movement has two branches:
             //
             //   (A) Survival-mode free movement (toggle ON) — the ship
@@ -3025,6 +3259,7 @@
                     if (star.y > canvas.height + star.radius) {
                         comboStreak = 0;
                         lives--;
+                        playerHitFlash = 20;
                         playLoseLifeSound();
                         stars.splice(i, 1);
                         if (lives <= 0) endGame();
@@ -3362,6 +3597,7 @@
                     if (dist2 < hitDistance * hitDistance) {
                         lives--;
                         meteoriteHitCooldown = 60;  // ~1 second of i-frames at 60fps
+                        playerHitFlash = 20;
                         playLoseLifeSound();
                         meteorites.splice(i, 1);
                         if (lives <= 0) endGame();
@@ -3421,6 +3657,7 @@
                         // keeps the cadence on a 1-s rolling window
                         // rather than draining 1 life per frame.
                         lives--;
+                        playerHitFlash = 20;
                         playLoseLifeSound();
                         playerInBeamSince = Date.now();
                         if (lives <= 0) endGame();
@@ -3611,6 +3848,7 @@
                             }
                         }
                         hp = Math.max(0, hp - b.dmg);
+                        playerHitFlash = 20;
                         playLoseLifeSound();
                         enemyBullets.splice(i, 1);
                         meteoriteHitCooldown = 36; // ~0.6s i-frames
@@ -3663,6 +3901,7 @@
                         const dist2 = dx * dx + dy * dy;
                         if (dist2 < hitDistance * hitDistance) {
                             hp = Math.max(0, hp - 15);
+                            playerHitFlash = 20;
                             playLoseLifeSound();
                             // Match the Battle enemy-bullet i-frame
                             // (36 frames / ~0.6 s at 60 fps). Meteorites
@@ -3836,6 +4075,7 @@
                     const dy = b.y - player.y;
                     if (dx * dx + dy * dy < 80 * 80) {
                         hp = Math.max(0, hp - b.dmg);
+                        playerHitFlash = 20;
                         playLoseLifeSound();
                         enemyBullets.splice(i, 1);
                         meteoriteHitCooldown = 36; // ~0.6s i-frames
@@ -3870,6 +4110,7 @@
                     const hitDistance = player.radius * 0.20 + m.radius * 0.35;
                     if (dx * dx + dy * dy < hitDistance * hitDistance) {
                         hp = Math.max(0, hp - 15);
+                        playerHitFlash = 20;
                         playLoseLifeSound();
                         meteoriteHitCooldown = 36;
                         meteorites.splice(i, 1);
@@ -4020,6 +4261,7 @@
                     // life — there are no individual lives in CO-OP).
                     // Both players feel every miss together.
                     coopHp = Math.max(0, coopHp - COOP_MISSED_STAR_DMG);
+                    playerHitFlash = 20;
                     playLoseLifeSound();
                     stars.splice(i, 1);
                     if (coopHp <= 0) {
@@ -4227,6 +4469,10 @@
                 }
             }
             gameOver = true;
+            // Clear the blue-ship damage flash so the tint doesn't linger
+            // on the game-over frame (drawShip still renders behind the
+            // overlay).
+            playerHitFlash = 0;
             playGameOverSound();
             if (currentUser) {
                 if (gameMode === GAME_MODES.SURVIVAL) {
@@ -4579,7 +4825,10 @@
             const panelW = 500;
             const panelX = canvas.width / 2 - panelW / 2;
             const panelY = 240;
-            const panelH = 358;                  // +13px to fit extra spacing
+            // panelH trimmed from 358 → 348 so the panel's bottom edge
+            // (588) stops well short of the canvas floor (600) instead
+            // of sitting right up against it.
+            const panelH = 348;
             const pad = 30;                     // internal padding
             const innerW = panelW - pad * 2;    // usable width inside panel
             const innerX = panelX + pad;
@@ -4811,6 +5060,10 @@
 
             // --- Hit-test array (must match drawn rects exactly) ---
             menuButtons = [
+                // STREAK badge: clicking it jumps straight to the Missions
+                // screen — the "first achievements page" of the MISSION
+                // section (same behaviour as the MISSIONS menu button).
+                { rect: { x: seg1X, y: seg1Y, w: seg1W, h: seg1H }, action: 'missions' },
                 { rect: { x: r1LeftX, y: row1Y, w: row1W, h: row1H }, action: 'play' },
                 { rect: { x: r1RightX, y: row1Y, w: row1W, h: row1H }, action: 'account' },
                 { rect: { x: r2aX, y: row2Y, w: row2W, h: row2H }, action: 'records' },
@@ -4839,13 +5092,15 @@
 
             ctx.font = 'bold 44px Orbitron, sans-serif';
             ctx.fillStyle = 'white';
-            ctx.fillText('👤 ACCOUNT', canvas.width / 2, 150);
+            // Baseline nudged down (was 62) so the 44px title's glow isn't
+            // clipped by the canvas top edge.
+            ctx.fillText('👤 ACCOUNT', canvas.width / 2, 74);
 
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'black';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.fillStyle = '#aaa';
-            ctx.fillText('Enter your name (max 12 characters)', canvas.width / 2, 210);
+            ctx.fillText('Enter your name (max 12 characters)', canvas.width / 2, 120);
 
             const isMobile = window.innerWidth <= 768;
             if (isMobile) {
@@ -5058,6 +5313,18 @@
             ctx.lineTo(3, 12);
             ctx.closePath();
             ctx.fill();
+
+            // Damage flash: while playerHitFlash > 0 the blue ship tints
+            // red — the same "small animation" the green CO-OP ship shows
+            // during its i-frame window, so both players share one
+            // hurt-feedback language in every mode.
+            if (playerHitFlash > 0) {
+                ctx.globalCompositeOperation = 'source-atop';
+                ctx.fillStyle = 'rgba(255, 80, 80, 0.5)';
+                ctx.beginPath();
+                ctx.ellipse(0, -5, 20, 16, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
             ctx.restore();
         }
@@ -7094,6 +7361,9 @@
                 case GAME_STATES.MISSIONS:
                     drawMissionsScreen();
                     break;
+                case GAME_STATES.BOSS_UNLOCK:
+                    drawBossObjectivesScreen();
+                    break;
                 case GAME_STATES.DIFFICULTY: {
                     // =================================================
                     // Phase-2D: Glassmorphism Difficulty Picker
@@ -7111,18 +7381,6 @@
                     ctx.font = 'bold 40px Orbitron, sans-serif';
                     ctx.fillStyle = '#f1f5f9';
                     ctx.fillText('CHOOSE BATTLE MODE', canvas.width / 2, 100);
-
-                    // --- Locked-click hint toast (BOSS FIGHT) ---
-                    // Flashes the three unlock requirements under the
-                    // header for ~3 s after a locked-card tap.
-                    if (bossLockHintUntil > Date.now()) {
-                        ctx.shadowBlur = 14;
-                        ctx.shadowColor = '#ffd84a';
-                        ctx.font = 'bold 15px Orbitron, sans-serif';
-                        ctx.fillStyle = '#ffd84a';
-                        ctx.fillText('🔒 Unlock: 1000⭐ CLASSIC · 60s SURVIVAL · 100 KILLS (NORMAL)', canvas.width / 2, 128);
-                        ctx.shadowBlur = 0;
-                    }
 
                     // --- Mode accent colours ---
                     const ACCENT_EASY   = { border: 'rgba(46, 204, 113, 0.6)',  text: '#2ecc71' };
@@ -7402,12 +7660,14 @@
                     break;
                 case 'pickBossFight':
                     // BOSS FIGHT only starts when the three record
-                    // achievements are met. A locked tap just flashes the
-                    // requirement toast and stays on the picker.
+                    // achievements are met. A locked tap redirects the
+                    // player to the BOSS OBJECTIVES page in the MISSION
+                    // section so they can see exactly what is still missing.
                     if (isBossFightUnlocked()) {
                         startGame(GAME_MODES.BOSS);
                     } else {
-                        bossLockHintUntil = Date.now() + 3000;
+                        playClickSound();
+                        gameState = GAME_STATES.BOSS_UNLOCK;
                     }
                     break;
                 case 'playCoop':
@@ -7465,6 +7725,22 @@
                     break;
                 case 'claimSuperStreak':
                     claimSuperStreak();
+                    break;
+                case 'bossObjectives':
+                case 'bossObjectivesMinus':
+                    // Open the BOSS FIGHT unlock objectives page (the '◀'
+                    // / '−' buttons beside the first daily mission card).
+                    playClickSound();
+                    gameState = GAME_STATES.BOSS_UNLOCK;
+                    break;
+                case 'bossObjectivesBack':
+                    // Back from the objectives page → Missions screen.
+                    playClickSound();
+                    gameState = GAME_STATES.MISSIONS;
+                    break;
+                case 'bossObjectivesPlay':
+                    // Unlocked-banner CTA: jump straight into the fight.
+                    startGame(GAME_MODES.BOSS);
                     break;
                 case 'records':
                     if (!currentUser) {
@@ -8037,6 +8313,15 @@
             if (gameState === GAME_STATES.MISSIONS) {
                 if (event.key === 'Escape') {
                     navigateFromMissionsScreen();
+                    event.preventDefault();
+                }
+            }
+            // BOSS OBJECTIVES page (MISSION section, page 2): Esc or the
+            // left arrow returns to the Missions screen.
+            if (gameState === GAME_STATES.BOSS_UNLOCK) {
+                if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+                    playClickSound();
+                    gameState = GAME_STATES.MISSIONS;
                     event.preventDefault();
                 }
             }
