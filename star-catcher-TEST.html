@@ -821,12 +821,17 @@ let gameState = GAME_STATES.MENU;
                     ctx.stroke();
                     break;
                 }
-                case 'flame': { // teardrop flame
+                case 'flame': { // flame silhouette: pointed wavy top + notched side
                     ctx.beginPath();
                     ctx.moveTo(0, -8);
-                    ctx.quadraticCurveTo(7, 1, 4.5, 5);
-                    ctx.quadraticCurveTo(0, 9, -4.5, 5);
-                    ctx.quadraticCurveTo(-7, 1, 0, -8);
+                    ctx.quadraticCurveTo(1, -4.5, 4.5, -1);
+                    ctx.quadraticCurveTo(7.5, 1, 7.8, 3.5);
+                    ctx.quadraticCurveTo(8, 5.5, 5.5, 6);
+                    ctx.quadraticCurveTo(3, 7.6, 0, 7.2);
+                    ctx.quadraticCurveTo(-3.8, 7, -6.8, 4.5);
+                    ctx.quadraticCurveTo(-7.8, 1.5, -5.5, -1.5);
+                    ctx.quadraticCurveTo(-3.5, -4.5, -1, -5);
+                    ctx.quadraticCurveTo(0, -6.5, 0, -8);
                     ctx.closePath();
                     ctx.fill();
                     break;
@@ -1070,6 +1075,59 @@ let gameState = GAME_STATES.MENU;
             ctx.restore();
         }
 
+        // ----- Layered flame renderer (menu + missions streaks) -----
+        // The old single-shape flame icon read as a water droplet; this
+        // draws a real flame in the classic palette — an outer body,
+        // an inner tongue and a hot white-yellow core, all in the default
+        // red/orange/yellow colours when lit, or a grey silhouette when
+        // off. The caller's shadow (flicker glow) is left untouched so
+        // the streak flames keep their animated halo.
+        function drawFlameIcon(x, y, scale, lit, baseColor) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+            const body = lit ? (baseColor || '#ff8a2b') : '#5a6470';
+            const inner = lit
+                ? (baseColor === '#e74c3c' || baseColor === '#cc4040' ? '#ff9d8a' : '#ffd98a')
+                : '#6f7a88';
+            const core = lit ? '#fff6da' : '#8a95a3';
+            // Outer flame silhouette — pointed, wavy top with an inward
+            // notch on the right so it reads as flickering fire.
+            ctx.fillStyle = body;
+            ctx.beginPath();
+            ctx.moveTo(0, -9);
+            ctx.bezierCurveTo(2.5, -5.5, 5, -2, 7.8, 1.5);
+            ctx.quadraticCurveTo(9.5, 4.5, 7, 6);
+            ctx.quadraticCurveTo(4.5, 7.5, 1.8, 8.4);
+            ctx.quadraticCurveTo(4.2, 6.6, 3.2, 4.6);
+            ctx.quadraticCurveTo(-0.5, 8.6, -4.5, 7.6);
+            ctx.quadraticCurveTo(-8.5, 6.6, -8, 1.5);
+            ctx.quadraticCurveTo(-7.5, -3, -4.5, -5.8);
+            ctx.closePath();
+            ctx.fill();
+            // Inner flame tongue
+            ctx.fillStyle = inner;
+            ctx.beginPath();
+            ctx.moveTo(0, -5.5);
+            ctx.quadraticCurveTo(3.2, -2, 3.6, 2);
+            ctx.quadraticCurveTo(3.8, 5, 1, 5.6);
+            ctx.quadraticCurveTo(-2.5, 6, -2.8, 1.5);
+            ctx.quadraticCurveTo(-3, -2.8, 0, -5.5);
+            ctx.closePath();
+            ctx.fill();
+            // Hot white-yellow core
+            ctx.fillStyle = core;
+            ctx.beginPath();
+            ctx.moveTo(0, -2.2);
+            ctx.quadraticCurveTo(1.4, -0.2, 1.5, 1.8);
+            ctx.quadraticCurveTo(1.6, 3.4, 0.4, 3.6);
+            ctx.quadraticCurveTo(-1, 3.8, -1.1, 1.2);
+            ctx.quadraticCurveTo(-1.2, -0.6, 0, -2.2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
         // ----- Icon + text label helpers -----
         // drawIconLabel* draw a vector icon immediately LEFT of a text
         // label (left / centre / right-aligned variants), replacing the
@@ -1297,15 +1355,15 @@ let stars = [];
         // in rainbow, and a strip of stars as wide as the player's catch
         // bubble falls in a continuous zigzag. Frame counters (not
         // Date.now) are used so pausing the game freezes the feast.
-        let superSpawnCooldown = 540;      // frames before the next Super Star may appear
+        let superSpawnCooldown = 1500;     // frames before the next Super Star may appear
         let starDanceFramesLeft = 0;       // >0 → rainbow feast running (1200 = 20 s at 60 fps)
         let starDanceFlashFramesLeft = 0;  // >0 → STARDANCE banner flashing (120 = 2 s)
         let starDanceBaseX = 0;            // random "wide spot" column the strip starts from
         let starDanceX = 0;                // current zigzag strip centre
         let starDanceDir = 1;              // +1 sweeping right / -1 sweeping left
         let starDanceBound = 0;            // zigzag travel distance around starDanceBaseX
-        const STAR_DANCE_FRAMES = 1200;    // 20 s of rainbow + zigzag strip
-        const STAR_DANCE_FLASH_FRAMES = 120; // 2 s STARDANCE banner flash
+        const STAR_DANCE_FRAMES = 300;     // 5 s of rainbow + zigzag strip
+        const STAR_DANCE_FLASH_FRAMES = 60;  // 1 s STARDANCE banner flash (scaled to the 5 s feast)
         const STAR_DANCE_STRIP_WIDTH = 100;  // ≈ player.radius — the catch bubble (the "hitbox")
         const STAR_DANCE_SWEEP_SPEED = 2.2;  // px/frame the strip centre sweeps
         let survivalEnemySpawnCooldown = 0;  // frames between red ships (Survival, once ≥ 60 s)
@@ -2954,7 +3012,7 @@ function drawMissionsScreen() {
             ctx.font = 'bold 38px Arial';
             ctx.shadowColor = '#ff7300';
             ctx.shadowBlur = 22;
-            drawVectorIcon('flame', dailyX, streakY + 44, '#ff9933', 1.8);
+            drawFlameIcon(dailyX, streakY + 44, 1.8, true, '#ff9933');
             ctx.shadowBlur = 0;
             ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = '#ff9933';
@@ -2968,7 +3026,7 @@ function drawMissionsScreen() {
             ctx.font = 'bold 38px Arial';
             ctx.shadowColor = '#8a0303';
             ctx.shadowBlur = 22;
-            drawVectorIcon('flame', superX, streakY + 44, '#cc4040', 1.8);
+            drawFlameIcon(superX, streakY + 44, 1.8, true, '#cc4040');
             ctx.shadowBlur = 0;
             ctx.font = 'bold 30px Orbitron, sans-serif';
             ctx.fillStyle = '#cc4040';
@@ -3592,7 +3650,7 @@ function resetGame() {
             playerHitFlash = 0;
             survivalStartTime = 0;
             survivalScorePerSecondTick = 0;
-            superSpawnCooldown = 540;      // first Super Star after ~9 s
+            superSpawnCooldown = 1500;     // first Super Star after ~25 s
             starDanceFramesLeft = 0;
             starDanceFlashFramesLeft = 0;
             survivalEnemySpawnCooldown = 0;
@@ -4018,7 +4076,7 @@ function update() {
                 if (superSpawnCooldown <= 0 && !stars.some(s => s.kind === 'super')
                     && Math.random() < 0.02) {
                     stars.push(createSuperStar());
-                    superSpawnCooldown = 2400; // ~40 s between Super Stars
+                    superSpawnCooldown = 4800; // ~80 s between Super Stars — keep them rare
                 }
 
                 for (let i = stars.length - 1; i >= 0; i--) {
@@ -5876,7 +5934,7 @@ function drawMenu() {
                 ctx.shadowBlur = 0;
                 ctx.font = '15px sans-serif';
             }
-            drawVectorIcon('flame', seg3X + 14, barY + barH / 2, flameOn ? '#ff9f43' : '#555', 0.9);
+            drawFlameIcon(seg3X + 14, barY + barH / 2, 0.9, flameOn, flameOn ? '#ff9f43' : null);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 13px Orbitron, sans-serif';
             ctx.fillStyle = flameOn ? '#ff9f43' : '#555';
@@ -5898,7 +5956,7 @@ function drawMenu() {
                 ctx.shadowBlur = 0;
                 ctx.font = '15px sans-serif';
             }
-            drawVectorIcon('flame', seg4X + 14, barY + barH / 2, ssOn ? '#e74c3c' : '#555', 0.9);
+            drawFlameIcon(seg4X + 14, barY + barH / 2, 0.9, ssOn, ssOn ? '#e74c3c' : null);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 13px Orbitron, sans-serif';
             ctx.fillStyle = ssOn ? '#e74c3c' : '#555';
@@ -6976,51 +7034,88 @@ function drawGameUI() {
             }
             if (isCoop) {
                 // ----- CO-OP HUD overlay -----
-                // A SINGLE shared health bar at the top of the canvas:
-                //   1) Black backdrop strip (8 px) so the pool always
-                //      reads on top of stars/enemies.
-                //   2) One pool bar sized to `[coopHp, coopMaxHp]` with
-                //      the usual green→yellow→red colour coding.
-                //   3) Text readouts under the bar:
-                //      - left: SHARED HP readout (`coopHp/100`)
-                //      - center: SCORE
-                //      - right: heal legend (+2 star / +5 kill) so both
-                //        players understand what keeps the pool alive.
-                const grRatio = Math.max(0, coopHp) / coopMaxHp;
-                const barX = 0;
-                const barW = canvas.width;
-                const barY = 0;
-                const barH = 8;
-                ctx.fillStyle = 'rgba(0,0,0,0.78)';
-                ctx.fillRect(barX, barY, barW, barH);
-                const greenFillW = Math.max(0, barW * grRatio);
-                let grColor;
-                if (grRatio > 0.5) grColor = '#5fe089';
-                else if (grRatio > 0.25) grColor = '#ffd84a';
-                else grColor = '#ff6b6b';
-                ctx.fillStyle = grColor;
-                ctx.fillRect(barX, barY, greenFillW, barH);
+                // The shared health pool now renders with the EXACT same
+                // bar style as Battle mode: a bottom-centred rounded bar
+                // with gradient fill, glass highlight, 25-HP tick marks
+                // and the numeric readout drawn INSIDE the bar. SCORE and
+                // the heal legend stay up top as secondary readouts.
+                const coopMax = coopMaxHp;
+                const crRatio = Math.max(0, coopHp) / coopMax;
+                const barW = 480;
+                const barH = 22;
+                const barX = (canvas.width - barW) / 2;
+                const barY = canvas.height - barH - 8;
+                let hpColor, hpShade;
+                if (crRatio > 0.5) { hpColor = '#3ec46d'; hpShade = '#1f7a46'; }
+                else if (crRatio > 0.25) { hpColor = '#ffaa33'; hpShade = '#b06d12'; }
+                else { hpColor = '#ff6b6b'; hpShade = '#b33333'; }
+                const fillW = Math.max(0, barW * crRatio);
 
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = '#3ec46d';
-                ctx.font = 'bold 16px Orbitron, sans-serif';
+                // Outer frame with colour-matched glow
+                ctx.save();
+                ctx.shadowColor = hpColor;
+                ctx.shadowBlur = 20;
+                ctx.fillStyle = 'rgba(10, 14, 22, 0.92)';
+                ctx.beginPath();
+                ctx.roundRect(barX - 4, barY - 4, barW + 8, barH + 8, 10);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(barX - 4, barY - 4, barW + 8, barH + 8, 10);
+                ctx.stroke();
+                // Inner track
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, barW, barH, 7);
+                ctx.fill();
+                // Gradient fill + glass highlight
+                const grad = ctx.createLinearGradient(barX, barY, barX, barY + barH);
+                grad.addColorStop(0, hpColor);
+                grad.addColorStop(1, hpShade);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, fillW, barH, 7);
+                ctx.fill();
+                if (fillW > 4) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+                    ctx.beginPath();
+                    ctx.roundRect(barX + 1, barY + 1, Math.max(0, fillW - 2), barH / 3, 6);
+                    ctx.fill();
+                }
+                // Segment tick marks every 25 HP for the detailed read
+                ctx.strokeStyle = 'rgba(255,255,255,0.30)';
+                ctx.lineWidth = 1;
+                for (let s = 1; s < 4; s++) {
+                    const sx = barX + (barW * s) / 4;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, barY + 3);
+                    ctx.lineTo(sx, barY + barH - 3);
+                    ctx.stroke();
+                }
+                // Numeric SHARED HP inside the bar (same as Battle)
+                ctx.font = 'bold 14px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 6;
+                ctx.textAlign = 'center';
+                drawIconLabelCenter('shield', `${Math.max(0, Math.ceil(coopHp))}/${coopMax}`, barX + barW / 2, barY + barH / 2 + 5, 'bold 14px Orbitron, sans-serif', '#ffffff', '#ffffff', 13);
+                ctx.restore();
                 ctx.textAlign = 'left';
-                // SHARED HP on the left — one number both players watch.
-                ctx.fillStyle = grColor;
-                ctx.shadowColor = grColor;
-                drawIconLabel('coop', `${Math.max(0, Math.ceil(coopHp))}/100`, 16, 32, 'bold 16px Orbitron, sans-serif', grColor, grColor, 15);
-                // SCORE in the centre
-                ctx.fillStyle = '#ffd84a';
+
+                // SCORE (top-centre) + heal legend (top-right) remain
+                // above the bar so both players can read them mid-action.
+                ctx.shadowBlur = 12;
                 ctx.shadowColor = '#ffd84a';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
                 drawIconLabelCenter('star', `SCORE: ${score}`, canvas.width / 2, 32, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
-                // Heal legend on the right — the duo's lifeline: Blue's
-                // catches patch +2, Green's kills patch +5, and a missed
-                // star (Blue's side) costs −10 from the shared pool.
                 const legend = 'catch +2 · kill +5 · miss −10';
                 const legendWidth = ctx.measureText(legend).width;
                 ctx.fillStyle = '#9bd9ff';
                 ctx.shadowColor = 'black';
-                ctx.fillText(legend, canvas.width - legendWidth - 16, 32);
+                ctx.textAlign = 'right';
+                ctx.fillText(legend, canvas.width - 16, 32);
                 ctx.shadowBlur = 0;
                 ctx.textAlign = 'left';
             }
@@ -7188,11 +7283,10 @@ function drawPauseScreen() {
 
             // ----- SAVE button (second row, centred below the
             // RESUME/SETTINGS/MENU row). Width bumped to 220 so the
-            // 'menuSaveBtnText' string ("SAVE" / "SAVED") has
-            // room to render without truncation. Distinct gold/teal
-            // accent palette — uses the project's --accent-alt teal
-            // (#49d7c8) for the frame so it reads as a meta / data
-            // action rather than a gameplay action like Resume.
+            // "SAVE" label has room to render without truncation.
+            // Distinct gold/teal accent palette — uses the project's
+            // --accent-alt teal (#49d7c8) for the frame so it reads
+            // as a meta / data action rather than a gameplay action.
             const saveBtnW = 220;
             const saveBtnH = 56;
             const saveBtnGap = 22;
@@ -7203,15 +7297,12 @@ function drawPauseScreen() {
             const saveBtnY = btnY + btnH + saveBtnGap;
             const saveBtnX = canvas.width / 2 - saveBtnW / 2;
             // ----- SAVE button -----
-            // Revert the cached text after the 1.5 s flash window
-            if (menuSaveBtnFlashUntil !== 0 && Date.now() > menuSaveBtnFlashUntil) {
-                menuSaveBtnText = 'SAVE';
-                menuSaveBtnFlashUntil = 0;
-            }
-            drawGlassButton(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12, menuSaveBtnText, 'bold 22px Orbitron, sans-serif', {
+            // Mirrors the S hotkey exactly: quick save & review (see
+            // quickSaveGame). The label stays a static "SAVE".
+            drawGlassButton(saveBtnX, saveBtnY, saveBtnW, saveBtnH, 12, 'SAVE', 'bold 22px Orbitron, sans-serif', {
                 isPrimary: true,
                 hoverStrength: hoverFor('pauseSave'),
-                icon: menuSaveBtnText === 'SAVED' ? 'check' : 'save'
+                icon: 'save'
             });
 
             menuButtons = [
@@ -8416,21 +8507,42 @@ function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge, tit
             ctx.stroke();
             ctx.lineWidth = 1;
 
-            // Title — optional vector icon sits left of the label
+            // Title — optional vector icon sits left of the label. When
+            // the icon + label group would overflow the card box (e.g.
+            // 'BOSS FIGHT' on the narrow Battle picker), a two-word title
+            // wraps onto two lines so the text stays inside its box,
+            // centred on the card.
             ctx.shadowBlur = 0;
             ctx.font = 'bold 28px Orbitron, sans-serif';
             ctx.fillStyle = accent.text;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            if (titleIcon) {
-                const iconW = 24, gap = 8;
-                const tw = ctx.measureText(title).width;
-                const groupW = tw + gap + iconW;
-                const startX = cx + w / 2 - groupW / 2;
-                drawVectorIcon(titleIcon, startX + iconW / 2, cy + 50, accent.text, 1.0);
-                ctx.fillText(title, startX + iconW + gap, cy + 50);
+            const iconW = titleIcon ? 24 : 0;
+            const gap = titleIcon ? 8 : 0;
+            const titleW = ctx.measureText(title).width;
+            const maxTitleW = w - 24;
+            if (titleW + gap + iconW <= maxTitleW) {
+                if (titleIcon) {
+                    const groupW = titleW + gap + iconW;
+                    const startX = cx + w / 2 - groupW / 2;
+                    drawVectorIcon(titleIcon, startX + iconW / 2, cy + 50, accent.text, 1.0);
+                    ctx.fillText(title, startX + iconW + gap, cy + 50);
+                } else {
+                    ctx.fillText(title, cx + w / 2, cy + 50);
+                }
             } else {
-                ctx.fillText(title, cx + w / 2, cy + 50);
+                // Wrap a two-word title onto two lines ('BOSS' / 'FIGHT').
+                const parts = title.split(' ');
+                const line1 = parts[0] || title;
+                const line2 = parts.slice(1).join(' ') || '';
+                ctx.font = 'bold 24px Orbitron, sans-serif';
+                const lw = Math.max(ctx.measureText(line1).width,
+                    line2 ? ctx.measureText(line2).width : 0);
+                const groupW = lw + gap + iconW;
+                const startX = cx + w / 2 - groupW / 2;
+                if (titleIcon) drawVectorIcon(titleIcon, startX + iconW / 2, cy + 50, accent.text, 1.0);
+                ctx.fillText(line1, startX + iconW + gap, line2 ? cy + 50 - 12 : cy + 50);
+                if (line2) ctx.fillText(line2, startX + iconW + gap, cy + 50 + 12);
             }
 
             // Description
@@ -8538,7 +8650,7 @@ function draw() {
                     const bossUnlocked = isBossFightUnlocked();
                     drawDiffCard(bossX, cardsY, cardW, cardH, 'BOSS FIGHT', bossUnlocked
                         ? ['Defeat the alien king!', 'Fast missiles + meteorites', 'beam + healing stars.']
-                        : ['UNLOCK:', '1000 Classic stars · 60 s Survival', '100 kills (Battle Normal)'],
+                        : ['UNLOCK REQUIREMENTS:', '1000 stars · 60 s', '100 kills'],
                         ACCENT_BOSS, !bossUnlocked, 'lock', 'crown');
 
                     // --- Click targets ---
@@ -8959,13 +9071,11 @@ function handleMenuAction(action) {
                     togglePause();
                     break;
                 case 'pauseSave':
-                    // Triggers the text-flash path inside
-                    // saveCurrentRun (button reads "✓ SAVED" for 1.5 s
-                    // then reverts). Unlike the S hotkey (quick save,
-                    // which ends the run), this pause-menu save keeps
-                    // playing — the overlay stays open so the player
-                    // can see the flash and then choose RESUME / MENU.
-                    saveCurrentRun(true /* fromMenuButton */);
+                    // Same function as the S hotkey: quick save & review.
+                    // quickSaveGame() saves the run (snapshot + records),
+                    // ends it and shows the game-over review screen with
+                    // the title swapped to "✓ SAVED".
+                    quickSaveGame();
                     break;
                 case 'pauseSettings':
                     gameStateBeforeSettings = GAME_STATES.PAUSED;
@@ -9146,33 +9256,20 @@ canvas.addEventListener('mousemove', (event) => {
         });
 
         // ----- Save-game state + helper functions -----
-        // Both the S/s hotkey and the pause-menu SAVE button go
-        // through saveCurrentRun() — the boolean argument picks
-        // which visual feedback path fires:
-        //   * false (hotkey) → the S pill in the HUD briefly lights
-        //                      up at full opacity for 1.5 s.
-        //   * true  (button) → the pause-menu button text changes
-        //                      from "SAVE" to "SAVED" for 1.5 s,
-        //                      then reverts, so the player still gets
-        //                      confirmation even though the pause
-        //                      overlay already covers the HUD pills.
-        let menuSaveBtnText = 'SAVE';
-        let menuSaveBtnFlashUntil = 0;
+        // The pause-menu SAVE button and the S/s hotkey share ONE code
+        // path: quickSaveGame() → saveCurrentRun(). Both save the run
+        // and end it, showing the game-over review screen with the
+        // title swapped to "✓ SAVED".
 
         // ----- Centered "Saved" overlay state -----
         // Time-bounded slot for the big centered ✓ Saved confirmation
-        // that fires after every successful save — whether the trigger
-        // is the S/s hotkey or the pause-menu SAVE button. This
-        // serves as the screen-spanning confirmation the user can NOT
-        // miss even when attention was elsewhere at the moment of
-        // save. The 2.0 s window is split 0..1.5 s at full alpha,
-        // 1.5..2.0 s linear fade-out, so it doesn't pop out abruptly
-        // at expiry. Set in saveCurrentRun() after the localStorage
-        // + records writes; drawn in drawSavedOverlay() called at the
-        // END of drawGameUI() (so it sits on top of the Battle HP bar
-        // and HUD overlay during game play) AND drawPauseScreen()
-        // (so it sits on top of the pause backdrop when saved from
-        // the pause overlay).
+        // armed by saveCurrentRun(). quickSaveGame() — the shared path
+        // for BOTH the S/s hotkey and the pause-menu SAVE button —
+        // immediately clears the timer (savedOverlayUntil = 0) because
+        // the game-over review screen itself carries the "✓ SAVED"
+        // title, so the toast is currently dormant by design. Drawn in
+        // drawSavedOverlay(), called at the END of drawGameUI() and
+        // drawPauseScreen(); it short-circuits when inactive.
         let savedOverlayUntil = 0;
         // True after a quick save (S hotkey) ends the run: drawGameOver
         // then swaps the "GAME OVER"-style title for "✓ SAVED" so the
@@ -9236,7 +9333,7 @@ function drawSavedOverlay() {
         // same score / lives / hp / survival-start-time. The
         // function is intentionally cheap and idempotent — repeated
         // presses just overwrite the previous snapshot.
-        function saveCurrentRun(fromMenuButton) {
+        function saveCurrentRun() {
             // Silent no-op for logged-out users: progress belongs to
             // an account, and a __default key would conflict with
             // anyone who later logs in with that same default key.
@@ -9248,9 +9345,8 @@ function drawSavedOverlay() {
             if (gameOver) return;
             // Rank of the just-saved run on its mode's top-10: -1 when
             // the save did not place, 0..9 when it did (0 = new best).
-            // Returned to callers so quickSaveGame can flash the NEW
-            // RECORD badge on the review screen; the pause-menu save
-            // path simply ignores it.
+            // Returned to quickSaveGame so the review screen can flash
+            // the NEW RECORD badge.
             let savedRank = -1;
             try {
                 const all = getAllRecords();
@@ -9276,25 +9372,11 @@ function drawSavedOverlay() {
                     survivalStartTime: survivalStartAbs
                 };
                 saveAllRecords(all);
-                // Audio-feedback rationale: PLAY + MENU paths can have
-                // the SAME minimum baseline confirmation so neither
-                // path feels silent. The hotkey gets only
-                // playClickSound() — a small tactile tick that won't
-                // startle the player who's playing actively — while
-                // the in-pause-menu button additionally layers
-                // playRecordSound(), the 4-note celebratory chord,
-                // because the player isn't actively playing at that
-                // moment and a stronger cue helps confirm the save.
-                // Both paths still flash their respective UI element
-                // (pill or button text) so audio + visual never miss.
+                // Audio feedback: the click tick confirms the save
+                // without startling the player mid-run, and the S pill
+                // in the HUD flashes for 1.5 s as the visual cue.
                 playClickSound();
-                if (fromMenuButton) {
-                    menuSaveBtnText = 'SAVED';
-                    menuSaveBtnFlashUntil = Date.now() + 1500;
-                    playRecordSound();
-                } else {
-                    flashSavePill();
-                }
+                flashSavePill();
                 // ----- Persist score to per-mode records -----
                 // The previous iteration saved only to the
                 // ${user}__save bucket (snapshot for a future Resume
@@ -9328,11 +9410,11 @@ function drawSavedOverlay() {
                             );
                         }
                     } else if (gameMode === GAME_MODES.COOP) {
-                        // CO-OP save parity: the pause-menu save and the
-                        // quick save write to the `${user}__coop` bucket
-                        // exactly like endGame() does, so a saved CO-OP run
-                        // shows up on the Records screen like every other
-                        // mode (previously only the game-over path did).
+                        // CO-OP save parity: the quick save writes to the
+                        // `${user}__coop` bucket exactly like endGame()
+                        // does, so a saved CO-OP run shows up on the
+                        // Records screen like every other mode (previously
+                        // only the game-over path did).
                         savedRank = addCoopScoreToUser(currentUser, score);
                     }
                 }
@@ -9354,10 +9436,11 @@ function drawSavedOverlay() {
         // exactly like saveCurrentRun) and then ENDS the run so the full
         // game-over review screen appears. drawGameOver replaces the
         // "GAME OVER"-style title with "✓ SAVED" via quickSaveEndedRun.
+        // This is the SAME function the pause-menu SAVE button now calls.
         function quickSaveGame() {
             if (!currentUser) return;
             if (gameOver) return;
-            const savedRank = saveCurrentRun(false /* fromMenuButton */);
+            const savedRank = saveCurrentRun();
             // The title itself is now the confirmation, so suppress the
             // redundant centred "✓ Saved" toast.
             savedOverlayUntil = 0;
