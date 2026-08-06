@@ -1308,7 +1308,7 @@ let stars = [];
         const STAR_DANCE_FLASH_FRAMES = 120; // 2 s STARDANCE banner flash
         const STAR_DANCE_STRIP_WIDTH = 100;  // ≈ player.radius — the catch bubble (the "hitbox")
         const STAR_DANCE_SWEEP_SPEED = 2.2;  // px/frame the strip centre sweeps
-        let survivalEnemySpawnCooldown = 0;  // frames between red ships (Survival, once ≥ 30 s)
+        let survivalEnemySpawnCooldown = 0;  // frames between red ships (Survival, once ≥ 60 s)
         // ----- CO-OP mode (Player 2 = Green) -----
         // Green is a fully independent ship above Blue. The green
         // ship moves exclusively with the LEFT and RIGHT arrow keys
@@ -4451,13 +4451,13 @@ function updateSurvival() {
                     meteorites.splice(i, 1);
                 }
             }
-            // ----- Red Battle ships join after 30 seconds -----
-            // Once the player has survived 30 s, the red arrow-shaped
+            // ----- Red Battle ships join after 60 seconds -----
+            // Once the player has survived 60 s, the red arrow-shaped
             // opponents from Battle mode start dropping in — same enter →
             // hover → telegraph → fire loop, but their bolts cost a LIFE
             // (Survival has no HP bar). The count stays small so the mode
             // keeps reading as dodge-first.
-            if (score >= 30) {
+            if (score >= 60) {
                 if (survivalEnemySpawnCooldown > 0) survivalEnemySpawnCooldown--;
                 if (survivalEnemySpawnCooldown <= 0 && battleEnemies.length < 3) {
                     battleEnemies.push(createEnemy(false));  // red ships only — no elites
@@ -4485,7 +4485,10 @@ function updateSurvival() {
                                     x: e.x,
                                     y: e.y + 28,
                                     radius: 6,
-                                    vy: 4.0 + Math.min(1.5, score / 60),
+                                    // Speed ramps from a gentle 4.0 up to 5.5
+                                    // over the 60 s AFTER the enemy gate opens
+                                    // (enemies only exist at score ≥ 60).
+                                    vy: 4.0 + Math.min(1.5, (score - 60) / 60),
                                     dmg: 0   // dmg unused — Survival runs on lives
                                 });
                                 playEnemyShootSound();
@@ -8647,7 +8650,7 @@ function draw() {
                         drawMeteorites();
                         drawSurvivalOverlay();   // red filter on top of bg + meteorites
                         drawMonster();          // cyclops face + beam drawn AFTER vignette so the dark green reads true
-                        drawEnemies();          // red Battle ships once the run passes 30 s
+                        drawEnemies();          // red Battle ships once the run passes 60 s
                         drawEnemyBullets();     // and the red bolts they fire
                     } else if (gameMode === GAME_MODES.BATTLE) {
                         // Battle mode owns its own scene: red enemy
