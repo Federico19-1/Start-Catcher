@@ -29,16 +29,7 @@
             display: grid;
             place-items: center;
             padding: 12px;
-            /* Phase-1 Foundations: the decorative multi-layer radial +
-               linear gradient has been intentionally removed so the
-               design-system default `background: var(--ink-black)` from
-               palette.css actually applies. The body::before grid + vignette
-               overlay below still provides subtle texture between the
-               viewport and the canvas. Decorative gradients can be
-               re-introduced as a separate overlay layer in a later phase. */
-            /* Phase-2A: radial gradient from shadow-grey center to ink-black edges per palette.scss */
             background-color: var(--ink-black);
-            /* fallback */
             background: radial-gradient(circle at 50% 30%, var(--shadow-grey) 0%, var(--ink-black) 70%);
             font-family: 'Orbitron', sans-serif;
             overflow: hidden;
