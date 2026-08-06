@@ -5,17 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚀 Star Catcher - Space Game</title>
-    <!-- Phase-1 Foundations: Google Font Orbitron (weights 400, 600, 700, 900)
-         is the application's default font-family. Imported here at the top
-         of the head, BEFORE the design-system stylesheet, so the font is
-         available the moment palette.css's `html, body` rule references it. -->
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&display=swap" rel="stylesheet">
-    <!-- Design-system link: palette.css is the browser-loadable companion
-         to palette.scss and exposes the global tokens (--ink-black,
-         --shadow-grey, --blue-violet, --amber-gold, --platinum) and the
-         base reset / typography / background for the entire application.
-         Linked BEFORE the inline <style> below so cascade source-order
-         gives component rules the ability to opt in / out of the defaults. -->
     <link rel="stylesheet" href="palette.css">
     <style>
         :root {
@@ -47,7 +37,8 @@
                viewport and the canvas. Decorative gradients can be
                re-introduced as a separate overlay layer in a later phase. */
             /* Phase-2A: radial gradient from shadow-grey center to ink-black edges per palette.scss */
-            background-color: var(--ink-black); /* fallback */
+            background-color: var(--ink-black);
+            /* fallback */
             background: radial-gradient(circle at 50% 30%, var(--shadow-grey) 0%, var(--ink-black) 70%);
             font-family: 'Orbitron', sans-serif;
             overflow: hidden;
@@ -320,8 +311,8 @@
     <button id="pauseButton" class="hud-button hud-button--pause" aria-label="Game Pause" aria-keyshortcuts="P"
         title="Pause / Resume (press P)" style="display: none;">
         <svg id="pauseIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <rect x="5" y="4" width="5" height="16" rx="1.5"/>
-            <rect x="14" y="4" width="5" height="16" rx="1.5"/>
+            <rect x="5" y="4" width="5" height="16" rx="1.5" />
+            <rect x="14" y="4" width="5" height="16" rx="1.5" />
         </svg>
     </button>
 
@@ -341,16 +332,38 @@
     <span id="saveKeyHint" class="key-hint" aria-hidden="true">S</span>
 
     <div id="mobileAccountInput" class="account-card">
-        <div class="account-card__title"><svg width="16" height="16" viewBox="-9 -9 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="0" cy="-3.5" r="3.2"/><path d="M-7 7a7 7 0 0 1 14 0"/></svg> NEW ACCOUNT</div>
+        <div class="account-card__title"><svg width="16" height="16" viewBox="-9 -9 18 18" fill="none"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                <circle cx="0" cy="-3.5" r="3.2" />
+                <path d="M-7 7a7 7 0 0 1 14 0" />
+            </svg> NEW ACCOUNT</div>
         <input type="text" id="accountMobileInput" maxlength="12" placeholder="Name (max 12 char)"
             class="account-card__input">
         <div class="account-card__actions">
-            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h8M3.5 3.5l.6 7a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-7"/><path d="M5.5 3V2.2a.8.8 0 0 1 .8-.7h1.4a.8.8 0 0 1 .8.7V3"/></svg> Clear Name</button>
-            <button id="mobileConfirmBtn" class="account-card__button account-card__button--primary"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7l3 3L12 3"/></svg> CONFIRM</button>
-            <button id="mobileCancelBtn" class="account-card__button account-card__button--secondary"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8"/></svg> CANCEL</button>
+            <button id="mobileClearNameBtn" class="account-card__button account-card__button--ghost"><svg width="14"
+                    height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 3.5h8M3.5 3.5l.6 7a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-7" />
+                    <path d="M5.5 3V2.2a.8.8 0 0 1 .8-.7h1.4a.8.8 0 0 1 .8.7V3" />
+                </svg> Clear Name</button>
+            <button id="mobileConfirmBtn" class="account-card__button account-card__button--primary"><svg width="14"
+                    height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="2.2"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 7l3 3L12 3" />
+                </svg> CONFIRM</button>
+            <button id="mobileCancelBtn" class="account-card__button account-card__button--secondary"><svg width="14"
+                    height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="2.2"
+                    stroke-linecap="round" aria-hidden="true">
+                    <path d="M3 3l8 8M11 3l-8 8" />
+                </svg> CANCEL</button>
         </div>
         <div style="margin-top: 15px;">
-            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger"><svg width="14" height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h8M3.5 3.5l.6 7a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-7"/><path d="M5.5 3V2.2a.8.8 0 0 1 .8-.7h1.4a.8.8 0 0 1 .8.7V3"/></svg> Clear Account</button>
+            <button id="mobileClearAccountBtn" class="account-card__button account-card__button--danger"><svg width="14"
+                    height="14" viewBox="-1 -1 14 14" fill="none" stroke="currentColor" stroke-width="1.5"
+                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2 3.5h8M3.5 3.5l.6 7a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-7" />
+                    <path d="M5.5 3V2.2a.8.8 0 0 1 .8-.7h1.4a.8.8 0 0 1 .8.7V3" />
+                </svg> Clear Account</button>
         </div>
     </div>
 
@@ -390,8 +403,8 @@
         // the player is interacting with the game. preventDefault on
         // `contextmenu` does not affect left-click behaviour, so the
         // existing ship-move handler keeps working untouched.
-                // ===== 0.1 Canvas + right-click suppression =====
-canvas.addEventListener('contextmenu', (e) => {
+        // ===== 0.1 Canvas + right-click suppression =====
+        canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
 
@@ -404,8 +417,8 @@ canvas.addEventListener('contextmenu', (e) => {
         // roughly one row instead of micro-scrolling by line height.
         // preventDefault stops the browser from intercepting it for
         // page-scroll on touch devices that emulate wheel events.
-                // ===== 0.2 Settings-panel wheel scroll =====
-canvas.addEventListener('wheel', (e) => {
+        // ===== 0.2 Settings-panel wheel scroll =====
+        canvas.addEventListener('wheel', (e) => {
             if (gameState !== GAME_STATES.SETTINGS) return;
             const step = 120;
             const next = settingsScrollY + Math.sign(e.deltaY) * step;
@@ -422,8 +435,8 @@ canvas.addEventListener('wheel', (e) => {
         // back background / overlay work on phones. Re-evaluated on
         // resize and orientationchange so a tablet that narrows after
         // boot picks up the same perf tweaks.
-                // ===== 0.3 Device detection (mobile) =====
-function detectMobile() {
+        // ===== 0.3 Device detection (mobile) =====
+        function detectMobile() {
             return ('ontouchstart' in window || navigator.maxTouchPoints > 0)
                 || window.innerWidth <= 768;
         }
@@ -444,8 +457,8 @@ function detectMobile() {
         // coordinates. Re-evaluates the bounding rect on every call so
         // it stays correct across orientation changes and address-bar
         // resizes, which cost essentially nothing.
-                // ===== 0.4 Input -> canvas-coordinate helper =====
-function getGameCoords(event) {
+        // ===== 0.4 Input -> canvas-coordinate helper =====
+        function getGameCoords(event) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
@@ -469,8 +482,8 @@ function getGameCoords(event) {
         /* ============================================================
            1. GAME STATE AND GLOBAL VARIABLES
         ============================================================ */
-                // ===== 1.1 Game states + modes =====
-const GAME_STATES = {
+        // ===== 1.1 Game states + modes =====
+        const GAME_STATES = {
             MENU: 'menu',
             ACCOUNT: 'account',
             // 'difficulty' sits BETWEEN MENU and PLAYING / BATTLE: when
@@ -521,8 +534,8 @@ const GAME_STATES = {
             BOSS: 'boss'
         };
 
-                // ===== 1.2 Runtime state =====
-let gameState = GAME_STATES.MENU;
+        // ===== 1.2 Runtime state =====
+        let gameState = GAME_STATES.MENU;
         let gameMode = GAME_MODES.CLASSIC;
         let survivalStartTime = 0;        // Date.now() when survival run starts
         let survivalScorePerSecondTick = 0; // accumulator that turns real time into integer seconds
@@ -578,8 +591,8 @@ let gameState = GAME_STATES.MENU;
         let mouseX = 400;
         let mouseY = 550;
 
-                // ===== 1.3 Button hover system =====
-// ----- Phase-2B Button hover tracking -----
+        // ===== 1.3 Button hover system =====
+        // ----- Phase-2B Button hover tracking -----
         // Tracks which menuButtons action is currently hovered and
         // smoothly interpolates hoverStrength 0→1 (enter) / 1→0 (exit)
         // so buttons animate rather than snapping between states.
@@ -1304,8 +1317,8 @@ let gameState = GAME_STATES.MENU;
             return 0;
         }
 
-                // ===== 1.4 Settings-panel scroll state =====
-// ----- Settings-panel scroll state -----
+        // ===== 1.4 Settings-panel scroll state =====
+        // ----- Settings-panel scroll state -----
         // The Settings screen hosts two categories (SOUNDS CONTROLS +
         // GAME CONTROLS) which together are taller than a single on-
         // canvas panel can show without colliding with the BACK button
@@ -1336,8 +1349,8 @@ let gameState = GAME_STATES.MENU;
         let settingsScrollDragAnchorY = 0;
         let settingsScrollAnchorOffset = 0;
 
-                // ===== 1.5 Entity pools (stars, meteorites, battle, boss, coop) =====
-let stars = [];
+        // ===== 1.5 Entity pools (stars, meteorites, battle, boss, coop) =====
+        let stars = [];
         let meteorites = [];
         // ----- Battle mode arrays -----
         // Players and enemies shoot discrete blue / red energy bolts at
@@ -1512,8 +1525,8 @@ let stars = [];
         // body radius). Stepping into the beam and immediately stepping
         // out is harmless — the entry timestamp is cleared the moment
         // the player exits and armed again only on the next entry.
-                // ===== 1.6 Survival-mode monster =====
-const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
+        // ===== 1.6 Survival-mode monster =====
+        const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
         const SURVIVAL_MONSTER_RESPAWN_MIN_MS = 14000; // 14-22 s randomised respawn
         const SURVIVAL_MONSTER_RESPAWN_MAX_MS = 22000;
         const MONSTER_WARP_IN_MS = 800;                // alpha ease-in
@@ -1574,8 +1587,8 @@ const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
             // gaps still run on real-ish time inside the boss match.
             return gameMode === GAME_MODES.BOSS ? battleElapsedMs : score * 1000;
         }
-                // ===== 1.7 In-game record banner + rocket mascot =====
-let isNewRecord = false;
+        // ===== 1.7 In-game record banner + rocket mascot =====
+        let isNewRecord = false;
         let newRecordPosition = -1;
         const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
         let inGameRecordShown = false;        // banner visibility flag
@@ -1594,8 +1607,8 @@ let isNewRecord = false;
             angle: 0
         };
 
-                // ===== 1.8 Missions cache + blue mascot =====
-let menuButtons = [];
+        // ===== 1.8 Missions cache + blue mascot =====
+        let menuButtons = [];
 
         // Missions cache for streak bar widget (avoids localStorage
         // reads every frame inside drawMenu).
@@ -1674,8 +1687,8 @@ let menuButtons = [];
         /* ============================================================
            2. AUDIO SETUP
         ============================================================ */
-                // ===== 2.1 Shared audio context =====
-let audioCtx = null;
+        // ===== 2.1 Shared audio context =====
+        let audioCtx = null;
 
         function initAudio() {
             if (!audioCtx) {
@@ -1688,8 +1701,8 @@ let audioCtx = null;
         }
 
         // Audio element for the menu music
-                // ===== 2.2 Menu music =====
-let menuAudio = null;
+        // ===== 2.2 Menu music =====
+        let menuAudio = null;
 
         function initMenuAudio() {
             if (!menuAudio) {
@@ -1734,8 +1747,8 @@ let menuAudio = null;
         // initMenuAudio() above. Controlled by its own setting
         // (settings.classicMusic), independent from the menu track,
         // so the player can mute each song separately.
-                // ===== 2.3 Classic-mode music =====
-let classicAudio = null;
+        // ===== 2.3 Classic-mode music =====
+        let classicAudio = null;
 
         function initClassicAudio() {
             if (!classicAudio) {
@@ -1804,8 +1817,8 @@ let classicAudio = null;
         // above. Controlled by its own setting (settings.survivalMusic),
         // independent from the menu and Classic tracks, so the player
         // can mute each song separately from the Settings screen.
-                // ===== 2.4 Survival-mode music =====
-let survivalAudio = null;
+        // ===== 2.4 Survival-mode music =====
+        let survivalAudio = null;
 
         function initSurvivalAudio() {
             if (!survivalAudio) {
@@ -1889,8 +1902,8 @@ let survivalAudio = null;
         // every change bumps settingsToggledCountToday; the 'toggle_setting'
         // mission just needs ≥1, so multiple clicks still only count once
         // toward unlock.
-                // ===== 2.5 Volume setters =====
-function clampVolume(v) {
+        // ===== 2.5 Volume setters =====
+        function clampVolume(v) {
             // Audio API rejects anything outside [0, 1] silently, so
             // rounding + clamping here keeps in-game and stored values
             // consistent. Fallback default bumped from 0.3 to 0.7 so
@@ -1925,8 +1938,8 @@ function clampVolume(v) {
         }
 
         // Star-collect sound, loaded from the star-sound.txt file
-                // ===== 2.6 Sound effects (SFX) =====
-let starSound = null;
+        // ===== 2.6 Sound effects (SFX) =====
+        let starSound = null;
 
         function loadStarSound() {
             if (!starSound) {
@@ -2043,8 +2056,8 @@ let starSound = null;
             } catch (e) { }
         }
 
-                // ===== 2.7 Battle-mode SFX =====
-// ----- Battle Mode SFX -----
+        // ===== 2.7 Battle-mode SFX =====
+        // ----- Battle Mode SFX -----
         // Three short synthesised sounds used only by Battle mode.
         // They follow the same simple `oscillator → gain → destination`
         // recipe as the existing playCollectSound / playLoseLifeSound /
@@ -2151,8 +2164,8 @@ let starSound = null;
         /* ============================================================
            3. RECORDS MANAGEMENT (localStorage)
         ============================================================ */
-                // ===== 3.1 Generic records store =====
-function getAllRecords() {
+        // ===== 3.1 Generic records store =====
+        function getAllRecords() {
             const data = localStorage.getItem('starCatcherAllRecords');
             return data ? JSON.parse(data) : {};
         }
@@ -2176,8 +2189,8 @@ function getAllRecords() {
             saveAllRecords(all);
         }
 
-                // ===== 3.2 Classic records =====
-function addScoreToUser(username, newScore) {
+        // ===== 3.2 Classic records =====
+        function addScoreToUser(username, newScore) {
             if (newScore <= 0) return -1;
 
             let records = getUserRecords(username);
@@ -2203,8 +2216,8 @@ function addScoreToUser(username, newScore) {
 
         // Survival mode uses a separate bucket of records (per-mode top-10),
         // identified by a `${user}__survival` key in the same localStorage object.
-                // ===== 3.3 Survival records =====
-function getSurvivalRecords(username) {
+        // ===== 3.3 Survival records =====
+        function getSurvivalRecords(username) {
             const key = `${username}__survival`;
             const all = getAllRecords();
             if (!all[key]) {
@@ -2252,8 +2265,8 @@ function getSurvivalRecords(username) {
         // top-10 shape is identical (Array(10).fill(0) → sorted → first
         // 10 entries) so the Records screen can iterate mode buckets
         // uniformly with `getUserRecords / getSurvivalRecords / getBattleRecords`.
-                // ===== 3.4 Battle records =====
-function getBattleRecords(username) {
+        // ===== 3.4 Battle records =====
+        function getBattleRecords(username) {
             const key = `${username}__battle`;
             const all = getAllRecords();
             if (!all[key]) {
@@ -2294,8 +2307,8 @@ function getBattleRecords(username) {
             return records.length > 0 ? records[0] : 0;
         }
 
-                // ===== 3.5 BOSS-FIGHT unlock tracking + records =====
-// ----- BOSS-FIGHT unlock tracking -----
+        // ===== 3.5 BOSS-FIGHT unlock tracking + records =====
+        // ----- BOSS-FIGHT unlock tracking -----
         // BOSS FIGHT unlocks once the account has three single-game
         // records: 1000 stars in Classic, 60 s in Survival and 100 kills
         // in Battle NORMAL mode. The generic `${user}__battle` bucket is
@@ -2379,8 +2392,8 @@ function getBattleRecords(username) {
             return records.length > 0 ? records[0] : 0;
         }
 
-                // ===== 3.6 CO-OP records =====
-// ----- CO-OP Mode records -----
+        // ===== 3.6 CO-OP records =====
+        // ----- CO-OP Mode records -----
         // Top-10 best CO-OP runs (1 star + 2 enemy-kill per score).
         // Identical shape / storage convention to the `${user}__battle`
         // bucket above so the Records screen can iterate mode buckets
@@ -2430,8 +2443,8 @@ function getBattleRecords(username) {
         // Stored as a single integer (ms) under `${user}__playTime`
         // alongside the records so the Records screen can answer
         // "how much time have you been gaming on this account".
-                // ===== 3.7 Play-time tracking =====
-function getPlayTime(username) {
+        // ===== 3.7 Play-time tracking =====
+        function getPlayTime(username) {
             if (!username) return 0;
             const key = `${username}__playTime`;
             const all = getAllRecords();
@@ -2477,8 +2490,8 @@ function getPlayTime(username) {
             return `${seconds}s`;
         }
 
-                // ===== 3.8 Account + settings persistence =====
-function saveLastUser(username) {
+        // ===== 3.8 Account + settings persistence =====
+        function saveLastUser(username) {
             if (username) {
                 localStorage.setItem('starCatcherLastUser', username);
             } else {
@@ -2590,8 +2603,8 @@ function saveLastUser(username) {
             } catch (e) { /* silent fail on quota / disabled storage */ }
         }
 
-                // ===== 3.9 Mobile account input card =====
-function showMobileInput(show) {
+        // ===== 3.9 Mobile account input card =====
+        function showMobileInput(show) {
             const wrapper = document.getElementById('mobileAccountInput');
             if (!wrapper) return;
             if (show) {
@@ -2612,8 +2625,8 @@ function showMobileInput(show) {
         /* ============================================================
            4. GAME LOGIC FUNCTIONS
         ============================================================ */
-                // ===== 4.1 Daily missions + streaks =====
-// ----- Daily missions + streaks -----
+        // ===== 4.1 Daily missions + streaks =====
+        // ----- Daily missions + streaks -----
         // Swipeable page accessible from the main menu. Two streaks
         // per account: a yellow/orange manual-claim "daily streak"
         // and a red/burgundy auto-bumped "super streak" earned by
@@ -2927,8 +2940,8 @@ function showMobileInput(show) {
         }
 
         // ----- Missions page renderer -----
-                // ===== 4.2 Missions screen (page 1) =====
-function drawMissionsScreen() {
+        // ===== 4.2 Missions screen (page 1) =====
+        function drawMissionsScreen() {
             drawBackground();
             updateButtonHover();  // Phase-2B
 
@@ -2951,10 +2964,10 @@ function drawMissionsScreen() {
                 ctx.fillText('Create an account to track your progress!', canvas.width / 2, 110);
                 const backY = 540, backW = 160, backH = 35;
                 const backX = canvas.width / 2 - backW / 2;
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
-            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
-            ctx.lineWidth = 1;
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+                ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+                ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.roundRect(backX, backY, backW, backH, 10);
                 ctx.fill();
@@ -3246,8 +3259,8 @@ function drawMissionsScreen() {
             ctx.shadowBlur = 0;
         }
 
-                // ===== 4.3 BOSS objectives page (page 2) =====
-function drawBossObjectivesScreen() {
+        // ===== 4.3 BOSS objectives page (page 2) =====
+        function drawBossObjectivesScreen() {
             drawBackground();
             updateButtonHover();
 
@@ -3314,12 +3327,18 @@ function drawBossObjectivesScreen() {
 
             const unlocked = isBossFightUnlocked();
             const objectives = [
-                { icon: 'star', name: 'CLASSIC', goal: 'Catch 1000 stars in a single Classic run',
-                    cur: getMaxScore(currentUser), target: 1000, unit: 'stars', bar: 'rgba(255, 216, 74, 0.9)', track: 'rgba(255, 216, 74, 0.18)' },
-                { icon: 'skull', name: 'SURVIVAL', goal: 'Survive 60 seconds in Survival mode',
-                    cur: getMaxSurvivalScore(currentUser), target: 60, unit: 's', bar: 'rgba(255, 107, 107, 0.9)', track: 'rgba(255, 107, 107, 0.18)' },
-                { icon: 'target', name: 'BATTLE (NORMAL)', goal: 'Destroy 100 enemies in Battle Normal',
-                    cur: getBattleNormalBest(currentUser), target: 100, unit: 'kills', bar: 'rgba(73, 215, 200, 0.9)', track: 'rgba(73, 215, 200, 0.18)' }
+                {
+                    icon: 'star', name: 'CLASSIC', goal: 'Catch 1000 stars in a single Classic run',
+                    cur: getMaxScore(currentUser), target: 1000, unit: 'stars', bar: 'rgba(255, 216, 74, 0.9)', track: 'rgba(255, 216, 74, 0.18)'
+                },
+                {
+                    icon: 'skull', name: 'SURVIVAL', goal: 'Survive 60 seconds in Survival mode',
+                    cur: getMaxSurvivalScore(currentUser), target: 60, unit: 's', bar: 'rgba(255, 107, 107, 0.9)', track: 'rgba(255, 107, 107, 0.18)'
+                },
+                {
+                    icon: 'target', name: 'BATTLE (NORMAL)', goal: 'Destroy 100 enemies in Battle Normal',
+                    cur: getBattleNormalBest(currentUser), target: 100, unit: 'kills', bar: 'rgba(73, 215, 200, 0.9)', track: 'rgba(73, 215, 200, 0.18)'
+                }
             ];
 
             const cardX = 100, cardW = 600, cardH = 98, gap = 14;
@@ -3466,8 +3485,8 @@ function drawBossObjectivesScreen() {
             ctx.shadowBlur = 0;
         }
 
-                // ===== 4.4 Game entities (stars, meteorites) =====
-function createStar() {
+        // ===== 4.4 Game entities (stars, meteorites) =====
+        function createStar() {
             const isLucky = Math.random() < 0.08;
             return {
                 x: Math.random() * canvas.width,
@@ -3590,8 +3609,8 @@ function createStar() {
             };
         }
 
-                // ===== 4.5 Run lifecycle =====
-function resetGame() {
+        // ===== 4.5 Run lifecycle =====
+        function resetGame() {
             stars = [];
             meteorites = [];
             // Survival monster state must reset on every new run so a
@@ -3960,8 +3979,8 @@ function resetGame() {
             setPos(minMargin, minMargin);
         }
 
-                // ===== 4.6 Rocket mascot animation =====
-function updateRocketEmoji() {
+        // ===== 4.6 Rocket mascot animation =====
+        function updateRocketEmoji() {
             if (gameState !== GAME_STATES.MENU) {
                 if (rocketEmoji.isEscaping) {
                     rocketEmoji.isEscaping = false;
@@ -4006,8 +4025,8 @@ function updateRocketEmoji() {
         // for clamping left a 100px dead zone on each side of the canvas.
         const shipEdge = 26;
 
-                // ===== 5.1 Main update loop =====
-function update() {
+        // ===== 5.1 Main update loop =====
+        function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
             // Tick the blue-player damage flash down every frame so the
@@ -4186,8 +4205,8 @@ function update() {
             }
         }
 
-                // ===== 5.2 Survival monster (state machine + render helpers) =====
-// ----- Monster helpers (Survival only) -----
+        // ===== 5.2 Survival monster (state machine + render helpers) =====
+        // ----- Monster helpers (Survival only) -----
         // All monsters share one entry point: spawnMonster() flips
         // monster.active = true and resets state, while updateMonster()
         // ticks the warp-in/active/fade-out state machine forward each
@@ -4430,8 +4449,8 @@ function update() {
             ctx.restore();
         }
 
-                // ===== 5.3 Survival update =====
-function updateSurvival() {
+        // ===== 5.3 Survival update =====
+        function updateSurvival() {
             // Score grows with time — convert real-time elapsed since the
             // run started into an integer-seconds counter via an accumulator.
             if (survivalStartTime === 0) {
@@ -4626,8 +4645,8 @@ function updateSurvival() {
             }
         }
 
-                // ===== 5.4 Battle update =====
-// ----- Battle mode loop -----
+        // ===== 5.4 Battle update =====
+        // ----- Battle mode loop -----
         // A self-contained branch added at the end of update() so the
         // existing Classic and Survival logic keeps its proven shape.
         // The branch runs only when gameMode === BATTLE; it owns:
@@ -4874,8 +4893,8 @@ function updateSurvival() {
             }
         }
 
-                // ===== 5.5 BOSS FIGHT update =====
-// ----- BOSS FIGHT mode loop -----
+        // ===== 5.5 BOSS FIGHT update =====
+        // ----- BOSS FIGHT mode loop -----
         // A Battle-style match against the crowned alien UFO king. The
         // boss sways at the top, telegraphs and fires very fast red
         // missiles aimed at the player; normal Battle enemies,
@@ -5108,8 +5127,8 @@ function updateSurvival() {
             if (bossDefeated) endGame();
         }
 
-                // ===== 5.6 Enemy factory =====
-function createEnemy(elite) {
+        // ===== 5.6 Enemy factory =====
+        function createEnemy(elite) {
             const anchorX = 80 + Math.random() * (canvas.width - 160);
             return {
                 x: anchorX,
@@ -5134,8 +5153,8 @@ function createEnemy(elite) {
             };
         }
 
-                // ===== 5.7 CO-OP update =====
-// ----- CO-OP combat tick -----
+        // ===== 5.7 CO-OP update =====
+        // ----- CO-OP combat tick -----
         // Reuses Battle's battleEnemies / enemyBullets pools so the
         // enemy behaviour + telegraph feel is identical, and adds only
         // greenPlayerBeams on top. Score: +1 per star caught (no combo
@@ -5364,8 +5383,8 @@ function createEnemy(elite) {
             }
         }
 
-                // ===== 5.8 Combat helpers + end of run =====
-function fireBullet() {
+        // ===== 5.8 Combat helpers + end of run =====
+        function fireBullet() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
             // BOSS FIGHT reuses Battle's blue ray bullets so the player
             // can actually damage the king.
@@ -5494,8 +5513,8 @@ function fireBullet() {
         /* ============================================================
            6. DRAWING FUNCTIONS
         ============================================================ */
-                // ===== 6.1 Background + parallax =====
-function drawBackground() {
+        // ===== 6.1 Background + parallax =====
+        function drawBackground() {
             // Phase-2A: radial gradient from shadow-grey center to ink-black edges
             const bgGrad = ctx.createRadialGradient(
                 canvas.width / 2, canvas.height * 0.3, 0,
@@ -5579,8 +5598,8 @@ function drawBackground() {
             ctx.fill();
         }
 
-                // ===== 6.2 Blue mascot + speech bubble =====
-function drawBlueCharacter(now) {
+        // ===== 6.2 Blue mascot + speech bubble =====
+        function drawBlueCharacter(now) {
             const c = blueCharacter;
             const bobY = Math.sin(c.bobPhase) * 6;
             const cx = c.cx;
@@ -5761,8 +5780,8 @@ function drawBlueCharacter(now) {
             ctx.restore();
         }
 
-                // ===== 6.3 Main menu =====
-function drawMenu() {
+        // ===== 6.3 Main menu =====
+        function drawMenu() {
             drawBackground();
             updateButtonHover();  // Phase-2B hover tracking
 
@@ -6081,8 +6100,8 @@ function drawMenu() {
             // unified streak + account display.
         }
 
-                // ===== 6.4 Account screen =====
-function drawAccountScreen() {
+        // ===== 6.4 Account screen =====
+        function drawAccountScreen() {
             drawBackground();
 
             ctx.textAlign = 'center';
@@ -6110,8 +6129,8 @@ function drawAccountScreen() {
             ctx.shadowBlur = 0;
         }
 
-                // ===== 6.5 Stars, meteorites + survival overlay =====
-function drawFallingStars() {
+        // ===== 6.5 Stars, meteorites + survival overlay =====
+        function drawFallingStars() {
             for (const star of stars) {
                 ctx.save();
                 ctx.translate(star.x, star.y);
@@ -6368,8 +6387,8 @@ function drawFallingStars() {
             ctx.restore();
         }
 
-                // ===== 6.6 Ships (blue + green) + beams =====
-function drawShip() {
+        // ===== 6.6 Ships (blue + green) + beams =====
+        function drawShip() {
             ctx.save();
             ctx.translate(player.x, player.y);
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
@@ -6555,8 +6574,8 @@ function drawShip() {
             }
         }
 
-                // ===== 6.7 Battle / BOSS renderers =====
-// ====== Battle mode renderers ======
+        // ===== 6.7 Battle / BOSS renderers =====
+        // ====== Battle mode renderers ======
         // These three renderers are only invoked when gameMode === BATTLE
         // (see the GAME_STATES.PLAYING switch in the draw() loop below).
         // They were added together with updateBattle() / createEnemy()
@@ -6920,8 +6939,8 @@ function drawShip() {
             }
         }
 
-                // ===== 6.8 HUD (health, score, lives) =====
-function drawGameUI() {
+        // ===== 6.8 HUD (health, score, lives) =====
+        function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
             const isBoss = gameMode === GAME_MODES.BOSS;
@@ -7230,8 +7249,8 @@ function drawGameUI() {
             drawSavedOverlay();
         }
 
-                // ===== 6.9 Pause screen =====
-function drawPauseScreen() {
+        // ===== 6.9 Pause screen =====
+        function drawPauseScreen() {
             // Phase-2A Glassmorphism overlay
             ctx.fillStyle = 'rgba(26, 31, 44, 0.75)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -7323,8 +7342,8 @@ function drawPauseScreen() {
             ctx.shadowBlur = 0;
         }
 
-                // ===== 6.10 Game-over screen =====
-function drawGameOver() {
+        // ===== 6.10 Game-over screen =====
+        function drawGameOver() {
             updateButtonHover();  // Phase-2B hover tracking
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
@@ -7666,8 +7685,8 @@ function drawGameOver() {
             ctx.shadowBlur = 0;
         }
 
-                // ===== 6.11 Records screen =====
-function drawRecordsScreen() {
+        // ===== 6.11 Records screen =====
+        function drawRecordsScreen() {
             drawBackground();
             updateButtonHover();  // Phase-2B
 
@@ -8201,8 +8220,8 @@ function drawRecordsScreen() {
             ctx.shadowBlur = 0;
         }
 
-                // ===== 6.12 Settings screen =====
-function drawSettingsScreen() {
+        // ===== 6.12 Settings screen =====
+        function drawSettingsScreen() {
             drawBackground();
             updateButtonHover();  // Phase-2B
 
@@ -8485,8 +8504,8 @@ function drawSettingsScreen() {
         // renders the card at ~45% opacity with a status emoji badge
         // drawn BELOW the description text (kept at full alpha so it
         // stays legible over the greyed-out card).
-                // ===== 6.13 Difficulty / CO-OP picker cards =====
-function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge, titleIcon) {
+        // ===== 6.13 Difficulty / CO-OP picker cards =====
+        function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge, titleIcon) {
             if (locked) ctx.globalAlpha = 0.45;
             // Card fill
             ctx.shadowBlur = 0;
@@ -8567,8 +8586,8 @@ function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge, tit
             ctx.globalAlpha = 1;
         }
 
-                // ===== 6.14 Main draw dispatcher =====
-function draw() {
+        // ===== 6.14 Main draw dispatcher =====
+        function draw() {
             updatePauseButton();
             // Battle mode ships a mobile FIRE pad positioned outside the
             // canvas. The pad's visibility follows the current run-state,
@@ -8614,9 +8633,9 @@ function draw() {
                     ctx.fillText('CHOOSE BATTLE MODE', canvas.width / 2, 100);
 
                     // --- Mode accent colours ---
-                    const ACCENT_EASY   = { border: 'rgba(46, 204, 113, 0.6)',  text: '#2ecc71' };
-                    const ACCENT_NORMAL = { border: 'rgba(255, 191, 36, 0.6)',  text: '#ffbf24' };
-                    const ACCENT_BOSS   = { border: 'rgba(255, 191, 36, 0.75)', text: '#ffd84a' };
+                    const ACCENT_EASY = { border: 'rgba(46, 204, 113, 0.6)', text: '#2ecc71' };
+                    const ACCENT_NORMAL = { border: 'rgba(255, 191, 36, 0.6)', text: '#ffbf24' };
+                    const ACCENT_BOSS = { border: 'rgba(255, 191, 36, 0.75)', text: '#ffd84a' };
 
                     // --- Glassmorphism card panel ---
                     const px = 80;                    // panel left edge
@@ -8637,12 +8656,12 @@ function draw() {
                     const cardW = (pw - cardPad * 4) / 3;
                     const cardH = 210;
                     const cardsY = py + 35;
-                    const easyX   = px + cardPad;
+                    const easyX = px + cardPad;
                     const normalX = px + cardPad * 2 + cardW;
-                    const bossX   = px + cardPad * 3 + cardW * 2;
+                    const bossX = px + cardPad * 3 + cardW * 2;
 
-                    drawDiffCard(easyX,   cardsY, cardW, cardH, 'EASY',   ['Original enemy cadence.', 'Best place to start.', 'Relaxed combat flow.'],     ACCENT_EASY);
-                    drawDiffCard(normalX, cardsY, cardW, cardH, 'NORMAL', ['Enemies 2× faster.', 'Rare fast meteorites', 'also appear.'],                  ACCENT_NORMAL);
+                    drawDiffCard(easyX, cardsY, cardW, cardH, 'EASY', ['Original enemy cadence.', 'Best place to start.', 'Relaxed combat flow.'], ACCENT_EASY);
+                    drawDiffCard(normalX, cardsY, cardW, cardH, 'NORMAL', ['Enemies 2× faster.', 'Rare fast meteorites', 'also appear.'], ACCENT_NORMAL);
 
                     // BOSS FIGHT replaces the old HARD slot. Locked until
                     // the three record achievements are met; greyed out
@@ -8654,9 +8673,9 @@ function draw() {
                         ACCENT_BOSS, !bossUnlocked, 'lock', 'crown');
 
                     // --- Click targets ---
-                    menuButtons.push({ rect: { x: easyX,   y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy'   });
+                    menuButtons.push({ rect: { x: easyX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_easy' });
                     menuButtons.push({ rect: { x: normalX, y: cardsY, w: cardW, h: cardH }, action: 'pickDifficulty_normal' });
-                    menuButtons.push({ rect: { x: bossX,   y: cardsY, w: cardW, h: cardH }, action: 'pickBossFight'   });
+                    menuButtons.push({ rect: { x: bossX, y: cardsY, w: cardW, h: cardH }, action: 'pickBossFight' });
 
                     // --- BACK button ---
                     const backW = 200;
@@ -8860,8 +8879,8 @@ function draw() {
         /* ============================================================
            7. HANDLE MENU ACTIONS
         ============================================================ */
-                // ===== 7.1 Action dispatch =====
-function handleMenuAction(action) {
+        // ===== 7.1 Action dispatch =====
+        function handleMenuAction(action) {
             switch (action) {
                 case 'play':
                     if (!currentUser) {
@@ -9205,8 +9224,8 @@ function handleMenuAction(action) {
         /* ============================================================
            8. INPUT HANDLERS, SAVE HELPERS AND DOM WIRING
         ============================================================ */
-                // ===== 8.1 Mouse / touch clicks =====
-canvas.addEventListener('click', (event) => {
+        // ===== 8.1 Mouse / touch clicks =====
+        canvas.addEventListener('click', (event) => {
             const c = getGameCoords(event);
             for (const btn of menuButtons) {
                 const r = btn.rect;
@@ -9217,8 +9236,8 @@ canvas.addEventListener('click', (event) => {
             }
         });
 
-                // ===== 8.2 Cursor tracking + menu hover =====
-canvas.addEventListener('mousemove', (event) => {
+        // ===== 8.2 Cursor tracking + menu hover =====
+        canvas.addEventListener('mousemove', (event) => {
             const c = getGameCoords(event);
             // Mirror the latest cursor position into the module-level
             // mouseX/mouseY globals so update() can read them in any
@@ -9283,8 +9302,8 @@ canvas.addEventListener('mousemove', (event) => {
         // curve. ctx.save() / ctx.restore() wrap the draw so the rest
         // of the frame's ctx state (font, shadow, baseline, alpha)
         // isn't polluted by this overlay.
-                // ===== 7.2 Save-run helpers =====
-function drawSavedOverlay() {
+        // ===== 7.2 Save-run helpers =====
+        function drawSavedOverlay() {
             const now = Date.now();
             if (now >= savedOverlayUntil) return;
             const remain = savedOverlayUntil - now;
@@ -9465,8 +9484,8 @@ function drawSavedOverlay() {
             gameOver = true;
         }
 
-                // ===== 8.3 Keyboard input =====
-window.addEventListener('keydown', (event) => {
+        // ===== 8.3 Keyboard input =====
+        window.addEventListener('keydown', (event) => {
 
             // ----- CO-OP arrow key tracking -----
             // The green player (Player 2) responds to Left/Right/Up
@@ -9570,8 +9589,8 @@ window.addEventListener('keydown', (event) => {
         // the Blue mascot on the menu (since mousemove never fires on
         // touch devices).
         let canvasTouchActive = false;
-                // ===== 8.4 Touch input =====
-canvas.addEventListener('touchstart', (event) => {
+        // ===== 8.4 Touch input =====
+        canvas.addEventListener('touchstart', (event) => {
             const c = getGameCoords(event);
             if (gameState === GAME_STATES.PLAYING) {
                 canvasTouchActive = true;
@@ -9629,8 +9648,8 @@ canvas.addEventListener('touchstart', (event) => {
             pauseButton.addEventListener('pointerup', handlePausePress);
         }
 
-                // ===== 8.6 Mobile account input wiring =====
-const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
+        // ===== 8.6 Mobile account input wiring =====
+        const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
         const mobileCancelBtn = document.getElementById('mobileCancelBtn');
         const accountMobileInput = document.getElementById('accountMobileInput');
 
