@@ -350,6 +350,27 @@
 
     <script>
         /* ============================================================
+           STAR CATCHER - single-file game code
+           ------------------------------------------------------------
+           TABLE OF CONTENTS
+            0.  Setup: canvas, context, device helpers
+            1.  Game state and global variables
+            2.  Audio setup (music + SFX)
+            3.  Records management (localStorage)
+            4.  Game logic (missions, entities, run lifecycle)
+            5.  Update loops (classic/survival/battle/boss/coop)
+            6.  Drawing functions (screens + renderers)
+            7.  Menu action dispatch
+            8.  Input handlers, save helpers and DOM wiring
+            9.  Polyfill and utilities
+            10. Game loop and initialization
+           ------------------------------------------------------------
+           Conventions
+            - Top-level sections are numbered "N. TITLE".
+            - Subsections are marked "// ===== N.M title =====".
+            - All comments are written in English.
+        ============================================================ */
+        /* ============================================================
            0. SETUP CANVAS AND CONTEXT
         ============================================================ */
         const FIRE_RATE_COOLDOWN_MS = 140; // minimum delay between shots in Battle mode
@@ -362,7 +383,8 @@
         // the player is interacting with the game. preventDefault on
         // `contextmenu` does not affect left-click behaviour, so the
         // existing ship-move handler keeps working untouched.
-        canvas.addEventListener('contextmenu', (e) => {
+                // ===== 0.1 Canvas + right-click suppression =====
+canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
         });
 
@@ -375,7 +397,8 @@
         // roughly one row instead of micro-scrolling by line height.
         // preventDefault stops the browser from intercepting it for
         // page-scroll on touch devices that emulate wheel events.
-        canvas.addEventListener('wheel', (e) => {
+                // ===== 0.2 Settings-panel wheel scroll =====
+canvas.addEventListener('wheel', (e) => {
             if (gameState !== GAME_STATES.SETTINGS) return;
             const step = 120;
             const next = settingsScrollY + Math.sign(e.deltaY) * step;
@@ -392,7 +415,8 @@
         // back background / overlay work on phones. Re-evaluated on
         // resize and orientationchange so a tablet that narrows after
         // boot picks up the same perf tweaks.
-        function detectMobile() {
+                // ===== 0.3 Device detection (mobile) =====
+function detectMobile() {
             return ('ontouchstart' in window || navigator.maxTouchPoints > 0)
                 || window.innerWidth <= 768;
         }
@@ -413,7 +437,8 @@
         // coordinates. Re-evaluates the bounding rect on every call so
         // it stays correct across orientation changes and address-bar
         // resizes, which cost essentially nothing.
-        function getGameCoords(event) {
+                // ===== 0.4 Input -> canvas-coordinate helper =====
+function getGameCoords(event) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
             const scaleY = canvas.height / rect.height;
@@ -437,7 +462,8 @@
         /* ============================================================
            1. GAME STATE AND GLOBAL VARIABLES
         ============================================================ */
-        const GAME_STATES = {
+                // ===== 1.1 Game states + modes =====
+const GAME_STATES = {
             MENU: 'menu',
             ACCOUNT: 'account',
             // 'difficulty' sits BETWEEN MENU and PLAYING / BATTLE: when
@@ -488,7 +514,8 @@
             BOSS: 'boss'
         };
 
-        let gameState = GAME_STATES.MENU;
+                // ===== 1.2 Runtime state =====
+let gameState = GAME_STATES.MENU;
         let gameMode = GAME_MODES.CLASSIC;
         let survivalStartTime = 0;        // Date.now() when survival run starts
         let survivalScorePerSecondTick = 0; // accumulator that turns real time into integer seconds
@@ -544,7 +571,8 @@
         let mouseX = 400;
         let mouseY = 550;
 
-        // ----- Phase-2B Button hover tracking -----
+                // ===== 1.3 Button hover system =====
+// ----- Phase-2B Button hover tracking -----
         // Tracks which menuButtons action is currently hovered and
         // smoothly interpolates hoverStrength 0→1 (enter) / 1→0 (exit)
         // so buttons animate rather than snapping between states.
@@ -559,6 +587,135 @@
         // optionally layers a glow and scale transform when hovered.
         //   isPrimary: amber-gold glow instead of blue-violet
         //   hoverStrength: 0..1 from btnHoverStrength
+        // ---- Vector icon helper (used by drawGlassButton) ----
+        // Draws a small geometric icon (no emoji) inside a 22 x 22 box
+        // centred on (x, y). Vector icons render pixel-identically on every
+        // device (emoji does not) and read as deliberately designed.
+        function drawVectorIcon(type, x, y, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 1.8;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            switch (type) {
+                case 'play': // filled triangle, points right
+                    ctx.beginPath();
+                    ctx.moveTo(-3, -6);
+                    ctx.lineTo(5, 0);
+                    ctx.lineTo(-3, 6);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                case 'account': // head + shoulders
+                    ctx.beginPath();
+                    ctx.arc(0, -4, 4.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(0, 9, 7.5, Math.PI, 0);
+                    ctx.stroke();
+                    break;
+                case 'records': { // trophy: bowl, handles, stem, base
+                    ctx.beginPath();
+                    ctx.arc(0, -1.5, 5, Math.PI, 0);
+                    ctx.lineTo(4, 1.5);
+                    ctx.quadraticCurveTo(0, 3.5, -4, 1.5);
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, 2.5);
+                    ctx.lineTo(0, 7.5);
+                    ctx.moveTo(-4.5, 9.5);
+                    ctx.lineTo(4.5, 9.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(-5.5, -1.5, 2.6, Math.PI * 0.5, Math.PI * 1.5, true);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(5.5, -1.5, 2.6, Math.PI * 1.5, Math.PI * 0.5, true);
+                    ctx.stroke();
+                    break;
+                }
+                case 'settings': { // three sliders with knobs
+                    ctx.lineWidth = 1.6;
+                    for (let i = 0; i < 3; i++) {
+                        const sy = -5 + i * 5;
+                        ctx.beginPath();
+                        ctx.moveTo(-7, sy);
+                        ctx.lineTo(7, sy);
+                        ctx.stroke();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(3, -5, 2.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(-3, 0, 2.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(5, 5, 2.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                case 'missions': { // clipboard with a couple of lines
+                    ctx.beginPath();
+                    ctx.roundRect(-6, -8, 12, 16, 2.5);
+                    ctx.stroke();
+                    ctx.fillRect(-2, -10, 4, 2.5);
+                    ctx.beginPath();
+                    ctx.moveTo(-3, -2);
+                    ctx.lineTo(3, -2);
+                    ctx.moveTo(-3, 2);
+                    ctx.lineTo(3, 2);
+                    ctx.moveTo(-3, 6);
+                    ctx.lineTo(1, 6);
+                    ctx.stroke();
+                    break;
+                }
+                case 'battle': { // crosshair
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-8, 0);
+                    ctx.lineTo(8, 0);
+                    ctx.moveTo(0, -8);
+                    ctx.lineTo(0, 8);
+                    ctx.stroke();
+                    break;
+                }
+                case 'coop': { // two overlapping player silhouettes
+                    ctx.beginPath();
+                    ctx.arc(-4, -4, 3.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(4, -4, 3.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(-5.5, 8, 5.5, Math.PI, 0);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(5.5, 8, 5.5, Math.PI, 0);
+                    ctx.stroke();
+                    break;
+                }
+                case 'survival': { // shield (protection)
+                    ctx.beginPath();
+                    ctx.moveTo(0, -7.5);
+                    ctx.lineTo(6, -4.5);
+                    ctx.lineTo(6, 1.5);
+                    ctx.lineTo(0, 7.5);
+                    ctx.lineTo(-6, 1.5);
+                    ctx.lineTo(-6, -4.5);
+                    ctx.closePath();
+                    ctx.stroke();
+                    break;
+                }
+            }
+            ctx.restore();
+        }
+
         function drawGlassButton(x, y, w, h, radius, text, fontSize, opts) {
             opts = opts || {};
             const hs = opts.hoverStrength || 0;
@@ -608,7 +765,20 @@
             ctx.font = fontSize;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, cx, cy);
+            const iconType = opts.icon || null;
+            if (iconType) {
+                // Icon + label are centred as one group. Icons use the
+                // accent colour (gold on primary CTAs, silver elsewhere).
+                const tw = ctx.measureText(text).width;
+                const iconW = 20, gap = 7;
+                const groupW = tw + gap + iconW;
+                const iconX = cx - groupW / 2 + iconW / 2;
+                const textX = cx + groupW / 2 - tw / 2;
+                drawVectorIcon(iconType, iconX, cy, opts.iconColor || (isPrimary ? '#ffbf24' : (opts.textColor && opts.textColor !== '#f1f5f9' ? opts.textColor : '#aeb9c9')));
+                ctx.fillText(text, textX, cy);
+            } else {
+                ctx.fillText(text, cx, cy);
+            }
             ctx.shadowBlur = 0;
 
             ctx.restore();
@@ -662,7 +832,8 @@
             return 0;
         }
 
-        // ----- Settings-panel scroll state -----
+                // ===== 1.4 Settings-panel scroll state =====
+// ----- Settings-panel scroll state -----
         // The Settings screen hosts two categories (SOUNDS CONTROLS +
         // GAME CONTROLS) which together are taller than a single on-
         // canvas panel can show without colliding with the BACK button
@@ -693,7 +864,8 @@
         let settingsScrollDragAnchorY = 0;
         let settingsScrollAnchorOffset = 0;
 
-        let stars = [];
+                // ===== 1.5 Entity pools (stars, meteorites, battle, boss, coop) =====
+let stars = [];
         let meteorites = [];
         // ----- Battle mode arrays -----
         // Players and enemies shoot discrete blue / red energy bolts at
@@ -796,6 +968,13 @@
         // identical "just got hit" feedback everywhere.
         let playerHitFlash = 0;
 
+        // ----- Timing constants (frames, assuming ~60 fps) -----
+        // Shared across every damage path so tuning is done in ONE place
+        // instead of eight magic numbers scattered through update loops.
+        const PLAYER_HIT_FLASH_FRAMES = 20;  // ~0.33 s red hurt tint on the blue ship
+        const I_FRAMES_AFTER_HIT = 36;       // ~0.6 s invincibility (Battle / BOSS / CO-OP)
+        const SURVIVAL_I_FRAMES = 60;        // ~1 s invincibility after a meteorite hit (Survival)
+
         // ----- BOSS FIGHT state -----
         // The crowned alien king sits at the top of the canvas, sways
         // gently, telegraphs, then fires very fast red missiles aimed at
@@ -843,7 +1022,8 @@
         // body radius). Stepping into the beam and immediately stepping
         // out is harmless — the entry timestamp is cleared the moment
         // the player exits and armed again only on the next entry.
-        const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
+                // ===== 1.6 Survival-mode monster =====
+const SURVIVAL_MONSTER_FIRST_SPAWN_MS = 8000;   // ease-in first 8 s
         const SURVIVAL_MONSTER_RESPAWN_MIN_MS = 14000; // 14-22 s randomised respawn
         const SURVIVAL_MONSTER_RESPAWN_MAX_MS = 22000;
         const MONSTER_WARP_IN_MS = 800;                // alpha ease-in
@@ -904,7 +1084,8 @@
             // gaps still run on real-ish time inside the boss match.
             return gameMode === GAME_MODES.BOSS ? battleElapsedMs : score * 1000;
         }
-        let isNewRecord = false;
+                // ===== 1.7 In-game record banner + rocket mascot =====
+let isNewRecord = false;
         let newRecordPosition = -1;
         const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
         let inGameRecordShown = false;        // banner visibility flag
@@ -923,7 +1104,8 @@
             angle: 0
         };
 
-        let menuButtons = [];
+                // ===== 1.8 Missions cache + blue mascot =====
+let menuButtons = [];
 
         // Missions cache for streak bar widget (avoids localStorage
         // reads every frame inside drawMenu).
@@ -1002,20 +1184,22 @@
         /* ============================================================
            2. AUDIO SETUP
         ============================================================ */
-        let audioCtx = null;
+                // ===== 2.1 Shared audio context =====
+let audioCtx = null;
 
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            // Risveglia l'AudioContext se è in stato sospeso
+            // Wake the AudioContext if it is still suspended
             if (audioCtx && audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
         }
 
-        // Elemento audio per la musica del menu
-        let menuAudio = null;
+        // Audio element for the menu music
+                // ===== 2.2 Menu music =====
+let menuAudio = null;
 
         function initMenuAudio() {
             if (!menuAudio) {
@@ -1060,7 +1244,8 @@
         // initMenuAudio() above. Controlled by its own setting
         // (settings.classicMusic), independent from the menu track,
         // so the player can mute each song separately.
-        let classicAudio = null;
+                // ===== 2.3 Classic-mode music =====
+let classicAudio = null;
 
         function initClassicAudio() {
             if (!classicAudio) {
@@ -1129,7 +1314,8 @@
         // above. Controlled by its own setting (settings.survivalMusic),
         // independent from the menu and Classic tracks, so the player
         // can mute each song separately from the Settings screen.
-        let survivalAudio = null;
+                // ===== 2.4 Survival-mode music =====
+let survivalAudio = null;
 
         function initSurvivalAudio() {
             if (!survivalAudio) {
@@ -1213,7 +1399,8 @@
         // every change bumps settingsToggledCountToday; the 'toggle_setting'
         // mission just needs ≥1, so multiple clicks still only count once
         // toward unlock.
-        function clampVolume(v) {
+                // ===== 2.5 Volume setters =====
+function clampVolume(v) {
             // Audio API rejects anything outside [0, 1] silently, so
             // rounding + clamping here keeps in-game and stored values
             // consistent. Fallback default bumped from 0.3 to 0.7 so
@@ -1247,12 +1434,13 @@
             survivalAudio.volume = settings.survivalVolume;
         }
 
-        // Suono di raccolta stellina - caricato dal file star-sound.txt
-        let starSound = null;
+        // Star-collect sound, loaded from the star-sound.txt file
+                // ===== 2.6 Sound effects (SFX) =====
+let starSound = null;
 
         function loadStarSound() {
             if (!starSound) {
-                // Leggi il contenuto del file come blob (richiede che il file sia servito correttamente)
+                // Read the file contents as a blob (requires the file to be served over HTTP)
                 fetch('star-sound.txt')
                     .then(response => response.blob())
                     .then(blob => {
@@ -1275,7 +1463,7 @@
                     starSound.currentTime = 0;
                     starSound.play().catch(() => { });
                 } else {
-                    // Suono sintetico di fallback
+                    // Synthesized fallback sound
                     const oscillator = audioCtx.createOscillator();
                     const gainNode = audioCtx.createGain();
                     oscillator.connect(gainNode);
@@ -1365,7 +1553,8 @@
             } catch (e) { }
         }
 
-        // ----- Battle Mode SFX -----
+                // ===== 2.7 Battle-mode SFX =====
+// ----- Battle Mode SFX -----
         // Three short synthesised sounds used only by Battle mode.
         // They follow the same simple `oscillator → gain → destination`
         // recipe as the existing playCollectSound / playLoseLifeSound /
@@ -1470,9 +1659,10 @@
         let lastFireTimeMs = 0;
 
         /* ============================================================
-           3. RECORDS GESTION (localStorage)
+           3. RECORDS MANAGEMENT (localStorage)
         ============================================================ */
-        function getAllRecords() {
+                // ===== 3.1 Generic records store =====
+function getAllRecords() {
             const data = localStorage.getItem('starCatcherAllRecords');
             return data ? JSON.parse(data) : {};
         }
@@ -1496,7 +1686,8 @@
             saveAllRecords(all);
         }
 
-        function addScoreToUser(username, newScore) {
+                // ===== 3.2 Classic records =====
+function addScoreToUser(username, newScore) {
             if (newScore <= 0) return -1;
 
             let records = getUserRecords(username);
@@ -1522,7 +1713,8 @@
 
         // Survival mode uses a separate bucket of records (per-mode top-10),
         // identified by a `${user}__survival` key in the same localStorage object.
-        function getSurvivalRecords(username) {
+                // ===== 3.3 Survival records =====
+function getSurvivalRecords(username) {
             const key = `${username}__survival`;
             const all = getAllRecords();
             if (!all[key]) {
@@ -1570,7 +1762,8 @@
         // top-10 shape is identical (Array(10).fill(0) → sorted → first
         // 10 entries) so the Records screen can iterate mode buckets
         // uniformly with `getUserRecords / getSurvivalRecords / getBattleRecords`.
-        function getBattleRecords(username) {
+                // ===== 3.4 Battle records =====
+function getBattleRecords(username) {
             const key = `${username}__battle`;
             const all = getAllRecords();
             if (!all[key]) {
@@ -1611,7 +1804,8 @@
             return records.length > 0 ? records[0] : 0;
         }
 
-        // ----- BOSS-FIGHT unlock tracking -----
+                // ===== 3.5 BOSS-FIGHT unlock tracking + records =====
+// ----- BOSS-FIGHT unlock tracking -----
         // BOSS FIGHT unlocks once the account has three single-game
         // records: 1000 stars in Classic, 60 s in Survival and 100 kills
         // in Battle NORMAL mode. The generic `${user}__battle` bucket is
@@ -1695,7 +1889,8 @@
             return records.length > 0 ? records[0] : 0;
         }
 
-        // ----- CO-OP Mode records -----
+                // ===== 3.6 CO-OP records =====
+// ----- CO-OP Mode records -----
         // Top-10 best CO-OP runs (1 star + 2 enemy-kill per score).
         // Identical shape / storage convention to the `${user}__battle`
         // bucket above so the Records screen can iterate mode buckets
@@ -1745,7 +1940,8 @@
         // Stored as a single integer (ms) under `${user}__playTime`
         // alongside the records so the Records screen can answer
         // "how much time have you been gaming on this account".
-        function getPlayTime(username) {
+                // ===== 3.7 Play-time tracking =====
+function getPlayTime(username) {
             if (!username) return 0;
             const key = `${username}__playTime`;
             const all = getAllRecords();
@@ -1791,7 +1987,8 @@
             return `${seconds}s`;
         }
 
-        function saveLastUser(username) {
+                // ===== 3.8 Account + settings persistence =====
+function saveLastUser(username) {
             if (username) {
                 localStorage.setItem('starCatcherLastUser', username);
             } else {
@@ -1903,7 +2100,8 @@
             } catch (e) { /* silent fail on quota / disabled storage */ }
         }
 
-        function showMobileInput(show) {
+                // ===== 3.9 Mobile account input card =====
+function showMobileInput(show) {
             const wrapper = document.getElementById('mobileAccountInput');
             if (!wrapper) return;
             if (show) {
@@ -1911,7 +2109,7 @@
                 const input = document.getElementById('accountMobileInput');
                 if (input) {
                     input.value = accountInput || '';
-                    // Focus con ritardo per mobile
+                    // Focus the field after a short delay (mobile keyboards)
                     setTimeout(() => input.focus(), 150);
                 }
                 mobileInputVisible = true;
@@ -1924,7 +2122,8 @@
         /* ============================================================
            4. GAME LOGIC FUNCTIONS
         ============================================================ */
-        // ----- Daily missions + streaks -----
+                // ===== 4.1 Daily missions + streaks =====
+// ----- Daily missions + streaks -----
         // Swipeable page accessible from the main menu. Two streaks
         // per account: a yellow/orange manual-claim "daily streak"
         // and a red/burgundy auto-bumped "super streak" earned by
@@ -2238,7 +2437,8 @@
         }
 
         // ----- Missions page renderer -----
-        function drawMissionsScreen() {
+                // ===== 4.2 Missions screen (page 1) =====
+function drawMissionsScreen() {
             drawBackground();
             updateButtonHover();  // Phase-2B
 
@@ -2564,7 +2764,8 @@
             ctx.shadowBlur = 0;
         }
 
-        function drawBossObjectivesScreen() {
+                // ===== 4.3 BOSS objectives page (page 2) =====
+function drawBossObjectivesScreen() {
             drawBackground();
             updateButtonHover();
 
@@ -2735,7 +2936,8 @@
             ctx.shadowBlur = 0;
         }
 
-        function createStar() {
+                // ===== 4.4 Game entities (stars, meteorites) =====
+function createStar() {
             const isLucky = Math.random() < 0.08;
             return {
                 x: Math.random() * canvas.width,
@@ -2776,7 +2978,8 @@
             };
         }
 
-        function resetGame() {
+                // ===== 4.5 Run lifecycle =====
+function resetGame() {
             stars = [];
             meteorites = [];
             // Survival monster state must reset on every new run so a
@@ -3136,7 +3339,8 @@
             setPos(minMargin, minMargin);
         }
 
-        function updateRocketEmoji() {
+                // ===== 4.6 Rocket mascot animation =====
+function updateRocketEmoji() {
             if (gameState !== GAME_STATES.MENU) {
                 if (rocketEmoji.isEscaping) {
                     rocketEmoji.isEscaping = false;
@@ -3181,7 +3385,8 @@
         // for clamping left a 100px dead zone on each side of the canvas.
         const shipEdge = 26;
 
-        function update() {
+                // ===== 5.1 Main update loop =====
+function update() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
 
             // Tick the blue-player damage flash down every frame so the
@@ -3259,7 +3464,7 @@
                     if (star.y > canvas.height + star.radius) {
                         comboStreak = 0;
                         lives--;
-                        playerHitFlash = 20;
+                        playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                         playLoseLifeSound();
                         stars.splice(i, 1);
                         if (lives <= 0) endGame();
@@ -3305,7 +3510,8 @@
             }
         }
 
-        // ----- Monster helpers (Survival only) -----
+                // ===== 5.2 Survival monster (state machine + render helpers) =====
+// ----- Monster helpers (Survival only) -----
         // All monsters share one entry point: spawnMonster() flips
         // monster.active = true and resets state, while updateMonster()
         // ticks the warp-in/active/fade-out state machine forward each
@@ -3548,7 +3754,8 @@
             ctx.restore();
         }
 
-        function updateSurvival() {
+                // ===== 5.3 Survival update =====
+function updateSurvival() {
             // Score grows with time — convert real-time elapsed since the
             // run started into an integer-seconds counter via an accumulator.
             if (survivalStartTime === 0) {
@@ -3596,8 +3803,8 @@
                     const dist2 = dx * dx + dy * dy;
                     if (dist2 < hitDistance * hitDistance) {
                         lives--;
-                        meteoriteHitCooldown = 60;  // ~1 second of i-frames at 60fps
-                        playerHitFlash = 20;
+                        meteoriteHitCooldown = SURVIVAL_I_FRAMES;  // ~1 second of i-frames at 60fps
+                        playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                         playLoseLifeSound();
                         meteorites.splice(i, 1);
                         if (lives <= 0) endGame();
@@ -3657,7 +3864,7 @@
                         // keeps the cadence on a 1-s rolling window
                         // rather than draining 1 life per frame.
                         lives--;
-                        playerHitFlash = 20;
+                        playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                         playLoseLifeSound();
                         playerInBeamSince = Date.now();
                         if (lives <= 0) endGame();
@@ -3671,7 +3878,8 @@
             }
         }
 
-        // ----- Battle mode loop -----
+                // ===== 5.4 Battle update =====
+// ----- Battle mode loop -----
         // A self-contained branch added at the end of update() so the
         // existing Classic and Survival logic keeps its proven shape.
         // The branch runs only when gameMode === BATTLE; it owns:
@@ -3848,10 +4056,10 @@
                             }
                         }
                         hp = Math.max(0, hp - b.dmg);
-                        playerHitFlash = 20;
+                        playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                         playLoseLifeSound();
                         enemyBullets.splice(i, 1);
-                        meteoriteHitCooldown = 36; // ~0.6s i-frames
+                        meteoriteHitCooldown = I_FRAMES_AFTER_HIT; // ~0.6s i-frames
                         if (hp <= 0) {
                             endGame();
                             break;
@@ -3901,7 +4109,7 @@
                         const dist2 = dx * dx + dy * dy;
                         if (dist2 < hitDistance * hitDistance) {
                             hp = Math.max(0, hp - 15);
-                            playerHitFlash = 20;
+                            playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                             playLoseLifeSound();
                             // Match the Battle enemy-bullet i-frame
                             // (36 frames / ~0.6 s at 60 fps). Meteorites
@@ -3909,7 +4117,7 @@
                             // recovery window than bullets, which feels
                             // backwards since the speed-doubled meteors
                             // are the harder threat.
-                            meteoriteHitCooldown = 36;
+                            meteoriteHitCooldown = I_FRAMES_AFTER_HIT;
                             meteorites.splice(i, 1);
                             if (hp <= 0) endGame();
                         }
@@ -3918,7 +4126,8 @@
             }
         }
 
-        // ----- BOSS FIGHT mode loop -----
+                // ===== 5.5 BOSS FIGHT update =====
+// ----- BOSS FIGHT mode loop -----
         // A Battle-style match against the crowned alien UFO king. The
         // boss sways at the top, telegraphs and fires very fast red
         // missiles aimed at the player; normal Battle enemies,
@@ -4075,10 +4284,10 @@
                     const dy = b.y - player.y;
                     if (dx * dx + dy * dy < 80 * 80) {
                         hp = Math.max(0, hp - b.dmg);
-                        playerHitFlash = 20;
+                        playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                         playLoseLifeSound();
                         enemyBullets.splice(i, 1);
-                        meteoriteHitCooldown = 36; // ~0.6s i-frames
+                        meteoriteHitCooldown = I_FRAMES_AFTER_HIT; // ~0.6s i-frames
                         if (hp <= 0) {
                             endGame();
                             return;
@@ -4110,9 +4319,9 @@
                     const hitDistance = player.radius * 0.20 + m.radius * 0.35;
                     if (dx * dx + dy * dy < hitDistance * hitDistance) {
                         hp = Math.max(0, hp - 15);
-                        playerHitFlash = 20;
+                        playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                         playLoseLifeSound();
-                        meteoriteHitCooldown = 36;
+                        meteoriteHitCooldown = I_FRAMES_AFTER_HIT;
                         meteorites.splice(i, 1);
                         if (hp <= 0) {
                             endGame();
@@ -4151,7 +4360,8 @@
             if (bossDefeated) endGame();
         }
 
-        function createEnemy(elite) {
+                // ===== 5.6 Enemy factory =====
+function createEnemy(elite) {
             const anchorX = 80 + Math.random() * (canvas.width - 160);
             return {
                 x: anchorX,
@@ -4176,7 +4386,8 @@
             };
         }
 
-        // ----- CO-OP combat tick -----
+                // ===== 5.7 CO-OP update =====
+// ----- CO-OP combat tick -----
         // Reuses Battle's battleEnemies / enemyBullets pools so the
         // enemy behaviour + telegraph feel is identical, and adds only
         // greenPlayerBeams on top. Score: +1 per star caught (no combo
@@ -4261,7 +4472,7 @@
                     // life — there are no individual lives in CO-OP).
                     // Both players feel every miss together.
                     coopHp = Math.max(0, coopHp - COOP_MISSED_STAR_DMG);
-                    playerHitFlash = 20;
+                    playerHitFlash = PLAYER_HIT_FLASH_FRAMES;
                     playLoseLifeSound();
                     stars.splice(i, 1);
                     if (coopHp <= 0) {
@@ -4387,7 +4598,7 @@
                         coopHp = Math.max(0, coopHp - b.dmg);
                         playLoseLifeSound();
                         enemyBullets.splice(i, 1);
-                        coopGreenHitCooldown = 36;
+                        coopGreenHitCooldown = I_FRAMES_AFTER_HIT;
                         if (coopHp <= 0) {
                             endGame();
                             return;
@@ -4405,7 +4616,8 @@
             }
         }
 
-        function fireBullet() {
+                // ===== 5.8 Combat helpers + end of run =====
+function fireBullet() {
             if (gameState !== GAME_STATES.PLAYING || gameOver) return;
             // BOSS FIGHT reuses Battle's blue ray bullets so the player
             // can actually damage the king.
@@ -4534,7 +4746,8 @@
         /* ============================================================
            6. DRAWING FUNCTIONS
         ============================================================ */
-        function drawBackground() {
+                // ===== 6.1 Background + parallax =====
+function drawBackground() {
             // Phase-2A: radial gradient from shadow-grey center to ink-black edges
             const bgGrad = ctx.createRadialGradient(
                 canvas.width / 2, canvas.height * 0.3, 0,
@@ -4543,6 +4756,17 @@
             bgGrad.addColorStop(0, '#1a1f2c');   // shadow-grey
             bgGrad.addColorStop(1, '#0b0e14');   // ink-black
             ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Soft nebula haze in the upper right — depth without clutter.
+            const nebula = ctx.createRadialGradient(
+                canvas.width * 0.72, canvas.height * 0.16, 0,
+                canvas.width * 0.72, canvas.height * 0.16, canvas.width * 0.55
+            );
+            nebula.addColorStop(0, 'rgba(96, 62, 190, 0.22)');
+            nebula.addColorStop(0.55, 'rgba(64, 42, 140, 0.10)');
+            nebula.addColorStop(1, 'transparent');
+            ctx.fillStyle = nebula;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.shadowBlur = 0;
@@ -4555,6 +4779,22 @@
                 ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
                 ctx.beginPath();
                 ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Far parallax star layer: small, dim stars that drift slowly
+            // downward (matching the falling-star theme). Positions are
+            // deterministic per index so there is no per-frame flicker —
+            // only the vertical offset animates with time.
+            const drift = (Date.now() / 1000) * 5;
+            const farCount = IS_MOBILE ? 24 : 42;
+            for (let i = 0; i < farCount; i++) {
+                const fx = (i * 173.7 + 23) % canvas.width;
+                const fy = (i * 97.3 + 11 + drift) % canvas.height;
+                const fsize = 0.4 + (i % 2) * 0.4;
+                ctx.fillStyle = 'rgba(170, 195, 255, ' + (0.22 + (i % 3) * 0.12).toFixed(2) + ')';
+                ctx.beginPath();
+                ctx.arc(fx, fy, fsize, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -4591,7 +4831,8 @@
             ctx.fill();
         }
 
-        function drawBlueCharacter(now) {
+                // ===== 6.2 Blue mascot + speech bubble =====
+function drawBlueCharacter(now) {
             const c = blueCharacter;
             const bobY = Math.sin(c.bobPhase) * 6;
             const cx = c.cx;
@@ -4772,7 +5013,8 @@
             ctx.restore();
         }
 
-        function drawMenu() {
+                // ===== 6.3 Main menu =====
+function drawMenu() {
             drawBackground();
             updateButtonHover();  // Phase-2B hover tracking
 
@@ -5002,11 +5244,13 @@
             const r1LeftX = innerX;
             const r1RightX = innerX + row1W + 20;
 
-            drawGlassButton(r1LeftX, row1Y, row1W, row1H, 12, '▶ PLAY', 'bold 24px Orbitron, sans-serif', {
+            drawGlassButton(r1LeftX, row1Y, row1W, row1H, 12, 'PLAY', 'bold 24px Orbitron, sans-serif', {
+                icon: 'play',
                 isPrimary: true,
                 hoverStrength: hoverFor('play')
             });
-            drawGlassButton(r1RightX, row1Y, row1W, row1H, 12, '👤 ACCOUNT', 'bold 20px Orbitron, sans-serif', {
+            drawGlassButton(r1RightX, row1Y, row1W, row1H, 12, 'ACCOUNT', 'bold 20px Orbitron, sans-serif', {
+                icon: 'account',
                 hoverStrength: hoverFor('account')
             });
 
@@ -5021,13 +5265,16 @@
             const r2bX = innerX + row2W + 20;
             const r2cX = innerX + (row2W + 20) * 2;
 
-            drawGlassButton(r2aX, row2Y, row2W, row2H, 10, '🏆 RECORDS', '18px Orbitron, sans-serif', {
+            drawGlassButton(r2aX, row2Y, row2W, row2H, 10, 'RECORDS', '18px Orbitron, sans-serif', {
+                icon: 'records',
                 hoverStrength: hoverFor('records')
             });
-            drawGlassButton(r2bX, row2Y, row2W, row2H, 10, '⚙ SETTINGS', '18px Orbitron, sans-serif', {
+            drawGlassButton(r2bX, row2Y, row2W, row2H, 10, 'SETTINGS', '18px Orbitron, sans-serif', {
+                icon: 'settings',
                 hoverStrength: hoverFor('settings')
             });
-            drawGlassButton(r2cX, row2Y, row2W, row2H, 10, '📋 MISSIONS', '18px Orbitron, sans-serif', {
+            drawGlassButton(r2cX, row2Y, row2W, row2H, 10, 'MISSIONS', '18px Orbitron, sans-serif', {
+                icon: 'missions',
                 hoverStrength: hoverFor('missions')
             });
 
@@ -5042,13 +5289,16 @@
             const r3bX = innerX + row3W + 15;
             const r3cX = innerX + (row3W + 15) * 2;
 
-            drawGlassButton(r3aX, row3Y, row3W, row3H, 12, '🎯 BATTLE', 'bold 17px Orbitron, sans-serif', {
+            drawGlassButton(r3aX, row3Y, row3W, row3H, 12, 'BATTLE', 'bold 17px Orbitron, sans-serif', {
+                icon: 'battle',
                 hoverStrength: hoverFor('playBattle')
             });
-            drawGlassButton(r3bX, row3Y, row3W, row3H, 12, '🤝 CO-OP', 'bold 17px Orbitron, sans-serif', {
+            drawGlassButton(r3bX, row3Y, row3W, row3H, 12, 'CO-OP', 'bold 17px Orbitron, sans-serif', {
+                icon: 'coop',
                 hoverStrength: hoverFor('playCoop')
             });
-            drawGlassButton(r3cX, row3Y, row3W, row3H, 12, '💀 SURVIVAL', 'bold 17px Orbitron, sans-serif', {
+            drawGlassButton(r3cX, row3Y, row3W, row3H, 12, 'SURVIVAL', 'bold 17px Orbitron, sans-serif', {
+                icon: 'survival',
                 hoverStrength: hoverFor('survival')
             });
 
@@ -5083,7 +5333,8 @@
             // unified streak + account display.
         }
 
-        function drawAccountScreen() {
+                // ===== 6.4 Account screen =====
+function drawAccountScreen() {
             drawBackground();
 
             ctx.textAlign = 'center';
@@ -5111,7 +5362,8 @@
             ctx.shadowBlur = 0;
         }
 
-        function drawFallingStars() {
+                // ===== 6.5 Stars, meteorites + survival overlay =====
+function drawFallingStars() {
             for (const star of stars) {
                 ctx.save();
                 ctx.translate(star.x, star.y);
@@ -5250,7 +5502,8 @@
             }
         }
 
-        function drawShip() {
+                // ===== 6.6 Ships (blue + green) + beams =====
+function drawShip() {
             ctx.save();
             ctx.translate(player.x, player.y);
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
@@ -5436,7 +5689,8 @@
             }
         }
 
-        // ====== Battle mode renderers ======
+                // ===== 6.7 Battle / BOSS renderers =====
+// ====== Battle mode renderers ======
         // These three renderers are only invoked when gameMode === BATTLE
         // (see the GAME_STATES.PLAYING switch in the draw() loop below).
         // They were added together with updateBattle() / createEnemy()
@@ -5796,7 +6050,8 @@
             }
         }
 
-        function drawGameUI() {
+                // ===== 6.8 HUD (health, score, lives) =====
+function drawGameUI() {
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
             const isBoss = gameMode === GAME_MODES.BOSS;
@@ -6071,7 +6326,8 @@
             drawSavedOverlay();
         }
 
-        function drawPauseScreen() {
+                // ===== 6.9 Pause screen =====
+function drawPauseScreen() {
             // Phase-2A Glassmorphism overlay
             ctx.fillStyle = 'rgba(26, 31, 44, 0.75)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -6163,7 +6419,8 @@
             ctx.shadowBlur = 0;
         }
 
-        function drawGameOver() {
+                // ===== 6.10 Game-over screen =====
+function drawGameOver() {
             updateButtonHover();  // Phase-2B hover tracking
             const isSurvival = gameMode === GAME_MODES.SURVIVAL;
             const isBattle = gameMode === GAME_MODES.BATTLE;
@@ -6475,7 +6732,8 @@
             ctx.shadowBlur = 0;
         }
 
-        function drawRecordsScreen() {
+                // ===== 6.11 Records screen =====
+function drawRecordsScreen() {
             drawBackground();
             updateButtonHover();  // Phase-2B
 
@@ -7003,7 +7261,8 @@
             ctx.shadowBlur = 0;
         }
 
-        function drawSettingsScreen() {
+                // ===== 6.12 Settings screen =====
+function drawSettingsScreen() {
             drawBackground();
             updateButtonHover();  // Phase-2B
 
@@ -7286,7 +7545,8 @@
         // renders the card at ~45% opacity with a status emoji badge
         // drawn BELOW the description text (kept at full alpha so it
         // stays legible over the greyed-out card).
-        function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge) {
+                // ===== 6.13 Difficulty / CO-OP picker cards =====
+function drawDiffCard(cx, cy, w, h, title, descLines, accent, locked, badge) {
             if (locked) ctx.globalAlpha = 0.45;
             // Card fill
             ctx.shadowBlur = 0;
@@ -7337,7 +7597,8 @@
             ctx.globalAlpha = 1;
         }
 
-        function draw() {
+                // ===== 6.14 Main draw dispatcher =====
+function draw() {
             updatePauseButton();
             // Battle mode ships a mobile FIRE pad positioned outside the
             // canvas. The pad's visibility follows the current run-state,
@@ -7614,7 +7875,8 @@
         /* ============================================================
            7. HANDLE MENU ACTIONS
         ============================================================ */
-        function handleMenuAction(action) {
+                // ===== 7.1 Action dispatch =====
+function handleMenuAction(action) {
             switch (action) {
                 case 'play':
                     if (!currentUser) {
@@ -7762,7 +8024,7 @@
                         // Se è un nuovo nome diverso da currentUser, azzera i record
                         if (newUser !== currentUser && currentUser) {
                             if (confirm(`Changing account from "${currentUser}" to "${newUser}".\nYour previous records will be reset. Continue?`)) {
-                                // Rimuovi i record del vecchio account
+                                // Remove the previous account's records
                                 const allRecords = getAllRecords();
                                 delete allRecords[currentUser];
                                 delete allRecords[currentUser + '__survival'];
@@ -7957,9 +8219,10 @@
         }
 
         /* ============================================================
-           8. INPUT: MOUSE, KEYBOARD AND TOUCH
+           8. INPUT HANDLERS, SAVE HELPERS AND DOM WIRING
         ============================================================ */
-        canvas.addEventListener('click', (event) => {
+                // ===== 8.1 Mouse / touch clicks =====
+canvas.addEventListener('click', (event) => {
             const c = getGameCoords(event);
             for (const btn of menuButtons) {
                 const r = btn.rect;
@@ -7970,7 +8233,8 @@
             }
         });
 
-        canvas.addEventListener('mousemove', (event) => {
+                // ===== 8.2 Cursor tracking + menu hover =====
+canvas.addEventListener('mousemove', (event) => {
             const c = getGameCoords(event);
             // Mirror the latest cursor position into the module-level
             // mouseX/mouseY globals so update() can read them in any
@@ -7986,7 +8250,7 @@
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     if (distance < 50) {
                         rocketEmoji.isEscaping = true;
-                        rocketEmoji.escapeTimer = 1200; // 20 secondi a 60 FPS
+                        rocketEmoji.escapeTimer = 1200; // ~20 s at 60 FPS
                         const speed = 5 + Math.random() * 4;
                         const angle = Math.random() * Math.PI * 2;
                         rocketEmoji.vx = Math.cos(angle) * speed;
@@ -8048,7 +8312,8 @@
         // curve. ctx.save() / ctx.restore() wrap the draw so the rest
         // of the frame's ctx state (font, shadow, baseline, alpha)
         // isn't polluted by this overlay.
-        function drawSavedOverlay() {
+                // ===== 7.2 Save-run helpers =====
+function drawSavedOverlay() {
             const now = Date.now();
             if (now >= savedOverlayUntil) return;
             const remain = savedOverlayUntil - now;
@@ -8243,7 +8508,8 @@
             gameOver = true;
         }
 
-        window.addEventListener('keydown', (event) => {
+                // ===== 8.3 Keyboard input =====
+window.addEventListener('keydown', (event) => {
 
             // ----- CO-OP arrow key tracking -----
             // The green player (Player 2) responds to Left/Right/Up
@@ -8347,7 +8613,8 @@
         // the Blue mascot on the menu (since mousemove never fires on
         // touch devices).
         let canvasTouchActive = false;
-        canvas.addEventListener('touchstart', (event) => {
+                // ===== 8.4 Touch input =====
+canvas.addEventListener('touchstart', (event) => {
             const c = getGameCoords(event);
             if (gameState === GAME_STATES.PLAYING) {
                 canvasTouchActive = true;
@@ -8389,6 +8656,7 @@
         // Cached at script load so the pointerup listener below can
         // attach. Without this, the bare `if (pauseButton)` would
         // hit a ReferenceError because no global pauseButton exists
+        // ===== 8.5 Pause button DOM wiring =====
         // (the only declarations are function-scoped inside
         // updatePauseButton / positionPauseButton).
         const pauseButton = document.getElementById('pauseButton');
@@ -8404,7 +8672,8 @@
             pauseButton.addEventListener('pointerup', handlePausePress);
         }
 
-        const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
+                // ===== 8.6 Mobile account input wiring =====
+const mobileConfirmBtn = document.getElementById('mobileConfirmBtn');
         const mobileCancelBtn = document.getElementById('mobileCancelBtn');
         const accountMobileInput = document.getElementById('accountMobileInput');
 
@@ -8446,7 +8715,7 @@
         if (mobileClearAccountBtn) {
             mobileClearAccountBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to delete your account?\nThis will remove all your records permanently.')) {
-                    // Rimuovi tutti i record dell'account
+                    // Remove all of the account's records
                     const allRecords = getAllRecords();
                     delete allRecords[currentUser];
                     delete allRecords[currentUser + '__survival'];
@@ -8456,7 +8725,7 @@
                     delete allRecords[currentUser + '__boss'];
                     saveAllRecords(allRecords);
 
-                    // Rimuovi l'ultimo utente salvato
+                    // Remove the last saved user
                     localStorage.removeItem('starCatcherLastUser');
 
                     currentUser = null;
@@ -8470,15 +8739,15 @@
             });
         }
 
-        // Focus automatico sull'input quando l'utente lo tocca
+        // Auto-focus the input field when the user taps it
         const accountInputField = document.getElementById('accountMobileInput');
         if (accountInputField) {
-            // Imposta il valore corrente all'avvio
+            // Seed the field with the current value on startup
             accountInputField.value = accountInput || '';
 
             accountInputField.addEventListener('touchstart', () => {
                 accountInputField.focus();
-                // Non reimpostare il valore qui! Altrimenti cancella ciò che l'utente sta scrivendo
+                // Do NOT reset the value here, or it would wipe what the user is typing
             });
             accountInputField.addEventListener('input', () => {
                 accountInput = accountInputField.value.slice(0, 12);
@@ -8545,7 +8814,7 @@
             initAudio();
             initMenuAudio();
             loadStarSound();
-            // Rimuovi gli event listener dopo l'inizializzazione
+            // Remove the event listeners after initialization
             document.removeEventListener('click', initAudioOnUserInteraction);
             document.removeEventListener('keydown', initAudioOnUserInteraction);
             document.removeEventListener('touchstart', initAudioOnUserInteraction);
