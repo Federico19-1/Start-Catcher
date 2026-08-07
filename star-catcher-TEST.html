@@ -495,6 +495,11 @@
             SETTINGS: 'settings',
             RECORDS: 'records',
             MISSIONS: 'missions',
+            // 'shop' is the SKIN SHOP sub-screen reachable from the main
+            // menu: players spend stars (earned in Classic matches) to
+            // unlock different-colored skins for the main character and
+            // the Blue mascot.
+            SHOP: 'shop',
             // 'bossUnlock' is a second page INSIDE the MISSION section:
             // a dedicated screen listing the three record achievements
             // that unlock BOSS FIGHT mode, with live progress and how
@@ -926,6 +931,19 @@
                     ctx.roundRect(-6, 4, 7, 3, 1);
                     ctx.stroke();
                     ctx.fillRect(3.5, -5, 3, 3);
+                    break;
+                }
+                case 'shop': { // shopping bag: handle + body + stitch
+                    ctx.beginPath();
+                    ctx.arc(0, -5.5, 3.8, Math.PI * 1.12, Math.PI * -0.12);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.roundRect(-7.5, -4, 15, 12.5, 2.5);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(-5, 0.5);
+                    ctx.lineTo(5, 0.5);
+                    ctx.stroke();
                     break;
                 }
                 case 'note': { // music note
@@ -2613,6 +2631,157 @@
             }
         }
 
+        // ===== 3.10 Star currency + skin shop =====
+        // ----- Star currency -----
+        // Stars are the shop's currency. They are earned in CLASSIC mode
+        // only: every point scored in a Classic match is one star added to
+        // the player's balance ("1 point = 1 star"). The balance is stored
+        // per-account under a `${user}__stars` key in the same
+        // `starCatcherAllRecords` object as every other per-user bucket.
+        function getStars(username) {
+            if (!username) return 0;
+            const all = getAllRecords();
+            const v = all[`${username}__stars`];
+            return typeof v === 'number' && v > 0 ? v : 0;
+        }
+
+        function addStarsToUser(username, n) {
+            if (!username || !n || n <= 0) return;
+            const all = getAllRecords();
+            all[`${username}__stars`] = getStars(username) + n;
+            saveAllRecords(all);
+            _starCountCache = null;
+        }
+
+        // Returns false when the balance is too low (nothing is deducted).
+        function spendStars(username, n) {
+            if (!username || !n || n <= 0) return true;
+            const cur = getStars(username);
+            if (cur < n) return false;
+            const all = getAllRecords();
+            all[`${username}__stars`] = cur - n;
+            saveAllRecords(all);
+            _starCountCache = null;
+            return true;
+        }
+
+        // The menu / shop draw the star balance every frame; caching it
+        // (invalidated on every add / spend / account switch) avoids a
+        // full localStorage JSON.parse per frame, mirroring the
+        // `_cachedMissions` pattern the menu already uses.
+        let _starCountCache = null;
+        let _starCountCacheUser = null;
+        function getStarCountCached() {
+            if (_starCountCache !== null && _starCountCacheUser === currentUser) {
+                return _starCountCache;
+            }
+            _starCountCache = getStars(currentUser);
+            _starCountCacheUser = currentUser;
+            return _starCountCache;
+        }
+
+        // ----- Skins -----
+        // The six purchasable skins are simply the main character in a
+        // different color. SKINS[0] is the default (BLUE) mascot and is
+        // never sold; SKINS.slice(1) are the 6 shop items, each costing
+        // SKIN_PRICE stars. The `name` field is what the mascot is called
+        // once the skin is equipped (English color name — VIOLET for the
+        // purple one, per design). `body / stroke / glow / face` drive the
+        // mascot artwork; `ship*` drive the in-game player ship palette.
+        const SKIN_PRICE = 5000;
+        const SKINS = [
+            { id: 'blue', name: 'BLUE', body: '#7ec8e3', stroke: '#3a8cff', glow: '#88c8ff', face: '#1a2a4a',
+                shipBody: '#4a8cff', shipStroke: '#8cf', shipCockpit: '#8cf', shipCockpitStroke: '#adf', shipFin: '#3a7add', shipGlow: 'rgba(138, 43, 226, 0.5)' },
+            { id: 'red', name: 'RED', body: '#ff6b6b', stroke: '#d93a3a', glow: '#ff9d9d', face: '#3d0f0f',
+                shipBody: '#ff5252', shipStroke: '#ff8a8a', shipCockpit: '#ff8a8a', shipCockpitStroke: '#ffc4c4', shipFin: '#d32f2f', shipGlow: 'rgba(255, 80, 80, 0.5)' },
+            { id: 'yellow', name: 'YELLOW', body: '#ffe066', stroke: '#d9b13a', glow: '#fff0a8', face: '#3d330f',
+                shipBody: '#ffcf3d', shipStroke: '#ffe98a', shipCockpit: '#ffe98a', shipCockpitStroke: '#fff6c8', shipFin: '#e0a800', shipGlow: 'rgba(255, 200, 60, 0.5)' },
+            { id: 'pink', name: 'PINK', body: '#ff9ecf', stroke: '#e06ba5', glow: '#ffc4e2', face: '#4a1530',
+                shipBody: '#ff7eb0', shipStroke: '#ffb8d4', shipCockpit: '#ffb8d4', shipCockpitStroke: '#ffdcec', shipFin: '#e0558c', shipGlow: 'rgba(255, 120, 180, 0.5)' },
+            { id: 'purple', name: 'VIOLET', body: '#b07bff', stroke: '#8a4de0', glow: '#cba6ff', face: '#24104a',
+                shipBody: '#a05cf5', shipStroke: '#c99aff', shipCockpit: '#c99aff', shipCockpitStroke: '#e0ccff', shipFin: '#7c3aed', shipGlow: 'rgba(160, 92, 245, 0.5)' },
+            { id: 'black', name: 'BLACK', body: '#2f323d', stroke: '#5b6270', glow: '#9aa3b5', face: '#e8ecf4',
+                shipBody: '#565c6a', shipStroke: '#9aa3b5', shipCockpit: '#9aa3b5', shipCockpitStroke: '#c6ccd6', shipFin: '#262a33', shipGlow: 'rgba(150, 160, 180, 0.5)' },
+            { id: 'gray', name: 'GRAY', body: '#aeb6c2', stroke: '#7a828e', glow: '#d0d6df', face: '#2a2e36',
+                shipBody: '#9aa3b2', shipStroke: '#c6ccd6', shipCockpit: '#c6ccd6', shipCockpitStroke: '#e2e6ec', shipFin: '#6f7784', shipGlow: 'rgba(154, 163, 178, 0.5)' }
+        ];
+
+        // ----- Per-account shop state -----
+        // { owned: ['red', ...], equipped: 'red' | null }. Old saves have
+        // no `${user}__shop` key → the getter lazily creates it.
+        function getUserShop(username) {
+            if (!username) return { owned: [], equipped: null };
+            const all = getAllRecords();
+            const key = `${username}__shop`;
+            let data = all[key];
+            if (!data || typeof data !== 'object' || !Array.isArray(data.owned)) {
+                data = { owned: [], equipped: null };
+                all[key] = data;
+                saveAllRecords(all);
+            }
+            return data;
+        }
+
+        function saveUserShop(username, data) {
+            if (!username) return;
+            const all = getAllRecords();
+            all[`${username}__shop`] = data;
+            saveAllRecords(all);
+            // Invalidate the equipped-skin cache so the mascot / ship
+            // repaint immediately with the new skin.
+            _cachedSkin = null;
+        }
+
+        // Buys + auto-equips a skin: checks ownership, checks the star
+        // balance, deducts SKIN_PRICE and persists. Returns true on success.
+        function buySkin(skinId) {
+            if (!currentUser) return false;
+            const skin = SKINS.find(s => s.id === skinId);
+            if (!skin || skin.id === 'blue') return false;
+            const shop = getUserShop(currentUser);
+            if (shop.owned.includes(skinId)) return false;
+            if (!spendStars(currentUser, SKIN_PRICE)) return false;
+            shop.owned.push(skinId);
+            shop.equipped = skinId;
+            saveUserShop(currentUser, shop);
+            return true;
+        }
+
+        function equipSkin(skinId) {
+            if (!currentUser) return false;
+            const shop = getUserShop(currentUser);
+            if (!shop.owned.includes(skinId)) return false;
+            shop.equipped = skinId;
+            saveUserShop(currentUser, shop);
+            return true;
+        }
+
+        // Cached equipped skin (avoids a localStorage parse every frame).
+        // The cache is invalidated on saveUserShop and whenever the
+        // currentUser changes (keyed on the username).
+        let _cachedSkin = null;
+        let _cachedSkinUser = null;
+        function getEquippedSkin() {
+            if (_cachedSkin && _cachedSkinUser === currentUser) return _cachedSkin;
+            _cachedSkin = null;
+            if (currentUser) {
+                try {
+                    const shop = getUserShop(currentUser);
+                    if (shop && shop.equipped) {
+                        const s = SKINS.find(x => x.id === shop.equipped);
+                        if (s) {
+                            _cachedSkin = s;
+                            _cachedSkinUser = currentUser;
+                            return s;
+                        }
+                    }
+                } catch (e) { /* fall through to default */ }
+            }
+            _cachedSkin = SKINS[0];
+            _cachedSkinUser = currentUser;
+            return _cachedSkin;
+        }
+
         /* ============================================================
            4. GAME LOGIC FUNCTIONS
         ============================================================ */
@@ -2623,9 +2792,9 @@
         // and a red/burgundy auto-bumped "super streak" earned by
         // completing all of today's 3 missions.
         const MISSION_POOL = [
-            { id: 'catch5', label: 'Catch 1000 stars in Classic', target: 5, type: 'classic_score' },
-            { id: 'catch10', label: 'Catch 100 stars in Classic', target: 10, type: 'classic_score' },
-            { id: 'catch15', label: 'Catch 550 stars in Classic', target: 15, type: 'classic_score' },
+            { id: 'catch5', label: 'Catch 5 stars in Classic', target: 5, type: 'classic_score' },
+            { id: 'catch10', label: 'Catch 10 stars in Classic', target: 10, type: 'classic_score' },
+            { id: 'catch15', label: 'Catch 15 stars in Classic', target: 15, type: 'classic_score' },
             { id: 'survive20', label: 'Survive 20s in Survival', target: 20, type: 'survival_time' },
             { id: 'survive30', label: 'Survive 30s in Survival', target: 30, type: 'survival_time' },
             { id: 'survive45', label: 'Survive 45s in Survival', target: 45, type: 'survival_time' },
@@ -2634,7 +2803,7 @@
             { id: 'visit_set', label: 'Visit Settings today', type: 'visit_settings' },
             { id: 'toggle_set', label: 'Toggle a setting today', type: 'toggle_setting' },
             { id: 'both_modes', label: 'Play both Classic + Survival', type: 'both_modes' },
-            { id: 'all_modes', label: 'Play Battle Classic  and Survival modes today', type: 'all_modes' }
+            { id: 'all_modes', label: 'Play Classic, Survival and Battle today', type: 'all_modes' }
         ];
 
         // Deterministic seed from a YYYY-MM-DD string. Every player sees
@@ -3476,7 +3645,411 @@
             ctx.shadowBlur = 0;
         }
 
-        // ===== 4.4 Game entities (stars, meteorites) =====
+        // ===== 4.4 Skin shop (page 3) =====
+        // Small mascot-head preview used inside each shop card so the
+        // player can see the exact color they would be unlocking.
+        function drawMascotPreview(skin, cx, cy, r) {
+            ctx.save();
+            ctx.shadowColor = skin.glow;
+            ctx.shadowBlur = 14;
+            ctx.fillStyle = skin.body;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            const grad = ctx.createRadialGradient(cx - r * 0.25, cy - r * 0.3, r * 0.12, cx, cy, r);
+            grad.addColorStop(0, 'rgba(255,255,255,0.5)');
+            grad.addColorStop(0.6, 'rgba(255,255,255,0.05)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = skin.stroke;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.stroke();
+            const eyeR = r * 0.19;
+            const pupilR = r * 0.1;
+            const eyeY = cy - r * 0.12;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(cx - r * 0.26, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx + r * 0.26, eyeY, eyeR, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = skin.face;
+            ctx.beginPath(); ctx.arc(cx - r * 0.26, eyeY, pupilR, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx + r * 0.26, eyeY, pupilR, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = skin.face;
+            ctx.lineWidth = 1.8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.arc(cx, cy + r * 0.3, r * 0.4, 0.15 * Math.PI, 0.85 * Math.PI);
+            ctx.stroke();
+            ctx.lineCap = 'butt';
+            ctx.restore();
+        }
+
+        // Small in-card ship preview for the shop. Mirrors drawShip()'s
+        // layered body / cockpit / fin / flame recipe (using the skin's
+        // ship palette) so the player sees exactly how each skin colors
+        // the in-game ship before spending stars.
+        function drawMiniShip(skin, cx, cy, scale) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.shadowColor = skin.shipGlow;
+            ctx.shadowBlur = 25;
+
+            ctx.beginPath();
+            ctx.ellipse(0, -5, 18, 12, 0, 0, Math.PI * 2);
+            ctx.fillStyle = skin.shipBody;
+            ctx.fill();
+            ctx.strokeStyle = skin.shipStroke;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.ellipse(0, -12, 10, 7, 0, 0, Math.PI * 2);
+            ctx.fillStyle = skin.shipCockpit;
+            ctx.fill();
+            ctx.strokeStyle = skin.shipCockpitStroke;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.arc(-4, -14, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(4, -14, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = skin.shipFin;
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.moveTo(-20, 5);
+            ctx.lineTo(-8, -2);
+            ctx.lineTo(-8, 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(20, 5);
+            ctx.lineTo(8, -2);
+            ctx.lineTo(8, 8);
+            ctx.closePath();
+            ctx.fill();
+
+            // Two-layer engine flame, exactly as the in-game ship draws it.
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#f90';
+            ctx.fillStyle = '#f90';
+            ctx.beginPath();
+            ctx.moveTo(-6, 12);
+            ctx.lineTo(0, 22);
+            ctx.lineTo(6, 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#fd0';
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.moveTo(-3, 12);
+            ctx.lineTo(0, 18);
+            ctx.lineTo(3, 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // ----- Purchase celebration (confetti + banner) -----
+        // Fires right after a skin is successfully bought: a burst of
+        // confetti in the skin's colors plus a gold "NEW SKIN UNLOCKED!"
+        // banner. Self-clears after a few seconds of frames.
+        const SHOP_CELEBRATION_MS = 2400;
+        // Skin-card grid geometry, shared by drawShopScreen (draws the
+        // cards) and startShopCelebration (bursts confetti from the bought
+        // card) so the two layouts can never drift apart.
+        const SHOP_CARD_W = 228, SHOP_CARD_H = 188, SHOP_GAP_X = 18, SHOP_GAP_Y = 18;
+        const SHOP_GRID_START_X = (800 - (3 * SHOP_CARD_W + 2 * SHOP_GAP_X)) / 2; // 40
+        const SHOP_GRID_START_Y = 146;
+        let shopCelebration = null;
+
+        // Centre of a shop card's preview zone, used as the confetti origin.
+        function shopCardCenter(skinId) {
+            const i = SKINS.slice(1).findIndex(s => s.id === skinId);
+            if (i < 0) return { x: canvas.width / 2, y: 340 };
+            const col = i % 3, row = Math.floor(i / 3);
+            return {
+                x: SHOP_GRID_START_X + col * (SHOP_CARD_W + SHOP_GAP_X) + SHOP_CARD_W / 2,
+                y: SHOP_GRID_START_Y + row * (SHOP_CARD_H + SHOP_GAP_Y) + 52
+            };
+        }
+
+        function startShopCelebration(skin) {
+            const burst = shopCardCenter(skin.id);
+            const particles = [];
+            for (let i = 0; i < 64; i++) {
+                particles.push({
+                    x: burst.x + (Math.random() - 0.5) * 90,
+                    y: burst.y + (Math.random() - 0.5) * 40,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: -5 - Math.random() * 7,
+                    g: 0.32,
+                    size: 3.5 + Math.random() * 5,
+                    color: [skin.body, skin.glow, '#ffd84a', '#ffffff', '#ff9f43'][i % 5],
+                    rot: Math.random() * Math.PI * 2,
+                    vr: (Math.random() - 0.5) * 0.35
+                });
+            }
+            shopCelebration = { skinId: skin.id, name: skin.name, glow: skin.glow, startedAt: Date.now(), particles };
+        }
+
+        function drawShopCelebration(celeb, elapsed) {
+            // Confetti particles (updated in place — the shop redraws every frame)
+            for (const p of celeb.particles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += p.g;
+                p.rot += p.vr;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                ctx.globalAlpha = p.y > canvas.height - 12 ? 0 : 1;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.62);
+                ctx.restore();
+            }
+            ctx.globalAlpha = 1;
+
+            // Banner: pops in, holds, fades out near the end.
+            const inT = Math.min(1, elapsed / 220);
+            const outT = elapsed > SHOP_CELEBRATION_MS - 350 ? (SHOP_CELEBRATION_MS - elapsed) / 350 : 1;
+            const pop = 0.55 + 0.45 * inT;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, Math.min(1, inT * outT));
+            // The banner sits over the cards' preview zone (y ≈ 168–252),
+            // well above the BUY / EQUIP button rows (y ≈ 278+), so the
+            // action buttons stay visible and clickable during the burst.
+            ctx.translate(canvas.width / 2, 210);
+            ctx.scale(pop, pop);
+            ctx.shadowColor = 'rgba(255, 191, 36, 0.9)';
+            ctx.shadowBlur = 34;
+            ctx.fillStyle = 'rgba(20, 26, 38, 0.94)';
+            ctx.strokeStyle = 'rgba(255, 191, 36, 0.95)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(-190, -42, 380, 84, 18);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 24px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd84a';
+            ctx.fillText('NEW SKIN UNLOCKED!', 0, -11);
+            ctx.font = 'bold 19px Orbitron, sans-serif';
+            ctx.fillStyle = celeb.glow;
+            ctx.fillText(celeb.name, 0, 26);
+            ctx.restore();
+        }
+
+        function drawShopScreen() {
+            drawBackground();
+            updateButtonHover();
+
+            const shop = currentUser ? getUserShop(currentUser) : { owned: [], equipped: null };
+            const starCount = getStarCountCached();
+            const equipped = shop.equipped;
+
+            // Title
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#ffd84a';
+            ctx.font = 'bold 38px Orbitron, sans-serif';
+            ctx.fillStyle = '#ffd84a';
+            drawIconLabelCenter('shop', 'SKIN SHOP', canvas.width / 2, 56, 'bold 38px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 22);
+
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = 'black';
+            ctx.font = '13px Orbitron, sans-serif';
+            ctx.fillStyle = '#9cd3ff';
+            ctx.fillText('Color the mascot — 1 Classic point = 1 star', canvas.width / 2, 88);
+
+            // Balance pill
+            const balW = 250, balH = 34;
+            const balX = canvas.width / 2 - balW / 2, balY = 100;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(255, 191, 36, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(balX, balY, balW, balH, 17);
+            ctx.fill();
+            ctx.stroke();
+            drawIconLabelCenter('star', starCount.toLocaleString('en-US') + ' stars', canvas.width / 2, balY + balH / 2, 'bold 15px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 16);
+
+            // 3x2 grid of purchasable skins (SKINS[0] is the free BLUE
+            // default and is never sold).
+            // Grid geometry lives at module level (SHOP_CARD_W etc.) so
+            // the celebration's confetti origin matches the cards exactly.
+            const cardW = SHOP_CARD_W, cardH = SHOP_CARD_H, gapX = SHOP_GAP_X, gapY = SHOP_GAP_Y;
+            const totalW = 3 * cardW + 2 * gapX;
+            const startX = SHOP_GRID_START_X;
+            const startY = SHOP_GRID_START_Y;
+            menuButtons = [];
+
+            SKINS.slice(1).forEach((skin, i) => {
+                const col = i % 3, row = Math.floor(i / 3);
+                const x = startX + col * (cardW + gapX);
+                const y = startY + row * (cardH + gapY);
+                const owned = shop.owned.indexOf(skin.id) !== -1;
+                const isEquipped = equipped === skin.id;
+                const affordable = starCount >= SKIN_PRICE;
+                const buyAction = 'shopBuy_' + skin.id;
+                const equipAction = 'shopEquip_' + skin.id;
+
+                // Card background
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = isEquipped
+                    ? 'rgba(120, 255, 120, 0.55)'
+                    : (affordable ? 'rgba(255, 191, 36, 0.25)' : 'rgba(90, 90, 110, 0.20)');
+                ctx.fillStyle = isEquipped ? 'rgba(25, 60, 40, 0.85)' : 'rgba(15, 25, 50, 0.88)';
+                ctx.beginPath();
+                ctx.roundRect(x, y, cardW, cardH, 14);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = isEquipped
+                    ? 'rgba(140, 255, 140, 0.75)'
+                    : (owned ? 'rgba(140, 255, 140, 0.35)' : (affordable ? 'rgba(255, 191, 36, 0.45)' : 'rgba(120, 120, 140, 0.30)'));
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Expanding gold ring pulse on the just-bought card so the
+                // purchase feedback points straight at the new skin.
+                if (shopCelebration && shopCelebration.skinId === skin.id) {
+                    const ringElapsed = Date.now() - shopCelebration.startedAt;
+                    if (ringElapsed < 1200) {
+                        const ringP = ringElapsed / 1200;
+                        ctx.strokeStyle = 'rgba(255, 216, 74, ' + (0.75 * (1 - ringP)).toFixed(2) + ')';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.roundRect(x - 6 - ringP * 16, y - 6 - ringP * 16, cardW + 12 + ringP * 32, cardH + 12 + ringP * 32, 18);
+                        ctx.stroke();
+                    }
+                }
+
+                // Mascot + ship preview + name
+                drawMascotPreview(skin, x + 92, y + 52, 28);
+                drawMiniShip(skin, x + 160, y + 52, 0.95);
+                ctx.fillStyle = '#f1f5f9';
+                ctx.font = 'bold 16px Orbitron, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText(skin.name, x + cardW / 2, y + 94);
+
+                // Price / status line
+                ctx.font = '12px Orbitron, sans-serif';
+                if (owned) {
+                    ctx.fillStyle = '#8ff08f';
+                    ctx.fillText(isEquipped ? 'ACTIVE SKIN' : 'OWNED', x + cardW / 2, y + 118);
+                } else {
+                    ctx.fillStyle = affordable ? '#ffd84a' : '#ff8a8a';
+                    ctx.fillText(SKIN_PRICE.toLocaleString('en-US') + ' stars', x + cardW / 2, y + 118);
+                }
+
+                // Action button
+                const btnW = cardW - 48, btnH = 34;
+                const btnX = x + 24, btnY = y + 132;
+                if (!owned) {
+                    if (affordable) {
+                        drawGlassButton(btnX, btnY, btnW, btnH, 10, 'BUY', 'bold 13px Orbitron, sans-serif', {
+                            isPrimary: true,
+                            icon: 'star',
+                            hoverStrength: hoverFor(buyAction)
+                        });
+                        menuButtons.push({ rect: { x: btnX, y: btnY, w: btnW, h: btnH }, action: buyAction });
+                    } else {
+                        // Not enough stars: flat dim-grey pill, no glow and
+                        // no click target, so it clearly reads as disabled
+                        // (the violet glass border would look tappable).
+                        ctx.fillStyle = 'rgba(42, 42, 58, 0.90)';
+                        ctx.strokeStyle = 'rgba(150, 150, 160, 0.30)';
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.roundRect(btnX, btnY, btnW, btnH, 10);
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.font = 'bold 12px Orbitron, sans-serif';
+                        ctx.fillStyle = '#8b8fa0';
+                        ctx.textBaseline = 'alphabetic';
+                        drawIconLabelCenter('lock', 'LOCKED', btnX + btnW / 2, btnY + 21, 'bold 12px Orbitron, sans-serif', '#8b8fa0', '#8b8fa0', 13);
+                    }
+                } else if (isEquipped) {
+                    // Green confirmed pill — no click target.
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = 'rgba(120, 255, 120, 0.6)';
+                    ctx.fillStyle = '#1a4a2a';
+                    ctx.strokeStyle = '#66ee88';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.roundRect(btnX, btnY, btnW, btnH, 10);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.stroke();
+                    ctx.font = 'bold 12px Orbitron, sans-serif';
+                    ctx.fillStyle = '#aaffaa';
+                    ctx.fillText('\u2713 EQUIPPED', btnX + btnW / 2, btnY + 21);
+                } else {
+                    drawGlassButton(btnX, btnY, btnW, btnH, 10, 'EQUIP', 'bold 13px Orbitron, sans-serif', {
+                        icon: 'check',
+                        hoverStrength: hoverFor(equipAction)
+                    });
+                    menuButtons.push({ rect: { x: btnX, y: btnY, w: btnW, h: btnH }, action: equipAction });
+                }
+            });
+
+            // Purchase celebration overlay: confetti + "NEW SKIN UNLOCKED!"
+            // banner, drawn on top of the cards right after a successful buy.
+            if (shopCelebration) {
+                const celebElapsed = Date.now() - shopCelebration.startedAt;
+                if (celebElapsed >= SHOP_CELEBRATION_MS) {
+                    shopCelebration = null;
+                } else {
+                    drawShopCelebration(shopCelebration, celebElapsed);
+                }
+            }
+
+            // Hint about how stars are earned
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'black';
+            ctx.font = '11px Orbitron, sans-serif';
+            ctx.fillStyle = '#7eaad6';
+            ctx.textAlign = 'center';
+            ctx.fillText('Earn stars by scoring points in Classic mode — every point is one star.', canvas.width / 2, 552);
+
+            // BACK button
+            const backY = 562, backW = 160, backH = 35;
+            const backX = canvas.width / 2 - backW / 2;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(backX, backY, backW, backH, 10);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#f1f5f9';
+            ctx.font = '18px Orbitron, sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('\u2190 BACK', canvas.width / 2, backY + backH / 2);
+            menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'shopBack' });
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.shadowBlur = 0;
+        }
+
+        // ===== 4.5 Game entities (stars, meteorites) =====
         function createStar() {
             const isLucky = Math.random() < 0.08;
             return {
@@ -5421,6 +5994,9 @@
                 // true and the daily mission flips to the drawn check badge below).
                 if (gameMode === GAME_MODES.CLASSIC) {
                     recordMissionEvent('finished_classic', score);
+                    // Star currency: every point of a Classic match is
+                    // one star added to the account's shop balance.
+                    addStarsToUser(currentUser, score);
                 } else if (gameMode === GAME_MODES.SURVIVAL) {
                     recordMissionEvent('finished_survival', score);
                 } else if (gameMode === GAME_MODES.BATTLE) {
@@ -5595,12 +6171,20 @@
             const bobY = Math.sin(c.bobPhase) * 6;
             const cx = c.cx;
             const cy = c.cy + bobY;
+            // The mascot wears the equipped skin: body / stroke / glow /
+            // face (pupils + smile) all come from the SKINS table so a
+            // purchased RED skin turns him red and renames him RED.
+            const skin = getEquippedSkin();
+            const bodyColor = skin.body;
+            const strokeColor = skin.stroke;
+            const glowColor = skin.glow;
+            const faceColor = skin.face;
 
             ctx.save();
 
-            ctx.shadowColor = '#88c8ff';
+            ctx.shadowColor = glowColor;
             ctx.shadowBlur = 22;
-            ctx.fillStyle = '#7ec8e3';
+            ctx.fillStyle = bodyColor;
             ctx.beginPath();
             ctx.arc(cx, cy, c.bodyRadius, 0, Math.PI * 2);
             ctx.fill();
@@ -5615,13 +6199,13 @@
             ctx.arc(cx, cy, c.bodyRadius, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.strokeStyle = '#3a8cff';
+            ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(cx, cy, c.bodyRadius, 0, Math.PI * 2);
             ctx.stroke();
 
-            ctx.strokeStyle = '#3a8cff';
+            ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy - c.bodyRadius);
@@ -5651,20 +6235,20 @@
             ctx.beginPath(); ctx.arc(cx - 8, eyeY, 6, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(cx + 8, eyeY, 6, 0, Math.PI * 2); ctx.fill();
             if (!blink) {
-                ctx.fillStyle = '#1a2a4a';
+                ctx.fillStyle = faceColor;
                 ctx.beginPath(); ctx.arc(cx - 8 + povX, eyeY + povY, 3, 0, Math.PI * 2); ctx.fill();
                 ctx.beginPath(); ctx.arc(cx + 8 + povX, eyeY + povY, 3, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = '#ffffff';
                 ctx.beginPath(); ctx.arc(cx - 8 + povX + 1, eyeY + povY - 1, 1, 0, Math.PI * 2); ctx.fill();
                 ctx.beginPath(); ctx.arc(cx + 8 + povX + 1, eyeY + povY - 1, 1, 0, Math.PI * 2); ctx.fill();
             } else {
-                ctx.strokeStyle = '#1a2a4a';
+                ctx.strokeStyle = faceColor;
                 ctx.lineWidth = 1.5;
                 ctx.beginPath(); ctx.moveTo(cx - 12, eyeY); ctx.lineTo(cx - 4, eyeY); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(cx + 4, eyeY); ctx.lineTo(cx + 12, eyeY); ctx.stroke();
             }
 
-            ctx.strokeStyle = '#1a2a4a';
+            ctx.strokeStyle = faceColor;
             ctx.lineWidth = 2;
             ctx.lineCap = 'round';
             ctx.beginPath();
@@ -5675,11 +6259,11 @@
             ctx.lineCap = 'butt';
 
             ctx.font = 'bold 11px Orbitron, sans-serif';
-            ctx.fillStyle = '#88c8ff';
+            ctx.fillStyle = glowColor;
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 4;
             ctx.textAlign = 'center';
-            ctx.fillText('BLUE', cx, cy + c.bodyRadius + 14);
+            ctx.fillText(skin.name, cx, cy + c.bodyRadius + 14);
             ctx.shadowBlur = 0;
 
             ctx.restore();
@@ -5689,7 +6273,13 @@
             const a = blueCharacter.bubbleAlpha;
             if (a <= 0.01) return;
 
-            const text = blueCharacter.currentLine;
+            // The mascot's self-introduction always uses its CURRENT
+            // name, so a RED / VIOLET / etc. mascot introduces itself
+            // correctly instead of claiming to be Blue.
+            const skin = getEquippedSkin();
+            const text = blueCharacter.currentLineIndex === 0
+                ? 'Hi, my name is ' + skin.name + '.'
+                : blueCharacter.currentLine;
             const fontSize = 15;
             ctx.font = fontSize + 'px Orbitron, sans-serif';
             const padding = 11;
@@ -5775,6 +6365,37 @@
         function drawMenu() {
             drawBackground();
             updateButtonHover();  // Phase-2B hover tracking
+
+            // ----- Top-left star balance badge -----
+            // Shows how many stars the player has collected in Classic
+            // matches (1 point = 1 star) — the currency of the SKIN SHOP.
+            // Cached per-account so the menu doesn't re-parse localStorage
+            // every frame; invalidated whenever the balance changes.
+            const starCount = getStarCountCached();
+            const starCountText = starCount.toLocaleString('en-US');
+            ctx.font = 'bold 15px Orbitron, sans-serif';
+            const starTW = ctx.measureText(starCountText).width;
+            const badgeH = 34;
+            const badgeW = 32 + starTW + 22;
+            const badgeX = 14;
+            const badgeY = 14;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.78)';
+            ctx.strokeStyle = 'rgba(255, 191, 36, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 17);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowColor = 'rgba(255, 191, 36, 0.85)';
+            ctx.shadowBlur = 12;
+            drawVectorIcon('star', badgeX + 17, badgeY + badgeH / 2, '#ffd84a', 1.05);
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffd84a';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(starCountText, badgeX + 32, badgeY + badgeH / 2 + 1);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
 
             ctx.textAlign = 'center';
             ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
@@ -5992,24 +6613,32 @@
                 ctx.shadowBlur = 0;
             }
 
-            // ===== ROW 1: MAIN (PLAY + ACCOUNT) =====
+            // ===== ROW 1: MAIN (PLAY + ACCOUNT + SHOP) =====
             const sec1LabelY = barY + barH + 22;
             drawSectionLabel('— MAIN —', sec1LabelY);
 
             const row1Y = sec1LabelY + 12;
             const row1H = 52;
-            const row1W = (innerW - 20) / 2;    // 2 buttons with 20px gap
+            const row1W = (innerW - 40) / 3;    // 3 buttons with 20px gaps
             const r1LeftX = innerX;
             const r1RightX = innerX + row1W + 20;
+            const r1ShopX = innerX + (row1W + 20) * 2;
 
             drawGlassButton(r1LeftX, row1Y, row1W, row1H, 12, 'PLAY', 'bold 24px Orbitron, sans-serif', {
                 icon: 'play',
                 isPrimary: true,
                 hoverStrength: hoverFor('play')
             });
-            drawGlassButton(r1RightX, row1Y, row1W, row1H, 12, 'ACCOUNT', 'bold 20px Orbitron, sans-serif', {
+            drawGlassButton(r1RightX, row1Y, row1W, row1H, 12, 'ACCOUNT', 'bold 17px Orbitron, sans-serif', {
                 icon: 'account',
                 hoverStrength: hoverFor('account')
+            });
+            // SKIN SHOP — spends the star balance on colored skins for the
+            // main character / mascot. Same glass button style as its
+            // row-mates so it reads as a first-class menu action.
+            drawGlassButton(r1ShopX, row1Y, row1W, row1H, 12, 'SHOP', 'bold 17px Orbitron, sans-serif', {
+                icon: 'shop',
+                hoverStrength: hoverFor('shop')
             });
 
             // ===== ROW 2: MENU (RECORDS + SETTINGS + MISSIONS) =====
@@ -6074,6 +6703,7 @@
                 { rect: { x: seg1X, y: seg1Y, w: seg1W, h: seg1H }, action: 'missions' },
                 { rect: { x: r1LeftX, y: row1Y, w: row1W, h: row1H }, action: 'play' },
                 { rect: { x: r1RightX, y: row1Y, w: row1W, h: row1H }, action: 'account' },
+                { rect: { x: r1ShopX, y: row1Y, w: row1W, h: row1H }, action: 'shop' },
                 { rect: { x: r2aX, y: row2Y, w: row2W, h: row2H }, action: 'records' },
                 { rect: { x: r2bX, y: row2Y, w: row2W, h: row2H }, action: 'settings' },
                 { rect: { x: r2cX, y: row2Y, w: row2W, h: row2H }, action: 'missions' },
@@ -6380,82 +7010,26 @@
 
         // ===== 6.6 Ships (blue + green) + beams =====
         function drawShip() {
-            ctx.save();
-            ctx.translate(player.x, player.y);
-            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-            ctx.shadowBlur = 25;
-
-            ctx.beginPath();
-            ctx.ellipse(0, -5, 18, 12, 0, 0, Math.PI * 2);
-            ctx.fillStyle = '#4a8cff';
-            ctx.fill();
-            ctx.strokeStyle = '#8cf';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.ellipse(0, -12, 10, 7, 0, 0, Math.PI * 2);
-            ctx.fillStyle = '#8cf';
-            ctx.fill();
-            ctx.strokeStyle = '#adf';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-            ctx.shadowBlur = 10;
-            ctx.beginPath();
-            ctx.arc(-4, -14, 2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(4, -14, 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#3a7add';
-            ctx.shadowBlur = 15;
-            ctx.beginPath();
-            ctx.moveTo(-20, 5);
-            ctx.lineTo(-8, -2);
-            ctx.lineTo(-8, 8);
-            ctx.closePath();
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(20, 5);
-            ctx.lineTo(8, -2);
-            ctx.lineTo(8, 8);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.shadowBlur = 30;
-            ctx.shadowColor = '#f90';
-            ctx.fillStyle = '#f90';
-            ctx.beginPath();
-            ctx.moveTo(-6, 12);
-            ctx.lineTo(0, 22);
-            ctx.lineTo(6, 12);
-            ctx.closePath();
-            ctx.fill();
-            ctx.fillStyle = '#fd0';
-            ctx.shadowBlur = 20;
-            ctx.beginPath();
-            ctx.moveTo(-3, 12);
-            ctx.lineTo(0, 18);
-            ctx.lineTo(3, 12);
-            ctx.closePath();
-            ctx.fill();
+            // The ship wears the equipped skin, so buying a RED skin also
+            // repaints the in-game player ship. The sprite is drawn by the
+            // shared drawMiniShip(skin, cx, cy, scale) helper — the exact
+            // same art the shop previews — so the two can never drift.
+            drawMiniShip(getEquippedSkin(), player.x, player.y, 1);
 
             // Damage flash: while playerHitFlash > 0 the blue ship tints
             // red — the same "small animation" the green CO-OP ship shows
             // during its i-frame window, so both players share one
             // hurt-feedback language in every mode.
             if (playerHitFlash > 0) {
+                ctx.save();
+                ctx.translate(player.x, player.y);
                 ctx.globalCompositeOperation = 'source-atop';
                 ctx.fillStyle = 'rgba(255, 80, 80, 0.5)';
                 ctx.beginPath();
                 ctx.ellipse(0, -5, 20, 16, 0, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.restore();
             }
-
-            ctx.restore();
         }
 
         // ===== CO-OP draw helpers =====
@@ -7400,6 +7974,14 @@
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd84a';
                 drawIconLabelCenter('crown', 'BOSS DOWN! +100', canvas.width / 2, 178, 'bold 20px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
+            } else if (!isSurvival && !isBattle && !isBoss && !isCoop && score > 0) {
+                // Classic run: every point scored is a star banked into
+                // the shop balance (1 point = 1 star).
+                ctx.shadowColor = '#ffd84a';
+                ctx.shadowBlur = 25;
+                ctx.font = 'bold 16px Orbitron, sans-serif';
+                ctx.fillStyle = '#ffd84a';
+                drawIconLabelCenter('star', '+' + score + ' stars added to your balance', canvas.width / 2, 178, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 14);
             }
 
             if (isNewRecord && currentUser && score > 0) {
@@ -8607,6 +9189,9 @@
                 case GAME_STATES.MISSIONS:
                     drawMissionsScreen();
                     break;
+                case GAME_STATES.SHOP:
+                    drawShopScreen();
+                    break;
                 case GAME_STATES.BOSS_UNLOCK:
                     drawBossObjectivesScreen();
                     break;
@@ -8982,6 +9567,26 @@
                 case 'missionsBack':
                     navigateFromMissionsScreen();
                     break;
+                case 'shop':
+                    // The SKIN SHOP needs an account: stars are per-user,
+                    // so a logged-out tap sends the player to the account
+                    // screen first (same gate as Missions / Records).
+                    if (!currentUser) {
+                        gameState = GAME_STATES.ACCOUNT;
+                        accountInput = '';
+                        showMobileInput(true);
+                    } else {
+                        playClickSound();
+                        gameState = GAME_STATES.SHOP;
+                    }
+                    break;
+                case 'shopBack':
+                    playClickSound();
+                    // Drop any in-flight purchase celebration so it can't
+                    // linger and replay stale confetti on the next visit.
+                    shopCelebration = null;
+                    gameState = GAME_STATES.MENU;
+                    break;
                 case 'claimStreak':
                     claimDailyStreak();
                     break;
@@ -9033,6 +9638,8 @@
                                 delete allRecords[currentUser + '__playTime'];
                                 delete allRecords[currentUser + '__battleNormal'];
                                 delete allRecords[currentUser + '__boss'];
+                                delete allRecords[currentUser + '__stars'];
+                                delete allRecords[currentUser + '__shop'];
                                 saveAllRecords(allRecords);
                                 currentUser = newUser;
                                 getUserRecords(currentUser);
@@ -9212,6 +9819,26 @@
                     isSettingsScrollDrag = false;
                     break;
                 default:
+                    // SKIN SHOP actions: 'shopBuy_<id>' buys + auto-equips a
+                    // skin for SKIN_PRICE stars; 'shopEquip_<id>' switches
+                    // to an already-owned skin.
+                    if (action.indexOf('shopBuy_') === 0) {
+                        const skinId = action.slice('shopBuy_'.length);
+                        if (buySkin(skinId)) {
+                            playRecordSound();
+                            // Celebrate the new skin: confetti + banner.
+                            const bought = SKINS.find(s => s.id === skinId);
+                            if (bought) startShopCelebration(bought);
+                        } else {
+                            playClickSound();
+                        }
+                        break;
+                    }
+                    if (action.indexOf('shopEquip_') === 0) {
+                        equipSkin(action.slice('shopEquip_'.length));
+                        playClickSound();
+                        break;
+                    }
                     break;
             }
             menuButtons = [];
@@ -9407,6 +10034,9 @@
                 if (score > 0) {
                     if (gameMode === GAME_MODES.CLASSIC) {
                         savedRank = addScoreToUser(currentUser, score);
+                        // Quick-saving a Classic run also banks its stars
+                        // (1 point = 1 star), matching endGame().
+                        addStarsToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.SURVIVAL) {
                         savedRank = addSurvivalScoreToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.BATTLE) {
@@ -9695,6 +10325,8 @@
                     delete allRecords[currentUser + '__playTime'];
                     delete allRecords[currentUser + '__battleNormal'];
                     delete allRecords[currentUser + '__boss'];
+                    delete allRecords[currentUser + '__stars'];
+                    delete allRecords[currentUser + '__shop'];
                     saveAllRecords(allRecords);
 
                     // Remove the last saved user
