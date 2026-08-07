@@ -1599,6 +1599,9 @@
         // ===== 1.7 In-game record banner + rocket mascot =====
         let isNewRecord = false;
         let newRecordPosition = -1;
+        // Stars banked at the end of the run (per-mode formulas in
+        // starsEarnedForMode) — shown on the game-over screen.
+        let lastEarnedStars = 0;
         const RECORD_NOTIFICATION_DURATION = 3000; // 3 seconds
         let inGameRecordShown = false;        // banner visibility flag
         let inGameRecordShownAt = 0;          // ms timestamp when the banner started
@@ -2275,6 +2278,17 @@
         // 10 entries) so the Records screen can iterate mode buckets
         // uniformly with `getUserRecords / getSurvivalRecords / getBattleRecords`.
         // ===== 3.4 Battle records =====
+        // Battle entries are { v: score, d: 'E' | 'N' } so the records can
+        // tell Easy runs apart from Normal ones. Legacy saves hold plain
+        // numbers — they normalize to d: '' (unknown difficulty) and are
+        // displayed without a marker.
+        function normalizeBattleEntry(e) {
+            if (typeof e === 'number') return { v: e, d: '' };
+            const v = (e && typeof e.v === 'number') ? e.v : 0;
+            const d = (e && (e.d === 'E' || e.d === 'N')) ? e.d : '';
+            return { v, d };
+        }
+
         function getBattleRecords(username) {
             const key = `${username}__battle`;
             const all = getAllRecords();
@@ -2292,36 +2306,45 @@
             saveAllRecords(all);
         }
 
-        function addBattleScoreToUser(username, newScore) {
+        // Normalized battle top-10 (sorted desc) ready for display.
+        function getBattleRecordList(username) {
+            return getBattleRecords(username)
+                .map(normalizeBattleEntry)
+                .sort((a, b) => b.v - a.v);
+        }
+
+        function addBattleScoreToUser(username, newScore, difficulty) {
             if (newScore <= 0) return -1;
 
-            let records = getBattleRecords(username);
-            const previousMin = records.length >= 10 ? records[9] : 0;
+            const records = getBattleRecordList(username);
+            const previousMin = records.length >= 10 ? records[9].v : 0;
+            const diff = difficulty === 'easy' ? 'E' : 'N';
 
-            records.push(newScore);
-            records.sort((a, b) => b - a);
-            records = records.slice(0, 10);
-            setBattleRecords(username, records);
+            records.push({ v: newScore, d: diff });
+            records.sort((a, b) => b.v - a.v);
+            const trimmed = records.slice(0, 10);
+            setBattleRecords(username, trimmed);
 
-            if (newScore <= previousMin && records.length >= 10) {
+            if (newScore <= previousMin && trimmed.length >= 10) {
                 return -1;
             }
 
-            return records.indexOf(newScore);
+            return trimmed.findIndex(e => e.v === newScore);
         }
 
         function getMaxBattleScore(username) {
             if (!username) return 0;
-            const records = getBattleRecords(username);
-            return records.length > 0 ? records[0] : 0;
+            const records = getBattleRecordList(username);
+            return records.length > 0 ? records[0].v : 0;
         }
 
         // ===== 3.5 BOSS-FIGHT unlock tracking + records =====
         // ----- BOSS-FIGHT unlock tracking -----
         // BOSS FIGHT unlocks once the account has three single-game
         // records: 1000 stars in Classic, 60 s in Survival and 100 kills
-        // in Battle NORMAL mode. The generic `${user}__battle` bucket is
-        // difficulty-agnostic, so Normal-mode runs ALSO persist their
+        // in Battle NORMAL mode. The `${user}__battle` bucket stores
+        // per-entry difficulty ({ v, d: 'E' | 'N' }) so Easy and Normal
+        // runs stay distinct, and Normal-mode runs ALSO persist their
         // best to a dedicated `${user}__battleNormal` key; otherwise a
         // player who hit 100 kills on Easy could unlock the boss fight
         // without ever touching Normal.
@@ -4228,6 +4251,7 @@
             lives = 3;
             gameOver = false;
             quickSaveEndedRun = false;
+            lastEarnedStars = 0;
             comboStreak = 0;
             comboBest = 0;
             luckyStarsCaught = 0;
@@ -5971,6 +5995,26 @@
             playShootSound();
         }
 
+        // Shop-star payout per mode, banked when the run ends (endGame()
+        // and the quick-save path both call this):
+        //   Classic: 1 point = 1 star · Survival: 1 s survived = 100 stars
+        //   CO-OP: score × 8 · Battle: score × 8 (Easy) / × 10 (Normal)
+        //   BOSS: 100 stars per red kill + 2,000 on victory (the +100
+        //   BOSS-DOWN bonus baked into score is NOT counted as a kill).
+        function starsEarnedForMode() {
+            if (gameMode === GAME_MODES.CLASSIC) return score;
+            if (gameMode === GAME_MODES.SURVIVAL) return Math.max(0, Math.floor(score)) * 100;
+            if (gameMode === GAME_MODES.COOP) return Math.max(0, score) * 8;
+            if (gameMode === GAME_MODES.BATTLE) {
+                return Math.max(0, score) * (battleDifficulty === 'normal' ? 10 : 8);
+            }
+            if (gameMode === GAME_MODES.BOSS) {
+                const kills = Math.max(0, score - (bossDefeated ? 100 : 0));
+                return kills * 100 + (bossDefeated ? 2000 : 0);
+            }
+            return 0;
+        }
+
         function endGame() {
             // Centralised game-over so classic (star missed), survival
             // (meteorite hit) and battle (HP ≤ 0) paths honour the same
@@ -6000,9 +6044,6 @@
                 // true and the daily mission flips to the drawn check badge below).
                 if (gameMode === GAME_MODES.CLASSIC) {
                     recordMissionEvent('finished_classic', score);
-                    // Star currency: every point of a Classic match is
-                    // one star added to the account's shop balance.
-                    addStarsToUser(currentUser, score);
                 } else if (gameMode === GAME_MODES.SURVIVAL) {
                     recordMissionEvent('finished_survival', score);
                 } else if (gameMode === GAME_MODES.BATTLE) {
@@ -6018,6 +6059,12 @@
                     // we still emit `finished_coop` so a future mission
                     // can hook in without a code change at the call site.
                     recordMissionEvent('finished_coop', score);
+                }
+                // Bank the mode's shop-star payout (see starsEarnedForMode).
+                const earnedStars = starsEarnedForMode();
+                if (earnedStars > 0) {
+                    addStarsToUser(currentUser, earnedStars);
+                    lastEarnedStars = earnedStars;
                 }
             }
             gameOver = true;
@@ -6035,7 +6082,7 @@
                         playRecordSound();
                     }
                 } else if (gameMode === GAME_MODES.BATTLE) {
-                    const pos = addBattleScoreToUser(currentUser, score);
+                    const pos = addBattleScoreToUser(currentUser, score, battleDifficulty);
                     if (pos !== -1) {
                         isNewRecord = true;
                         newRecordPosition = pos;
@@ -6435,9 +6482,12 @@
             ctx.font = '60px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.shadowColor = '#ff6b35';
+            // The menu rocket wears the equipped skin — same palette as
+            // the in-game ship and shop previews (default: BLUE).
+            const menuRocketSkin = getEquippedSkin();
+            ctx.shadowColor = menuRocketSkin.shipGlow;
             ctx.shadowBlur = 30;
-            drawVectorIcon('rocket', 0, 0, '#ff6b35', 2.6);
+            drawVectorIcon('rocket', 0, 0, menuRocketSkin.shipBody, 2.6);
             ctx.restore();
 
             ctx.shadowBlur = 10;
@@ -8041,20 +8091,23 @@
 
             if (isBoss && bossDefeated) {
                 // Victory flourish: the +100 BOSS DOWN bonus is already
-                // baked into score; surface it so the win feels earned.
+                // baked into score; the mode's star payout (100 per kill
+                // + 2,000 for the win) rides the same line so it never
+                // collides with the record medal below.
+                const starBonus = lastEarnedStars > 0 ? ' · +' + lastEarnedStars + ' stars' : '';
                 ctx.shadowColor = '#ffd84a';
                 ctx.shadowBlur = 30;
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd84a';
-                drawIconLabelCenter('crown', 'BOSS DOWN! +100', canvas.width / 2, 178, 'bold 20px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
-            } else if (!isSurvival && !isBattle && !isBoss && !isCoop && score > 0) {
-                // Classic run: every point scored is a star banked into
-                // the shop balance (1 point = 1 star).
+                drawIconLabelCenter('crown', 'BOSS DOWN! +100' + starBonus, canvas.width / 2, 178, 'bold 20px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
+            } else if (lastEarnedStars > 0) {
+                // Every mode banks shop stars on this line — the payout
+                // formulas live in starsEarnedForMode().
                 ctx.shadowColor = '#ffd84a';
                 ctx.shadowBlur = 25;
                 ctx.font = 'bold 16px Orbitron, sans-serif';
                 ctx.fillStyle = '#ffd84a';
-                drawIconLabelCenter('star', '+' + score + ' stars added to your balance', canvas.width / 2, 178, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 14);
+                drawIconLabelCenter('star', '+' + lastEarnedStars + ' stars added to your balance', canvas.width / 2, 178, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 14);
             }
 
             if (isNewRecord && currentUser && score > 0) {
@@ -8137,10 +8190,11 @@
             ctx.shadowBlur = 20;
             ctx.font = 'bold 24px Orbitron, sans-serif';
             ctx.fillStyle = isSurvival ? '#ff8a8a' : '#ffd700';
-            const top10Icon = isSurvival ? 'skull' : (isBoss ? 'crown' : (isCoop ? 'coop' : 'trophy'));
+            const top10Icon = isSurvival ? 'skull' : (isBoss ? 'crown' : (isCoop ? 'coop' : (isBattle ? 'boom' : 'trophy')));
             const top10Text = isSurvival ? 'TOP 10 SURVIVAL'
                 : (isBoss ? 'TOP 10 BOSS'
-                    : (isCoop ? 'TOP 10 CO-OP' : 'TOP 10'));
+                    : (isCoop ? 'TOP 10 CO-OP'
+                        : (isBattle ? 'TOP 10 BATTLE' : 'TOP 10')));
             drawIconLabel(top10Icon, top10Text, leftColX, top5Y, 'bold 24px Orbitron, sans-serif', isSurvival ? '#ff8a8a' : '#ffd700', isSurvival ? '#ff8a8a' : '#ffd700', 18);
             // (Previously a '⚔ BATTLE BEST' inline badge sat here as
             // a placeholder for the third column. It has been replaced
@@ -8148,16 +8202,23 @@
             // search for `col3X` to find the new layout.)
 
             if (currentUser) {
+                // Battle shows its OWN records — Easy runs are marked
+                // "(E)". Previously Battle fell through to the Classic
+                // bucket, which is why the wrong records appeared.
                 const records = isSurvival
                     ? getSurvivalRecords(currentUser)
                     : (isBoss
                         ? getBossRecords(currentUser)
-                        : (isCoop ? getCoopRecords(currentUser) : getUserRecords(currentUser)));
-                const validRecords = records.filter(r => r > 0);
+                        : (isCoop
+                            ? getCoopRecords(currentUser)
+                            : (isBattle ? getBattleRecordList(currentUser) : getUserRecords(currentUser))));
+                const validRecords = isBattle
+                    ? records.filter(r => r.v > 0)
+                    : records.filter(r => r > 0);
 
                 if (validRecords.length > 0) {
                     ctx.shadowBlur = 5;
-                    const suffix = (isSurvival || isBoss) ? 's' : ' pts';
+                    const suffix = (isSurvival || isBoss) ? 's' : (isBattle ? ' kills' : ' pts');
                     for (let i = 0; i < Math.min(10, validRecords.length); i++) {
                         const colX = i < 5 ? leftColX : col2X;
                         const rowIndex = i < 5 ? i : i - 5;
@@ -8165,11 +8226,10 @@
                         const color = i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : '#ccc';
                         ctx.fillStyle = color;
                         ctx.font = i < 3 ? 'bold 20px Orbitron, sans-serif' : '18px Orbitron, sans-serif';
-                        ctx.fillText(
-                            `${medalEmoji} ${validRecords[i]}${suffix}`,
-                            colX,
-                            top5Y + 40 + rowIndex * 32
-                        );
+                        const entryText = isBattle
+                            ? `${medalEmoji} ${validRecords[i].v}${validRecords[i].d === 'E' ? ' (E)' : ''}${suffix}`
+                            : `${medalEmoji} ${validRecords[i]}${suffix}`;
+                        ctx.fillText(entryText, colX, top5Y + 40 + rowIndex * 32);
                     }
                 } else {
                     ctx.fillStyle = '#666';
@@ -8381,7 +8441,7 @@
 
             const classicRecords = getUserRecords(currentUser).filter(r => r > 0);
             const survivalRecords = getSurvivalRecords(currentUser).filter(r => r > 0);
-            const battleRecords = getBattleRecords(currentUser).filter(r => r > 0);
+            const battleRecords = getBattleRecordList(currentUser).filter(r => r.v > 0);
             // CO-OP records bucket added with the new mode so the
             // player can see their best two-player runs in the same
             // Records screen as the other modes.
@@ -8530,13 +8590,17 @@
                     const record = battleRecords[idx];
                     let label, color;
                     let weight = 'normal';
-                    if (idx === 0) { label = '1. ' + record; color = '#ffd700'; weight = 'bold'; }
-                    else if (idx === 1) { label = '2. ' + record; color = '#c0c0c0'; weight = 'bold'; }
-                    else if (idx === 2) { label = '3. ' + record; color = '#cd7f32'; weight = 'bold'; }
-                    else { label = (idx + 1) + '. ' + record; color = '#ffb59c'; }
+                    const marker = record.d === 'E' ? ' (E)' : '';
+                    if (idx === 0) { label = '1. ' + record.v; color = '#ffd700'; weight = 'bold'; }
+                    else if (idx === 1) { label = '2. ' + record.v; color = '#c0c0c0'; weight = 'bold'; }
+                    else if (idx === 2) { label = '3. ' + record.v; color = '#cd7f32'; weight = 'bold'; }
+                    else { label = (idx + 1) + '. ' + record.v; color = '#ffb59c'; }
                     ctx.font = (weight === 'bold' ? 'bold ' : '') + '15px Orbitron, sans-serif';
                     ctx.fillStyle = color;
-                    ctx.fillText(label + ' kills', col3X + colW / 2, colY + 90 + idx * 28);
+                    // The column is only 136 px wide — Easy entries show
+                    // '1. 80 (E)' (dropping ' kills', the subtitle above
+                    // already says 'Enemies killed') so the marker fits.
+                    ctx.fillText(label + marker + (record.d === 'E' ? '' : ' kills'), col3X + colW / 2, colY + 90 + idx * 28);
                 }
             }
             ctx.textAlign = 'left';
@@ -10110,13 +10174,10 @@
                 if (score > 0) {
                     if (gameMode === GAME_MODES.CLASSIC) {
                         savedRank = addScoreToUser(currentUser, score);
-                        // Quick-saving a Classic run also banks its stars
-                        // (1 point = 1 star), matching endGame().
-                        addStarsToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.SURVIVAL) {
                         savedRank = addSurvivalScoreToUser(currentUser, score);
                     } else if (gameMode === GAME_MODES.BATTLE) {
-                        savedRank = addBattleScoreToUser(currentUser, score);
+                        savedRank = addBattleScoreToUser(currentUser, score, battleDifficulty);
                         if (battleDifficulty === 'normal'
                             && score > getBattleNormalBest(currentUser)) {
                             setBattleNormalBest(currentUser, score);
@@ -10137,6 +10198,13 @@
                         // Records screen like every other mode (previously
                         // only the game-over path did).
                         savedRank = addCoopScoreToUser(currentUser, score);
+                    }
+                    // Quick-saving also banks the mode's shop stars,
+                    // matching endGame() (see starsEarnedForMode).
+                    const earnedStars = starsEarnedForMode();
+                    if (earnedStars > 0) {
+                        addStarsToUser(currentUser, earnedStars);
+                        lastEarnedStars = earnedStars;
                     }
                 }
                 // ----- Trigger the screen-spanning overlay -----
