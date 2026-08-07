@@ -1174,7 +1174,7 @@
             ctx.restore();
         }
 
-        function drawIconLabelRight(iconType, text, x, y, font, color, iconColor, iconSize) {
+        function drawIconLabelRight(iconType, text, x, y, font, color, iconColor, iconSize, iconGap) {
             const size = iconSize || 16;
             const m = /(\d+(?:\.\d+)?)px/.exec(font);
             const fontPx = m ? parseFloat(m[1]) : 18;
@@ -1184,7 +1184,7 @@
             ctx.textAlign = 'right';
             ctx.textBaseline = 'alphabetic';
             const tw = ctx.measureText(text).width;
-            const gap = Math.round(size * 0.35);
+            const gap = iconGap !== undefined ? iconGap : Math.round(size * 0.35);
             const groupW = tw + gap + size;
             const startX = x - groupW;
             drawVectorIcon(iconType, startX + size / 2, y - fontPx * 0.36, iconColor || color, size / 22);
@@ -7038,7 +7038,7 @@
                     ctx.shadowBlur = 12;
                     ctx.font = 'bold 16px Orbitron, sans-serif';
                     const bossHpText = `${Math.max(0, Math.ceil(boss.hp))}/${boss.maxHp}`;
-                    drawIconLabelRight('crown', bossHpText, canvas.width - 20, 46, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15);
+                    drawIconLabelRight('crown', bossHpText, canvas.width - 20, 46, 'bold 16px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 15, 18);
                     ctx.shadowBlur = 0;
                 }
             }
@@ -7114,8 +7114,9 @@
                 ctx.restore();
                 ctx.textAlign = 'left';
 
-                // SCORE (top-centre) + heal legend (top-right) remain
-                // above the bar so both players can read them mid-action.
+                // SCORE (top-centre) + heal legend (top-right, below the account
+                // name) remain above the bar so both players can read them
+                // mid-action.
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#ffd84a';
                 ctx.font = 'bold 16px Orbitron, sans-serif';
@@ -7125,7 +7126,7 @@
                 ctx.fillStyle = '#9bd9ff';
                 ctx.shadowColor = 'black';
                 ctx.textAlign = 'right';
-                ctx.fillText(legend, canvas.width - 16, 32);
+                ctx.fillText(legend, canvas.width - 16, 64);
                 ctx.shadowBlur = 0;
                 ctx.textAlign = 'left';
             }
@@ -7175,7 +7176,7 @@
                 ctx.shadowColor = '#ff5b5b';
                 ctx.fillStyle = '#ffcccc';
                 ctx.fillText(`${score}s`, 20, scoreValueY);
-            } else if (!isBattle && !isBoss) {
+            } else if (!isBattle && !isBoss && !isCoop) {
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.fillStyle = 'white';
                 drawIconLabel('star', `Points: ${score}`, 20, scoreValueY, 'bold 20px Orbitron, sans-serif', 'white', '#ffd84a', 16);
@@ -7197,8 +7198,9 @@
 
             // POINTS / BEST readouts are Classic-mode info — Battle and
             // BOSS FIGHT drop them (the big KILLS counter is the only
-            // metric they show), so skip the BEST line there too.
-            if (!isBattle && !isBoss) {
+            // metric they show), and CO-OP scores via its own HUD, so
+            // skip those readouts there too.
+            if (!isBattle && !isBoss && !isCoop) {
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.shadowBlur = 10;
                 ctx.shadowColor = 'black';
@@ -7220,9 +7222,10 @@
                 ctx.shadowBlur = 0;
             }
 
-            // Heart / lives readout is pointless in Battle modes (HP bar
-            // replaces lives there) — hide it for BATTLE + BOSS FIGHT.
-            if (!isBattle && !isBoss) {
+            // Heart / lives readout is pointless in Battle and CO-OP
+            // (HP bars replace lives there) — hide it for BATTLE +
+            // BOSS FIGHT + CO-OP.
+            if (!isBattle && !isBoss && !isCoop) {
                 ctx.fillStyle = isSurvival ? '#ff9999' : 'white';
                 ctx.font = 'bold 20px Orbitron, sans-serif';
                 ctx.shadowBlur = 10;
@@ -8567,8 +8570,10 @@
 
             // Lock / status badge — drawn at full alpha so it stays
             // legible even over the greyed-out card, and placed BELOW
-            // the description text for a cleaner look.
-            if (locked) {
+            // the description text for a cleaner look. Passing null as the
+            // badge suppresses it (the CO-OP Separate Devices card
+            // shows no logo on purpose).
+            if (locked && badge !== null) {
                 ctx.globalAlpha = 1;
                 ctx.font = '32px Arial, sans-serif';
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
@@ -8742,10 +8747,10 @@
 
                     drawDiffCard(sharedX, cardsY, cardW, cardH, 'SAME DEVICE',
                         ['Blue: mouse · Green: arrows.', 'One screen, two players,', 'one shared health pool.'],
-                        ACCENT_SHARED, false, null, 'monitor');
+                        ACCENT_SHARED, false, null, null);
                     drawDiffCard(onlineX, cardsY, cardW, cardH, 'SEPARATE DEVICES',
                         ['Not available yet.', 'Two-player online play', 'is on the roadmap.'],
-                        ACCENT_ONLINE, true, 'antenna', 'antenna');
+                        ACCENT_ONLINE, true, null, null);
 
                     // --- Click targets ---
                     menuButtons.push({ rect: { x: sharedX, y: cardsY, w: cardW, h: cardH }, action: 'pickCoopShared' });
