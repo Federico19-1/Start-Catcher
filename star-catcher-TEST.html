@@ -4149,7 +4149,7 @@
                         y: -10 - Math.random() * 30,
                         radius: 8 + Math.random() * 5,
                         speed: 2 + Math.random() * 1.6,
-                        color: 'hsl(' + Math.floor(Math.random() * 360) + ', 100%, 62%)',
+                        color: 'hsl(' + (Math.floor(Math.random() * 12) * 30) + ', 100%, 62%)',
                         kind: 'strip',
                         spin: (Math.random() - 0.5) * 0.05,
                         pointValue: 1
@@ -6757,8 +6757,56 @@
         }
 
         // ===== 6.5 Stars, meteorites + survival overlay =====
+        // Pre-rendered rainbow star sprites for STARDANCE. Blitting cached
+        // offscreen sprites instead of rebuilding a shadowBlur path for
+        // ~300 stars every frame is what keeps the 20-second feast at 60
+        // fps. Strip stars use 12 quantized rainbow hues (set in the
+        // spawner), so this lazy cache holds at most 12 tiny canvases.
+        let _stripStarSprites = null;
+        function stripStarSprite(color) {
+            if (!_stripStarSprites) _stripStarSprites = {};
+            let c = _stripStarSprites[color];
+            if (c) return c;
+            c = document.createElement('canvas');
+            const SIZE = 72;   // 13px star + room for the baked glow
+            c.width = SIZE;
+            c.height = SIZE;
+            const g = c.getContext('2d');
+            g.translate(SIZE / 2, SIZE / 2);
+            g.shadowColor = color;
+            g.shadowBlur = 18; // matches the old per-star shadowBlur look
+            g.fillStyle = color;
+            g.strokeStyle = '#fff';
+            g.lineWidth = 1.2;
+            const spikes = 5, outer = 13, inner = 5.2;
+            g.beginPath();
+            for (let i = 0; i < spikes * 2; i++) {
+                const r = i % 2 === 0 ? outer : inner;
+                const a = (i * Math.PI) / spikes - Math.PI / 2;
+                const x = r * Math.cos(a), y = r * Math.sin(a);
+                if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+            }
+            g.closePath();
+            g.fill();
+            g.stroke();
+            _stripStarSprites[color] = c;
+            return c;
+        }
+
         function drawFallingStars() {
             for (const star of stars) {
+                // STARDANCE strip stars blit a cached sprite — no path
+                // building or shadowBlur per star, so ~300 rainbow stars
+                // render at 60 fps instead of grinding to a crawl.
+                if (star.kind === 'strip') {
+                    const scale = star.radius / 13;
+                    ctx.save();
+                    ctx.translate(star.x, star.y);
+                    ctx.rotate(star.spin || 0);
+                    ctx.drawImage(stripStarSprite(star.color), -36 * scale, -36 * scale, 72 * scale, 72 * scale);
+                    ctx.restore();
+                    continue;
+                }
                 ctx.save();
                 ctx.translate(star.x, star.y);
                 ctx.rotate(star.spin || 0);
@@ -7272,14 +7320,16 @@
         }
 
         function drawPlayerBullets() {
-            // Blue ray bolts. Two stacked rects: a wider, dimmer
-            // outer glow + a narrower bright white core. Travels
-            // straight up (set in updateBattle).
+            // Ray bolts in the equipped skin's colours (they used to be
+            // hardcoded blue). Two stacked rects: a wider, dimmer outer
+            // glow + a narrower bright white core. Travels straight up
+            // (set in updateBattle).
+            const skin = getEquippedSkin();
             for (const b of playerBullets) {
                 ctx.save();
                 ctx.shadowBlur = 16;
-                ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
-                ctx.fillStyle = '#4af';
+                ctx.shadowColor = skin.shipGlow;
+                ctx.fillStyle = skin.shipBody;
                 ctx.fillRect(b.x - 5, b.y - 8, 10, 16);
                 ctx.shadowBlur = 10;
                 ctx.fillStyle = '#fff';
@@ -7544,6 +7594,23 @@
                 ctx.fillStyle = 'rgba(255, 107, 107, 0.85)';
                 drawIconLabel('shield', 'KILLS', 24, 66, 'bold 13px Orbitron, sans-serif', 'rgba(255, 107, 107, 0.85)', '#ff6b6b', 14);
                 ctx.shadowBlur = 0;
+
+                // ----- Boss fight timer (below KILLS) -----
+                // Survival shows a seconds readout in the same top-left
+                // slot; BOSS FIGHT reuses that look with its own elapsed
+                // fight clock (battleElapsedMs — frame-based, so pausing
+                // the match freezes the timer like Survival's).
+                if (isBoss) {
+                    const bossSec = Math.max(0, Math.floor(battleElapsedMs / 1000));
+                    const bossMin = Math.floor(bossSec / 60);
+                    const bossTime = bossMin + ':' + String(bossSec % 60).padStart(2, '0');
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#3a8cff';
+                    ctx.font = 'bold 15px Orbitron, sans-serif';
+                    ctx.fillStyle = '#9cd3ff';
+                    drawIconLabel('clock', 'TIME ' + bossTime, 24, 92, 'bold 15px Orbitron, sans-serif', '#9cd3ff', '#3a8cff', 13);
+                    ctx.shadowBlur = 0;
+                }
 
                 // ----- Detailed player HP bar (bottom of screen) -----
                 const hpMax = 100;
@@ -8130,22 +8197,25 @@
 
             ctx.save();
             ctx.translate(shipX, shipY);
-            ctx.shadowColor = 'rgba(138, 43, 226, 0.5)';
+            // The podium ship wears the equipped skin, exactly like the
+            // in-game ship and the shop previews (default: BLUE).
+            const skin = getEquippedSkin();
+            ctx.shadowColor = skin.shipGlow;
             ctx.shadowBlur = 30;
 
             ctx.beginPath();
             ctx.ellipse(0, -8, 30, 20, 0, 0, Math.PI * 2);
-            ctx.fillStyle = '#4a8cff';
+            ctx.fillStyle = skin.shipBody;
             ctx.fill();
-            ctx.strokeStyle = '#8cf';
+            ctx.strokeStyle = skin.shipStroke;
             ctx.lineWidth = 2;
             ctx.stroke();
 
             ctx.beginPath();
             ctx.ellipse(0, -20, 16, 12, 0, 0, Math.PI * 2);
-            ctx.fillStyle = '#8cf';
+            ctx.fillStyle = skin.shipCockpit;
             ctx.fill();
-            ctx.strokeStyle = '#adf';
+            ctx.strokeStyle = skin.shipCockpitStroke;
             ctx.lineWidth = 1.5;
             ctx.stroke();
 
@@ -8167,7 +8237,7 @@
             ctx.arc(7, -21, 1.5, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = '#3a7add';
+            ctx.fillStyle = skin.shipFin;
             ctx.shadowBlur = 20;
             ctx.beginPath();
             ctx.moveTo(-32, 8);
