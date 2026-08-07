@@ -4056,22 +4056,43 @@
             ctx.textAlign = 'center';
             ctx.fillText('Earn stars by scoring points in Classic mode — every point is one star.', canvas.width / 2, 560);
 
-            // BACK button
-            const backY = 564, backW = 160, backH = 35;
-            const backX = canvas.width / 2 - backW / 2;
+            // Bottom row: BACK and MASCOT (view character with the
+            // newly equipped skin). Both return to the main menu.
+            const btnY2 = 564, btnH2 = 35, btnGap = 20;
+            const btnW2 = 140;
+            const totalW2 = 2 * btnW2 + btnGap;
+            const backX = canvas.width / 2 - totalW2 / 2;
+            const mascotX = backX + btnW2 + btnGap;
             ctx.shadowBlur = 0;
+
+            // BACK button (left)
             ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
             ctx.strokeStyle = 'rgba(138, 43, 226, 0.5)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(backX, backY, backW, backH, 10);
+            ctx.roundRect(backX, btnY2, btnW2, btnH2, 10);
             ctx.fill();
             ctx.stroke();
             ctx.fillStyle = '#f1f5f9';
             ctx.font = '18px Orbitron, sans-serif';
             ctx.textBaseline = 'middle';
-            ctx.fillText('\u2190 BACK', canvas.width / 2, backY + backH / 2);
-            menuButtons.push({ rect: { x: backX, y: backY, w: backW, h: backH }, action: 'shopBack' });
+            ctx.textAlign = 'center';
+            ctx.fillText('\u2190 BACK', backX + btnW2 / 2, btnY2 + btnH2 / 2);
+            menuButtons.push({ rect: { x: backX, y: btnY2, w: btnW2, h: btnH2 }, action: 'shopBack' });
+
+            // MASCOT button (right) — explicitly returns to the main
+            // menu so the player can see the mascot with the new skin.
+            ctx.fillStyle = 'rgba(30, 45, 30, 0.80)';
+            ctx.strokeStyle = 'rgba(140, 255, 140, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(mascotX, btnY2, btnW2, btnH2, 10);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#b5ffb5';
+            ctx.font = 'bold 16px Orbitron, sans-serif';
+            ctx.fillText('MASCOT', mascotX + btnW2 / 2, btnY2 + btnH2 / 2);
+            menuButtons.push({ rect: { x: mascotX, y: btnY2, w: btnW2, h: btnH2 }, action: 'shopBack' });
 
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabetic';
