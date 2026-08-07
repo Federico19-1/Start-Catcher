@@ -2703,7 +2703,13 @@
             { id: 'black', name: 'BLACK', body: '#2f323d', stroke: '#5b6270', glow: '#9aa3b5', face: '#e8ecf4',
                 shipBody: '#565c6a', shipStroke: '#9aa3b5', shipCockpit: '#9aa3b5', shipCockpitStroke: '#c6ccd6', shipFin: '#262a33', shipGlow: 'rgba(150, 160, 180, 0.5)' },
             { id: 'gray', name: 'GRAY', body: '#aeb6c2', stroke: '#7a828e', glow: '#d0d6df', face: '#2a2e36',
-                shipBody: '#9aa3b2', shipStroke: '#c6ccd6', shipCockpit: '#c6ccd6', shipCockpitStroke: '#e2e6ec', shipFin: '#6f7784', shipGlow: 'rgba(154, 163, 178, 0.5)' }
+                shipBody: '#9aa3b2', shipStroke: '#c6ccd6', shipCockpit: '#c6ccd6', shipCockpitStroke: '#e2e6ec', shipFin: '#6f7784', shipGlow: 'rgba(154, 163, 178, 0.5)' },
+            { id: 'green', name: 'GREEN', body: '#5fd67a', stroke: '#2fa354', glow: '#a8f0b8', face: '#0f3d1e',
+                shipBody: '#3ec46d', shipStroke: '#8fdfa0', shipCockpit: '#8fdfa0', shipCockpitStroke: '#c8f0d4', shipFin: '#2e9e56', shipGlow: 'rgba(62, 196, 109, 0.5)' },
+            { id: 'orange', name: 'ORANGE', body: '#ff9e3d', stroke: '#d97a1f', glow: '#ffc98a', face: '#4a2408',
+                shipBody: '#ff8c2b', shipStroke: '#ffb26b', shipCockpit: '#ffb26b', shipCockpitStroke: '#ffd4a8', shipFin: '#e06a10', shipGlow: 'rgba(255, 140, 43, 0.5)' },
+            { id: 'white', name: 'WHITE', body: '#eef2f8', stroke: '#aeb6c4', glow: '#ffffff', face: '#2a2e36',
+                shipBody: '#dfe5ee', shipStroke: '#ffffff', shipCockpit: '#ffffff', shipCockpitStroke: '#ffffff', shipFin: '#c3cbd8', shipGlow: 'rgba(255, 255, 255, 0.55)' }
         ];
 
         // ----- Per-account shop state -----
@@ -3769,9 +3775,9 @@
         // Skin-card grid geometry, shared by drawShopScreen (draws the
         // cards) and startShopCelebration (bursts confetti from the bought
         // card) so the two layouts can never drift apart.
-        const SHOP_CARD_W = 228, SHOP_CARD_H = 188, SHOP_GAP_X = 18, SHOP_GAP_Y = 18;
+        const SHOP_CARD_W = 228, SHOP_CARD_H = 126, SHOP_GAP_X = 18, SHOP_GAP_Y = 10;
         const SHOP_GRID_START_X = (800 - (3 * SHOP_CARD_W + 2 * SHOP_GAP_X)) / 2; // 40
-        const SHOP_GRID_START_Y = 146;
+        const SHOP_GRID_START_Y = 142;
         let shopCelebration = null;
 
         // Centre of a shop card's preview zone, used as the confetti origin.
@@ -3781,7 +3787,7 @@
             const col = i % 3, row = Math.floor(i / 3);
             return {
                 x: SHOP_GRID_START_X + col * (SHOP_CARD_W + SHOP_GAP_X) + SHOP_CARD_W / 2,
-                y: SHOP_GRID_START_Y + row * (SHOP_CARD_H + SHOP_GAP_Y) + 52
+                y: SHOP_GRID_START_Y + row * (SHOP_CARD_H + SHOP_GAP_Y) + 42
             };
         }
 
@@ -3827,10 +3833,10 @@
             const pop = 0.55 + 0.45 * inT;
             ctx.save();
             ctx.globalAlpha = Math.max(0, Math.min(1, inT * outT));
-            // The banner sits over the cards' preview zone (y ≈ 168–252),
-            // well above the BUY / EQUIP button rows (y ≈ 278+), so the
-            // action buttons stay visible and clickable during the burst.
-            ctx.translate(canvas.width / 2, 210);
+            // The banner sits over row 1's preview zone (y ≈ 142–226),
+            // well above the card action-button rows (y ≈ 243+), so the
+            // BUY / EQUIP buttons stay visible and clickable mid-burst.
+            ctx.translate(canvas.width / 2, 184);
             ctx.scale(pop, pop);
             ctx.shadowColor = 'rgba(255, 191, 36, 0.9)';
             ctx.shadowBlur = 34;
@@ -3888,7 +3894,7 @@
             ctx.stroke();
             drawIconLabelCenter('star', starCount.toLocaleString('en-US') + ' stars', canvas.width / 2, balY + balH / 2, 'bold 15px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 16);
 
-            // 3x2 grid of purchasable skins (SKINS[0] is the free BLUE
+            // 3x3 grid of purchasable skins (SKINS[0] is the free BLUE
             // default and is never sold).
             // Grid geometry lives at module level (SHOP_CARD_W etc.) so
             // the celebration's confetti origin matches the cards exactly.
@@ -3939,27 +3945,27 @@
                 }
 
                 // Mascot + ship preview + name
-                drawMascotPreview(skin, x + 92, y + 52, 28);
-                drawMiniShip(skin, x + 160, y + 52, 0.95);
+                drawMascotPreview(skin, x + 92, y + 42, 22);
+                drawMiniShip(skin, x + 160, y + 42, 0.85);
                 ctx.fillStyle = '#f1f5f9';
-                ctx.font = 'bold 16px Orbitron, sans-serif';
+                ctx.font = 'bold 15px Orbitron, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'alphabetic';
-                ctx.fillText(skin.name, x + cardW / 2, y + 94);
+                ctx.fillText(skin.name, x + cardW / 2, y + 78);
 
                 // Price / status line
                 ctx.font = '12px Orbitron, sans-serif';
                 if (owned) {
                     ctx.fillStyle = '#8ff08f';
-                    ctx.fillText(isEquipped ? 'ACTIVE SKIN' : 'OWNED', x + cardW / 2, y + 118);
+                    ctx.fillText(isEquipped ? 'ACTIVE SKIN' : 'OWNED', x + cardW / 2, y + 93);
                 } else {
                     ctx.fillStyle = affordable ? '#ffd84a' : '#ff8a8a';
-                    ctx.fillText(SKIN_PRICE.toLocaleString('en-US') + ' stars', x + cardW / 2, y + 118);
+                    ctx.fillText(SKIN_PRICE.toLocaleString('en-US') + ' stars', x + cardW / 2, y + 93);
                 }
 
                 // Action button
-                const btnW = cardW - 48, btnH = 34;
-                const btnX = x + 24, btnY = y + 132;
+                const btnW = cardW - 48, btnH = 27;
+                const btnX = x + 24, btnY = y + 98;
                 if (!owned) {
                     if (affordable) {
                         drawGlassButton(btnX, btnY, btnW, btnH, 10, 'BUY', 'bold 13px Orbitron, sans-serif', {
@@ -3982,7 +3988,7 @@
                         ctx.font = 'bold 12px Orbitron, sans-serif';
                         ctx.fillStyle = '#8b8fa0';
                         ctx.textBaseline = 'alphabetic';
-                        drawIconLabelCenter('lock', 'LOCKED', btnX + btnW / 2, btnY + 21, 'bold 12px Orbitron, sans-serif', '#8b8fa0', '#8b8fa0', 13);
+                        drawIconLabelCenter('lock', 'LOCKED', btnX + btnW / 2, btnY + 15, 'bold 12px Orbitron, sans-serif', '#8b8fa0', '#8b8fa0', 13);
                     }
                 } else if (isEquipped) {
                     // Green confirmed pill — no click target.
@@ -3998,7 +4004,7 @@
                     ctx.stroke();
                     ctx.font = 'bold 12px Orbitron, sans-serif';
                     ctx.fillStyle = '#aaffaa';
-                    ctx.fillText('\u2713 EQUIPPED', btnX + btnW / 2, btnY + 21);
+                    ctx.fillText('\u2713 EQUIPPED', btnX + btnW / 2, btnY + 15);
                 } else {
                     drawGlassButton(btnX, btnY, btnW, btnH, 10, 'EQUIP', 'bold 13px Orbitron, sans-serif', {
                         icon: 'check',
@@ -4025,10 +4031,10 @@
             ctx.font = '11px Orbitron, sans-serif';
             ctx.fillStyle = '#7eaad6';
             ctx.textAlign = 'center';
-            ctx.fillText('Earn stars by scoring points in Classic mode — every point is one star.', canvas.width / 2, 552);
+            ctx.fillText('Earn stars by scoring points in Classic mode — every point is one star.', canvas.width / 2, 560);
 
             // BACK button
-            const backY = 562, backW = 160, backH = 35;
+            const backY = 564, backW = 160, backH = 35;
             const backX = canvas.width / 2 - backW / 2;
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
