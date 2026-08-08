@@ -2844,6 +2844,10 @@
         // players' missions over exactly once (see refreshMissionsForUser).
         const MISSION_REROLL_COST = 20;
         const MISSION_POOL_VERSION = 1;
+        // Flash feedback after a reroll: drawMissionsScreen briefly rings
+        // the swapped cards gold (NEW) and the untouched ones green (KEPT).
+        const MISSION_FLASH_MS = 1400;
+        let rerollFlash = null;   // { kept: boolean[], replaced: boolean[], startedAt: number }
 
         // The daily mission pool, covering every mode and system in the
         // current build: Classic, Survival, Battle, BOSS FIGHT, CO-OP, the
@@ -2929,33 +2933,48 @@
             return picked;
         }
 
-        // Shuffles today's 3 missions into a brand-new random set in
-        // exchange for MISSION_REROLL_COST stars. The deterministic daily
-        // seed is deliberately NOT reused — a reroll is a random re-pick,
-        // so the stars buy real variety beyond the shared set of the day.
-        // Completion of the replaced missions is dropped, but the tracked
-        // daily progress (scores, modes played, stars earned) is kept
-        // because the fresh set may reuse the same trackers.
+        // Shuffles ONLY the not-yet-completed missions into brand-new
+        // random ones in exchange for MISSION_REROLL_COST stars. Completed
+        // missions keep their slot untouched (and stay completed), so a
+        // reroll never costs the player progress they already earned. The
+        // deterministic daily seed is deliberately NOT reused — a reroll is
+        // a random re-pick, and missions already in today's set are
+        // excluded so the stars always buy real variety.
         function rerollDailyMissions() {
             if (!currentUser) return false;
-            if (!spendStars(currentUser, MISSION_REROLL_COST)) return false;
             const m = refreshMissionsForUser(currentUser);
-            // Random pick of 3 distinct missions, retrying a few times so
-            // the player almost never pays to receive the same set back.
-            let picked = [];
-            for (let attempt = 0; attempt < 6; attempt++) {
-                const pool = eligibleMissionPool().slice();
-                picked = [];
-                for (let i = 0; i < 3 && pool.length > 0; i++) {
-                    picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-                }
-                const sameSet = picked.length === m.missionsForDay.length &&
-                    picked.every((p, i) => p.id === m.missionsForDay[i].id);
-                if (!sameSet) break;
+            const current = m.missionsForDay || [];
+            const done = new Set(
+                current.filter(x => m.missionsCompleted && m.missionsCompleted[x.id]).map(x => x.id)
+            );
+            // Nothing left to reroll — every mission is already complete.
+            if (done.size === current.length) return false;
+            if (!spendStars(currentUser, MISSION_REROLL_COST)) return false;
+            // Completed missions keep their slot; incomplete ones are
+            // replaced with missions not already in today's set.
+            const next = current.map(x => (done.has(x.id) ? x : null));
+            let pool = eligibleMissionPool().filter(s => !current.some(x => x.id === s.id));
+            if (pool.length < next.filter(x => !x).length) {
+                // Pool exhausted after exclusions — fall back to allowing
+                // the missions being replaced back in, but never the kept
+                // (completed) ones.
+                pool = eligibleMissionPool().filter(s => !done.has(s.id));
             }
-            m.missionsForDay = picked;
+            for (let i = 0; i < next.length; i++) {
+                if (next[i] === null) {
+                    if (pool.length > 0) {
+                        next[i] = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+                    } else {
+                        // Pool exhausted (unreachable with the current pool
+                        // size) — keep the original mission rather than
+                        // leaving an empty slot.
+                        next[i] = current[i];
+                    }
+                }
+            }
+            m.missionsForDay = next;
             m.missionsCompleted = {};
-            // The SUPER CLAIM! button relocks until the new set is done
+            // The SUPER CLAIM! button relocks until the (new) set is done
             // (an already-collected super claim for today stays claimed).
             m._lastAllCompleteDayKey = null;
             recheckMissionCompletion(m);
@@ -2963,6 +2982,16 @@
             // progress, unlock the super claim immediately.
             maybeAdvanceSuperStreak(m);
             saveUserMissions(currentUser, m);
+            // Record which slots changed so the Missions screen can flash
+            // the kept (green KEPT) and replaced (gold NEW) cards. The
+            // flags are derived by comparing each slot's mission object, so
+            // even the (theoretical) pool-exhaustion fallback — which keeps
+            // the original mission — correctly counts as kept.
+            rerollFlash = {
+                kept: next.map((x, i) => x === current[i]),
+                replaced: next.map((x, i) => x !== current[i]),
+                startedAt: Date.now()
+            };
             return true;
         }
 
@@ -3133,6 +3162,9 @@
 
         function navigateFromMissionsScreen() {
             gameState = GAME_STATES.MENU;
+            // Drop any in-flight reroll flash so it can't replay over the
+            // menu after the player leaves the Missions screen.
+            rerollFlash = null;
             playClickSound();
         }
 
@@ -3319,6 +3351,11 @@
             const m = currentUser
                 ? refreshMissionsForUser(currentUser)
                 : newMissionsRecord();
+
+            // Self-clear the reroll card-flash once its duration is up.
+            if (rerollFlash && Date.now() - rerollFlash.startedAt >= MISSION_FLASH_MS) {
+                rerollFlash = null;
+            }
 
             ctx.textAlign = 'center';
             ctx.shadowBlur = 30;
@@ -3509,10 +3546,12 @@
             ctx.fillStyle = '#f1f5f9';
             ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
 
-            // ----- Reroll button: swap today's 3 missions for a brand-new
-            // random set in exchange for MISSION_REROLL_COST stars. Gold
-            // glass button while the balance can afford it, a dim grey
-            // LOCKED pill otherwise. The click target is registered at the
+            // ----- Reroll button: replaces ONLY the not-yet-completed
+            // missions in exchange for MISSION_REROLL_COST stars; completed
+            // ones keep their slot and stay completed. Gold glass button
+            // while the balance can afford it, a green ALL DONE pill once
+            // everything is complete, and a dim grey LOCKED pill when the
+            // balance is too low. The click target is registered at the
             // bottom of the screen (menuButtons is rebuilt there), using
             // the same pattern as bossNavArrowRect.
             let rerollRect = null;
@@ -3520,9 +3559,29 @@
                 const rerollW = 205, rerollH = 30;
                 const rerollX = canvas.width - 20 - rerollW;
                 const rerollY = missionsY - 18 - rerollH / 2;
-                const canReroll = getStarCountCached() >= MISSION_REROLL_COST;
+                const allMissionsComplete = (m.missionsForDay || []).length > 0 &&
+                    (m.missionsForDay || []).every(x => m.missionsCompleted && m.missionsCompleted[x.id]);
+                const affordable = getStarCountCached() >= MISSION_REROLL_COST;
                 const rerollLabel = 'NEW MISSIONS \u00b7 ' + MISSION_REROLL_COST;
-                if (canReroll) {
+                if (allMissionsComplete) {
+                    // Nothing left to reroll: green confirmed pill, no
+                    // click target.
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = 'rgba(120, 255, 120, 0.6)';
+                    ctx.fillStyle = '#1a4a2a';
+                    ctx.strokeStyle = '#66ee88';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.roundRect(rerollX, rerollY, rerollW, rerollH, 10);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.stroke();
+                    ctx.font = 'bold 12px Orbitron, sans-serif';
+                    ctx.fillStyle = '#aaffaa';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('\u2713 ALL DONE', rerollX + rerollW / 2, rerollY + rerollH / 2);
+                    ctx.textBaseline = 'alphabetic';
+                } else if (affordable) {
                     drawGlassButton(rerollX, rerollY, rerollW, rerollH, 10, rerollLabel, 'bold 12px Orbitron, sans-serif', {
                         icon: 'star',
                         isPrimary: true,
@@ -3645,6 +3704,64 @@
                         progressText = parts.join('   \u00b7   ');
                     }
                     ctx.fillText(progressText, cardX + 62, y + 42);
+
+                    // ----- Reroll flash -----
+                    // Right after a reroll, the swapped cards ring gold with
+                    // a NEW badge and the untouched ones ring green with a
+                    // KEPT badge, fading over MISSION_FLASH_MS. rerollFlash
+                    // self-clears at the top of drawMissionsScreen.
+                    if (rerollFlash && rerollFlash.kept) {
+                        const flElapsed = Date.now() - rerollFlash.startedAt;
+                        const flP = flElapsed / MISSION_FLASH_MS;   // 0..1
+                        // Fade in fast, hold, fade out near the end.
+                        const fade = flP < 0.12 ? flP / 0.12 : (flP > 0.72 ? Math.max(0, (1 - flP) / 0.28) : 1);
+                        const isReplaced = !!rerollFlash.replaced[idx];
+                        ctx.save();
+                        if (isReplaced) {
+                            // Expanding gold ring around the new card.
+                            const ringP = Math.min(1, flElapsed / 900);
+                            ctx.strokeStyle = 'rgba(255, 216, 74, ' + (0.9 * fade * (1 - ringP * 0.45)).toFixed(2) + ')';
+                            ctx.lineWidth = 3;
+                            ctx.beginPath();
+                            ctx.roundRect(cardX - 4 - ringP * 12, y - 4 - ringP * 12, cardW + 8 + ringP * 24, cardH + 8 + ringP * 24, 16);
+                            ctx.stroke();
+                        } else {
+                            // Soft green ring around the kept card.
+                            ctx.strokeStyle = 'rgba(140, 255, 140, ' + (0.7 * fade).toFixed(2) + ')';
+                            ctx.lineWidth = 2.5;
+                            ctx.beginPath();
+                            ctx.roundRect(cardX - 3, y - 3, cardW + 6, cardH + 6, 13);
+                            ctx.stroke();
+                        }
+                        // NEW / KEPT badge (top-right inside the card).
+                        const badgeW = 46, badgeH = 22;
+                        const badgeX = cardX + cardW - badgeW - 10;
+                        const badgeY = y + 8;
+                        ctx.globalAlpha = fade;
+                        if (isReplaced) {
+                            ctx.shadowColor = 'rgba(255, 191, 36, 0.9)';
+                            ctx.shadowBlur = 12;
+                            ctx.fillStyle = '#5a3a08';
+                            ctx.strokeStyle = '#ffd84a';
+                        } else {
+                            ctx.shadowColor = 'rgba(120, 255, 120, 0.7)';
+                            ctx.shadowBlur = 10;
+                            ctx.fillStyle = '#1a4a2a';
+                            ctx.strokeStyle = '#66ee88';
+                        }
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 9);
+                        ctx.fill();
+                        ctx.shadowBlur = 0;
+                        ctx.stroke();
+                        ctx.font = 'bold 11px Orbitron, sans-serif';
+                        ctx.fillStyle = isReplaced ? '#ffd84a' : '#aaffaa';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(isReplaced ? 'NEW' : 'KEPT', badgeX + badgeW / 2, badgeY + badgeH / 2);
+                        ctx.restore();
+                    }
                 });
 
                 // ----- BOSS objectives access (single → arrow) -----
