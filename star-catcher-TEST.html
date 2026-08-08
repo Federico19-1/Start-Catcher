@@ -2674,6 +2674,9 @@
             all[`${username}__stars`] = getStars(username) + n;
             saveAllRecords(all);
             _starCountCache = null;
+            // Feed the daily `stars_earned` missions: every star banked
+            // today counts toward the running total shown on the cards.
+            recordMissionEvent('stars_earned', n);
         }
 
         // Returns false when the balance is too low (nothing is deducted).
@@ -2773,6 +2776,9 @@
             shop.owned.push(skinId);
             shop.equipped = skinId;
             saveUserShop(currentUser, shop);
+            // Buying a skin auto-equips it, so it also feeds the daily
+            // `equip_skin` mission.
+            recordMissionEvent('equipped_skin');
             return true;
         }
 
@@ -2782,6 +2788,8 @@
             if (!shop.owned.includes(skinId)) return false;
             shop.equipped = skinId;
             saveUserShop(currentUser, shop);
+            // Feed the daily `equip_skin` mission.
+            recordMissionEvent('equipped_skin');
             return true;
         }
 
@@ -2830,20 +2838,67 @@
         // per account: a yellow/orange manual-claim "daily streak"
         // and a red/burgundy auto-bumped "super streak" earned by
         // completing all of today's 3 missions.
+        // 20-star fee to shuffle today's missions into a brand-new set.
+        // MISSION_POOL_VERSION marks which pool a saved record was rolled
+        // from, so a game update that changes the pool swaps existing
+        // players' missions over exactly once (see refreshMissionsForUser).
+        const MISSION_REROLL_COST = 20;
+        const MISSION_POOL_VERSION = 1;
+
+        // The daily mission pool, covering every mode and system in the
+        // current build: Classic, Survival, Battle, BOSS FIGHT, CO-OP, the
+        // star currency, the skin shop and Settings. Each `type` is handled
+        // by recordMissionEvent / recheckMissionCompletion AND gets its own
+        // live progress subtitle in drawMissionsScreen.
         const MISSION_POOL = [
-            { id: 'catch5', label: 'Catch 5 stars in Classic', target: 5, type: 'classic_score' },
+            // ----- Classic -----
             { id: 'catch10', label: 'Catch 10 stars in Classic', target: 10, type: 'classic_score' },
-            { id: 'catch15', label: 'Catch 15 stars in Classic', target: 15, type: 'classic_score' },
-            { id: 'survive20', label: 'Survive 20s in Survival', target: 20, type: 'survival_time' },
+            { id: 'catch20', label: 'Catch 20 stars in Classic', target: 20, type: 'classic_score' },
+            { id: 'catch30', label: 'Catch 30 stars in Classic', target: 30, type: 'classic_score' },
+            { id: 'no_death_classic', label: 'Finish Classic with all 3 lives', type: 'no_death_run' },
+
+            // ----- Survival -----
             { id: 'survive30', label: 'Survive 30s in Survival', target: 30, type: 'survival_time' },
             { id: 'survive45', label: 'Survive 45s in Survival', target: 45, type: 'survival_time' },
-            { id: 'battle_kill_5', label: 'Destroy 5 enemies in Battle', target: 5, type: 'battle_kills' },
-            { id: 'battle_kill_15', label: 'Destroy 15 enemies in Battle', target: 15, type: 'battle_kills' },
-            { id: 'visit_set', label: 'Visit Settings today', type: 'visit_settings' },
-            { id: 'toggle_set', label: 'Toggle a setting today', type: 'toggle_setting' },
-            { id: 'both_modes', label: 'Play both Classic + Survival', type: 'both_modes' },
-            { id: 'all_modes', label: 'Play Classic, Survival and Battle today', type: 'all_modes' }
+            { id: 'survive60', label: 'Survive 1 minute in Survival', target: 60, type: 'survival_time' },
+
+            // ----- Battle -----
+            { id: 'battle_kill_10', label: 'Destroy 10 enemies in Battle', target: 10, type: 'battle_kills' },
+            { id: 'battle_kill_20', label: 'Destroy 20 enemies in Battle', target: 20, type: 'battle_kills' },
+            { id: 'battle_no_damage', label: 'Finish Battle without damage', type: 'battle_no_damage_run' },
+            { id: 'battle_normal_hard', label: 'Battle on Normal or Hard', type: 'battle_normal_hard' },
+
+            // ----- BOSS FIGHT -----
+            { id: 'boss_defeat', label: 'Defeat the BOSS FIGHT king', type: 'boss_defeated', mode: 'boss' },
+            { id: 'boss_score_1500', label: 'Reach 1500 score in BOSS FIGHT', target: 1500, type: 'boss_score', mode: 'boss' },
+
+            // ----- CO-OP -----
+            { id: 'coop_score_10', label: 'Reach 10 points in CO-OP', target: 10, type: 'coop_score' },
+            { id: 'coop_score_25', label: 'Reach 25 points in CO-OP', target: 25, type: 'coop_score' },
+            { id: 'play_coop', label: 'Play a CO-OP run today', type: 'coop_played' },
+
+            // ----- Stars + Shop -----
+            { id: 'earn_stars_150', label: 'Earn 150 stars today', target: 150, type: 'stars_earned' },
+            { id: 'earn_stars_400', label: 'Earn 400 stars today', target: 400, type: 'stars_earned' },
+            { id: 'equip_a_skin', label: 'Equip a skin in the Shop', type: 'equip_skin' },
+
+            // ----- Settings -----
+            { id: 'visit_settings', label: 'Visit Settings today', type: 'visit_settings' },
+            { id: 'toggle_setting', label: 'Toggle a setting today', type: 'toggle_setting' },
+
+            // ----- Multi-mode -----
+            { id: 'both_modes', label: 'Play Classic and Survival today', type: 'both_modes' },
+            { id: 'all_modes', label: 'Play Classic, Survival and Battle today', type: 'all_modes' },
+            { id: 'four_modes', label: 'Play 4 different modes today', type: 'four_modes' }
         ];
+
+        // Missions that need BOSS FIGHT are only offered once the mode is
+        // unlocked (three record achievements), so a locked player never
+        // draws an impossible mission for the day.
+        function eligibleMissionPool() {
+            const bossUnlocked = isBossFightUnlocked();
+            return MISSION_POOL.filter(s => bossUnlocked || s.mode !== 'boss');
+        }
 
         // Deterministic seed from a YYYY-MM-DD string. Every player sees
         // the same 3 missions on a given calendar day so friends can
@@ -2865,13 +2920,50 @@
 
         function generateDailyMissions(todayKey) {
             const seed = dailySeedForToday(todayKey);
-            const pool = MISSION_POOL.slice();
+            const pool = eligibleMissionPool().slice();
             const picked = [];
             for (let i = 0; i < 3 && pool.length > 0; i++) {
                 const idx = (seed * (i + 7) + Math.floor(seed / 13)) % pool.length;
                 picked.push(pool.splice(idx, 1)[0]);
             }
             return picked;
+        }
+
+        // Shuffles today's 3 missions into a brand-new random set in
+        // exchange for MISSION_REROLL_COST stars. The deterministic daily
+        // seed is deliberately NOT reused — a reroll is a random re-pick,
+        // so the stars buy real variety beyond the shared set of the day.
+        // Completion of the replaced missions is dropped, but the tracked
+        // daily progress (scores, modes played, stars earned) is kept
+        // because the fresh set may reuse the same trackers.
+        function rerollDailyMissions() {
+            if (!currentUser) return false;
+            if (!spendStars(currentUser, MISSION_REROLL_COST)) return false;
+            const m = refreshMissionsForUser(currentUser);
+            // Random pick of 3 distinct missions, retrying a few times so
+            // the player almost never pays to receive the same set back.
+            let picked = [];
+            for (let attempt = 0; attempt < 6; attempt++) {
+                const pool = eligibleMissionPool().slice();
+                picked = [];
+                for (let i = 0; i < 3 && pool.length > 0; i++) {
+                    picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+                }
+                const sameSet = picked.length === m.missionsForDay.length &&
+                    picked.every((p, i) => p.id === m.missionsForDay[i].id);
+                if (!sameSet) break;
+            }
+            m.missionsForDay = picked;
+            m.missionsCompleted = {};
+            // The SUPER CLAIM! button relocks until the new set is done
+            // (an already-collected super claim for today stays claimed).
+            m._lastAllCompleteDayKey = null;
+            recheckMissionCompletion(m);
+            // If the fresh set is already fully satisfied by today's
+            // progress, unlock the super claim immediately.
+            maybeAdvanceSuperStreak(m);
+            saveUserMissions(currentUser, m);
+            return true;
         }
 
         // Idempotent per day. Resets to 1 if a day was skipped, grows
@@ -2990,6 +3082,32 @@
                 if (typeof value === 'number' && value > m.bestBattleKillsToday) {
                     m.bestBattleKillsToday = value;
                 }
+                // A Battle run keeps the difficulty chosen in the picker
+                // on the module-level battleDifficulty; Normal and Hard
+                // runs fuel the `battle_normal_hard` daily mission.
+                if (battleDifficulty === 'normal' || battleDifficulty === 'hard') {
+                    m.battleNormalOrHardToday = true;
+                }
+            } else if (eventType === 'finished_boss') {
+                // `value` is the BOSS FIGHT score (kills * 100, plus the
+                // 2000 victory bonus when the king falls).
+                m.modesPlayedToday.boss = true;
+                if (typeof value === 'number' && value > m.bestBossScoreToday) {
+                    m.bestBossScoreToday = value;
+                }
+                if (bossDefeated) m.bossDefeatedToday = true;
+            } else if (eventType === 'finished_coop') {
+                // `value` is the CO-OP score (1 per star + 2 per kill).
+                m.modesPlayedToday.coop = true;
+                if (typeof value === 'number' && value > m.bestCoopScoreToday) {
+                    m.bestCoopScoreToday = value;
+                }
+            } else if (eventType === 'stars_earned') {
+                // Cumulative stars banked today — every mode's shop payout
+                // funnels through addStarsToUser.
+                m.starsEarnedToday = (m.starsEarnedToday || 0) + (typeof value === 'number' ? value : 0);
+            } else if (eventType === 'equipped_skin') {
+                m.skinsEquippedToday = (m.skinsEquippedToday || 0) + 1;
             } else if (eventType === 'visited_settings') {
                 m.settingsVisitedToday = true;
             } else if (eventType === 'toggled_setting') {
@@ -3029,14 +3147,24 @@
                 missionsForDay: [],
                 missionsCompleted: {},
                 _lastAllCompleteDayKey: null,
-                modesPlayedToday: { classic: false, survival: false, battle: false },
+                // 0 = legacy save (missionPoolVersion was added later);
+                // refreshMissionsForUser upgrades it to MISSION_POOL_VERSION
+                // and, when the pool changed, swaps today's missions once.
+                missionPoolVersion: 0,
+                modesPlayedToday: { classic: false, survival: false, battle: false, boss: false, coop: false },
                 settingsVisitedToday: false,
                 settingsToggledCountToday: 0,
                 bestClassicScoreToday: 0,
                 bestSurvivalTimeToday: 0,
                 bestBattleKillsToday: 0,
+                bestCoopScoreToday: 0,
+                bestBossScoreToday: 0,
                 noDeathClassicToday: false,
-                noDamageBattleToday: false
+                noDamageBattleToday: false,
+                bossDefeatedToday: false,
+                battleNormalOrHardToday: false,
+                starsEarnedToday: 0,
+                skinsEquippedToday: 0
             };
         }
 
@@ -3077,14 +3205,31 @@
                     case 'no_death_run': done = m.noDeathClassicToday; break;
                     case 'battle_kills': done = m.bestBattleKillsToday >= mission.target; break;
                     case 'battle_no_damage_run': done = !!(m.noDamageBattleToday && m.bestBattleKillsToday >= 1); break;
+                    case 'battle_normal_hard': done = m.battleNormalOrHardToday; break;
+                    case 'boss_defeated': done = m.bossDefeatedToday; break;
+                    case 'boss_score': done = m.bestBossScoreToday >= mission.target; break;
+                    case 'coop_score': done = m.bestCoopScoreToday >= mission.target; break;
+                    case 'coop_played': done = !!m.modesPlayedToday.coop; break;
+                    case 'stars_earned': done = m.starsEarnedToday >= mission.target; break;
+                    case 'equip_skin': done = m.skinsEquippedToday >= 1; break;
                     case 'visit_settings': done = m.settingsVisitedToday; break;
                     case 'toggle_setting': done = (m.settingsToggledCountToday || 0) >= 1; break;
                     case 'both_modes': done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival); break;
-                    // `all_modes` is in MISSION_POOL but was never handled
-                    // here, so a day containing it could NEVER be marked
-                    // complete — the SUPER CLAIM button stayed locked and
-                    // the super streak could not advance on those days.
+                    // `all_modes` / `four_modes` count how many distinct
+                    // modes were played today (the build has five now:
+                    // Classic, Survival, Battle, BOSS FIGHT and CO-OP).
                     case 'all_modes': done = !!(m.modesPlayedToday.classic && m.modesPlayedToday.survival && m.modesPlayedToday.battle); break;
+                    case 'four_modes': {
+                        const played = [
+                            m.modesPlayedToday.classic,
+                            m.modesPlayedToday.survival,
+                            m.modesPlayedToday.battle,
+                            m.modesPlayedToday.boss,
+                            m.modesPlayedToday.coop
+                        ].filter(Boolean).length;
+                        done = played >= 4;
+                        break;
+                    }
                 }
                 m.missionsCompleted[mission.id] = done;
             }
@@ -3097,16 +3242,23 @@
                 m.currentDayKey = today;
                 m.missionsForDay = generateDailyMissions(today);
                 m.missionsCompleted = {};
-                m.modesPlayedToday = { classic: false, survival: false, battle: false };
+                m.modesPlayedToday = { classic: false, survival: false, battle: false, boss: false, coop: false };
                 m.settingsVisitedToday = false;
                 m.settingsToggledCountToday = 0;
                 m.bestClassicScoreToday = 0;
                 m.bestSurvivalTimeToday = 0;
                 m.bestBattleKillsToday = 0;
+                m.bestCoopScoreToday = 0;
+                m.bestBossScoreToday = 0;
                 m.noDeathClassicToday = false;
                 m.noDamageBattleToday = false;
+                m.bossDefeatedToday = false;
+                m.battleNormalOrHardToday = false;
+                m.starsEarnedToday = 0;
+                m.skinsEquippedToday = 0;
                 m._lastAllCompleteDayKey = null;
                 m.superClaimedDate = null;
+                m.missionPoolVersion = MISSION_POOL_VERSION;
                 // Streak honesty: a new day started, so if the last claim
                 // was NOT yesterday (claiming today is already covered by
                 // the `=== today` guard inside the claim functions), the
@@ -3121,6 +3273,26 @@
                 if (!(m.lastSuperClaimDate && isYesterday(m.lastSuperClaimDate, today))) {
                     m.superStreakCount = 0;
                 }
+            } else if (m.missionPoolVersion !== MISSION_POOL_VERSION) {
+                // The mission pool changed in a game update: swap today's
+                // missions for the new set exactly once, WITHOUT treating
+                // this as a new day — streaks, Settings visits and all the
+                // tracked daily progress (scores, modes, stars earned)
+                // stay intact.
+                m.missionsForDay = generateDailyMissions(today);
+                m.missionsCompleted = {};
+                m.missionPoolVersion = MISSION_POOL_VERSION;
+                m._lastAllCompleteDayKey = null;
+                // Legacy saves kept the old 3-mode shape of modesPlayedToday
+                // (no boss / coop keys); normalize it to the full 5-mode
+                // object so every mission check reads consistent flags.
+                m.modesPlayedToday = {
+                    classic: m.modesPlayedToday.classic || false,
+                    survival: m.modesPlayedToday.survival || false,
+                    battle: m.modesPlayedToday.battle || false,
+                    boss: false,
+                    coop: false
+                };
             }
             recheckMissionCompletion(m);
             const all = getAllRecords();
@@ -3187,6 +3359,20 @@
             ctx.fillStyle = '#9cd3ff';
             const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
             drawIconLabelCenter('calendar', dateStr, canvas.width / 2, 92, '13px Orbitron, sans-serif', '#9cd3ff', '#9cd3ff', 14);
+
+            // Star balance pill (top-right): the NEW MISSIONS reroll button
+            // charges MISSION_REROLL_COST stars, so showing the live balance
+            // lets the player see at a glance whether they can afford it.
+            const balW2 = 150, balH2 = 26;
+            const balX2 = canvas.width - 20 - balW2, balY2 = 66;
+            ctx.fillStyle = 'rgba(26, 31, 44, 0.80)';
+            ctx.strokeStyle = 'rgba(255, 191, 36, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(balX2, balY2, balW2, balH2, 13);
+            ctx.fill();
+            ctx.stroke();
+            drawIconLabelCenter('star', getStarCountCached().toLocaleString('en-US') + ' stars', balX2 + balW2 / 2, balY2 + balH2 / 2, 'bold 12px Orbitron, sans-serif', '#ffd84a', '#ffd84a', 14);
 
             // Streak panel
             const streakY = 125, streakH = 110, streakW = 360;
@@ -3323,6 +3509,38 @@
             ctx.fillStyle = '#f1f5f9';
             ctx.fillText("TODAY'S MISSIONS", canvas.width / 2, missionsY - 18);
 
+            // ----- Reroll button: swap today's 3 missions for a brand-new
+            // random set in exchange for MISSION_REROLL_COST stars. Gold
+            // glass button while the balance can afford it, a dim grey
+            // LOCKED pill otherwise. The click target is registered at the
+            // bottom of the screen (menuButtons is rebuilt there), using
+            // the same pattern as bossNavArrowRect.
+            let rerollRect = null;
+            {
+                const rerollW = 205, rerollH = 30;
+                const rerollX = canvas.width - 20 - rerollW;
+                const rerollY = missionsY - 18 - rerollH / 2;
+                const canReroll = getStarCountCached() >= MISSION_REROLL_COST;
+                const rerollLabel = 'NEW MISSIONS \u00b7 ' + MISSION_REROLL_COST;
+                if (canReroll) {
+                    drawGlassButton(rerollX, rerollY, rerollW, rerollH, 10, rerollLabel, 'bold 12px Orbitron, sans-serif', {
+                        icon: 'star',
+                        isPrimary: true,
+                        hoverStrength: hoverFor('rerollMissions')
+                    });
+                    rerollRect = { x: rerollX, y: rerollY, w: rerollW, h: rerollH };
+                } else {
+                    ctx.fillStyle = 'rgba(42, 42, 58, 0.90)';
+                    ctx.strokeStyle = 'rgba(150, 150, 160, 0.30)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.roundRect(rerollX, rerollY, rerollW, rerollH, 10);
+                    ctx.fill();
+                    ctx.stroke();
+                    drawIconLabelCenter('lock', rerollLabel, rerollX + rerollW / 2, rerollY + rerollH / 2, 'bold 12px Orbitron, sans-serif', '#8b8fa0', '#8b8fa0', 13);
+                }
+            }
+
             // Hit rect for the → arrow button drawn beside the first daily
             // mission card (null until the cards render below).
             let bossNavArrowRect = null;
@@ -3360,20 +3578,50 @@
 
                     ctx.font = '11px Orbitron, sans-serif';
                     ctx.fillStyle = done ? '#a2e6a2' : '#88aaff';
+                    // Every mission type in MISSION_POOL gets a live
+                    // progress subtitle here (see the comment on the pool).
                     let progressText = '';
                     if (mission.type === 'classic_score') {
                         progressText = `Best today: ${m.bestClassicScoreToday} / ${mission.target} stars`;
                     } else if (mission.type === 'survival_time') {
                         progressText = `Best today: ${m.bestSurvivalTimeToday}s / ${mission.target}s`;
                     } else if (mission.type === 'no_death_run') {
-                        progressText = m.noDeathClassicToday ? 'No-death run complete!' : 'Survive Classic with all 3 lives';
+                        progressText = m.noDeathClassicToday ? 'No-death Classic run complete!' : 'Keep all 3 lives in Classic';
+                    } else if (mission.type === 'battle_kills') {
+                        progressText = `Kills today: ${m.bestBattleKillsToday} / ${mission.target}`;
+                    } else if (mission.type === 'battle_no_damage_run') {
+                        progressText = m.noDamageBattleToday
+                            ? 'Flawless Battle run complete!'
+                            : `Finish Battle without damage (kills: ${m.bestBattleKillsToday})`;
+                    } else if (mission.type === 'battle_normal_hard') {
+                        progressText = m.battleNormalOrHardToday
+                            ? 'Played Battle on Normal or Hard!'
+                            : 'Pick Normal or Hard in the Battle menu';
+                    } else if (mission.type === 'boss_defeated') {
+                        progressText = m.bossDefeatedToday
+                            ? 'BOSS FIGHT king defeated!'
+                            : 'Defeat the BOSS FIGHT king';
+                    } else if (mission.type === 'boss_score') {
+                        progressText = `Best BOSS score: ${m.bestBossScoreToday} / ${mission.target}`;
+                    } else if (mission.type === 'coop_score') {
+                        progressText = `Best CO-OP points: ${m.bestCoopScoreToday} / ${mission.target}`;
+                    } else if (mission.type === 'coop_played') {
+                        progressText = m.modesPlayedToday.coop ? 'CO-OP run played today!' : 'Play a CO-OP run';
+                    } else if (mission.type === 'stars_earned') {
+                        progressText = `Stars earned today: ${m.starsEarnedToday} / ${mission.target}`;
+                    } else if (mission.type === 'equip_skin') {
+                        progressText = m.skinsEquippedToday
+                            ? 'Skin equipped today!'
+                            : 'Equip a skin in the Shop (any owned skin)';
                     } else if (mission.type === 'visit_settings') {
                         progressText = m.settingsVisitedToday ? 'Visited Settings today' : 'Open the Settings screen';
                     } else if (mission.type === 'toggle_setting') {
-                        progressText = `Toggled ${m.settingsToggledCountToday || 0} time(s)`;
+                        progressText = `Toggled ${m.settingsToggledCountToday || 0} setting(s) today`;
                     } else if (mission.type === 'both_modes') {
-                        const parts = [m.modesPlayedToday.classic ? 'Classic \u2713' : 'Classic',
-                        m.modesPlayedToday.survival ? 'Survival \u2713' : 'Survival'];
+                        const parts = [
+                            m.modesPlayedToday.classic ? 'Classic \u2713' : 'Classic',
+                            m.modesPlayedToday.survival ? 'Survival \u2713' : 'Survival'
+                        ];
                         progressText = parts.join('   \u00b7   ');
                     } else if (mission.type === 'all_modes') {
                         // Mirrors the `all_modes` completion check so the
@@ -3382,6 +3630,17 @@
                             m.modesPlayedToday.classic ? 'Classic \u2713' : 'Classic',
                             m.modesPlayedToday.survival ? 'Survival \u2713' : 'Survival',
                             m.modesPlayedToday.battle ? 'Battle \u2713' : 'Battle'
+                        ];
+                        progressText = parts.join('   \u00b7   ');
+                    } else if (mission.type === 'four_modes') {
+                        // Live status for all five modes — any four ticked
+                        // completes the mission.
+                        const parts = [
+                            m.modesPlayedToday.classic ? 'Classic \u2713' : 'Classic',
+                            m.modesPlayedToday.survival ? 'Survival \u2713' : 'Survival',
+                            m.modesPlayedToday.battle ? 'Battle \u2713' : 'Battle',
+                            m.modesPlayedToday.boss ? 'BOSS \u2713' : 'BOSS',
+                            m.modesPlayedToday.coop ? 'CO-OP \u2713' : 'CO-OP'
                         ];
                         progressText = parts.join('   \u00b7   ');
                     }
@@ -3453,6 +3712,10 @@
 
             // BOSS objectives arrow (only present when the cards drew)
             if (bossNavArrowRect) menuButtons.push({ rect: bossNavArrowRect, action: 'bossObjectives' });
+
+            // Reroll button — registered only while the star balance can
+            // afford it (the locked state is drawn but not clickable).
+            if (rerollRect) menuButtons.push({ rect: rerollRect, action: 'rerollMissions' });
 
             ctx.textAlign = 'left';
             ctx.shadowBlur = 0;
@@ -9799,6 +10062,15 @@
                     break;
                 case 'claimSuperStreak':
                     claimSuperStreak();
+                    break;
+                case 'rerollMissions':
+                    // Shuffle today's missions into a new set for
+                    // MISSION_REROLL_COST stars (see rerollDailyMissions).
+                    if (rerollDailyMissions()) {
+                        playRecordSound();
+                    } else {
+                        playClickSound();
+                    }
                     break;
                 case 'bossObjectives':
                 case 'bossObjectivesMinus':
