@@ -2785,6 +2785,16 @@
             return true;
         }
 
+        // Unequips the current skin so the character reverts to the default
+        // BLUE version. Skins stay owned and can be re-equipped at any time.
+        function unequipSkin() {
+            if (!currentUser) return false;
+            const shop = getUserShop(currentUser);
+            shop.equipped = null;
+            saveUserShop(currentUser, shop);
+            return true;
+        }
+
         // Cached equipped skin (avoids a localStorage parse every frame).
         // The cache is invalidated on saveUserShop and whenever the
         // currentUser changes (keyed on the username).
@@ -4056,13 +4066,20 @@
             ctx.textAlign = 'center';
             ctx.fillText('Earn stars by scoring points in Classic mode — every point is one star.', canvas.width / 2, 560);
 
-            // Bottom row: BACK and MASCOT (view character with the
-            // newly equipped skin). Both return to the main menu.
+            // Bottom row: BACK, REMOVE SKIN (only while a non-default
+            // skin is equipped) and MASCOT (view character with the
+            // newly equipped skin). BACK and MASCOT return to the menu.
             const btnY2 = 564, btnH2 = 35, btnGap = 20;
             const btnW2 = 140;
-            const totalW2 = 2 * btnW2 + btnGap;
+            const showRemoveSkin = !!equipped;
+            const nBottom = showRemoveSkin ? 3 : 2;
+            const totalW2 = nBottom * btnW2 + (nBottom - 1) * btnGap;
             const backX = canvas.width / 2 - totalW2 / 2;
-            const mascotX = backX + btnW2 + btnGap;
+            const removeX = backX + btnW2 + btnGap;
+            // mascotX accounts for the middle REMOVE SKIN button only when
+            // it is actually shown, so the two-button row (no skin equipped)
+            // stays centred exactly like the original layout.
+            const mascotX = showRemoveSkin ? removeX + btnW2 + btnGap : backX + btnW2 + btnGap;
             ctx.shadowBlur = 0;
 
             // BACK button (left)
@@ -4079,6 +4096,35 @@
             ctx.textAlign = 'center';
             ctx.fillText('\u2190 BACK', backX + btnW2 / 2, btnY2 + btnH2 / 2);
             menuButtons.push({ rect: { x: backX, y: btnY2, w: btnW2, h: btnH2 }, action: 'shopBack' });
+
+            // REMOVE SKIN button (middle) — reverts the character to the
+            // default BLUE version. Shown only while a skin is equipped
+            // (with no skin equipped the character is already Blue, so the
+            // button would be a no-op). Owned skins stay available and can
+            // always be re-equipped from the grid above at no extra cost.
+            if (showRemoveSkin) {
+                ctx.fillStyle = 'rgba(46, 18, 24, 0.85)';
+                ctx.strokeStyle = 'rgba(255, 120, 120, 0.45)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(removeX, btnY2, btnW2, btnH2, 10);
+                ctx.fill();
+                ctx.stroke();
+                // Icon + label centred as one group, matching the layout
+                // drawGlassButton uses for its labelled buttons.
+                const label = 'REMOVE SKIN';
+                const iconW = 16, iconGap = 7;
+                ctx.font = 'bold 13px Orbitron, sans-serif';
+                const tw = ctx.measureText(label).width;
+                const groupW = tw + iconGap + iconW;
+                const gx = removeX + (btnW2 - groupW) / 2;
+                drawVectorIcon('refresh', gx + iconW / 2, btnY2 + btnH2 / 2, '#ffb0b0', iconW / 22);
+                ctx.fillStyle = '#ffb0b0';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, gx + iconW + iconGap + tw / 2, btnY2 + btnH2 / 2);
+                menuButtons.push({ rect: { x: removeX, y: btnY2, w: btnW2, h: btnH2 }, action: 'shopRemoveSkin' });
+            }
 
             // MASCOT button (right) — explicitly returns to the main
             // menu so the player can see the mascot with the new skin.
@@ -9982,7 +10028,13 @@
                 default:
                     // SKIN SHOP actions: 'shopBuy_<id>' buys + auto-equips a
                     // skin for SKIN_PRICE stars; 'shopEquip_<id>' switches
-                    // to an already-owned skin.
+                    // to an already-owned skin; 'shopRemoveSkin' reverts to
+                    // the default BLUE skin.
+                    if (action === 'shopRemoveSkin') {
+                        unequipSkin();
+                        playClickSound();
+                        break;
+                    }
                     if (action.indexOf('shopBuy_') === 0) {
                         const skinId = action.slice('shopBuy_'.length);
                         if (buySkin(skinId)) {
